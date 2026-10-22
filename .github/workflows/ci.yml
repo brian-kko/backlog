@@ -1,57 +1,61 @@
-name: CI
+name: CI - Typecheck, Vitest & Playwright
 
 on:
-  pull_request:
-    branches: ["*"]
   push:
-    branches: ["main"]
-  merge_group:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
-# You can leverage Vercel Remote Caching with Turbo to speed up your builds
-# @link https://turborepo.com/docs/core-concepts/remote-caching#remote-caching-on-vercel-builds
-env:
-  FORCE_COLOR: 3
-  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  lint:
+  test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: backlog
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_URL: "postgresql://postgres:password@localhost:5432/backlog"
+      AUTH_SECRET: "ci_test_secret_12345678901234567890"
+      AUTH_DISCORD_ID: "ci_placeholder"
+      AUTH_DISCORD_SECRET: "ci_placeholder"
+
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Setup
-        uses: ./tooling/github/setup
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-      - name: Copy env
-        shell: bash
-        run: cp .env.example .env
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
 
-      - name: Lint
-        run: pnpm lint && pnpm lint:ws
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
 
-  format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
+      - name: Push Drizzle Schema to CI Postgres
+        run: pnpm db:push
 
-      - name: Setup
-        uses: ./tooling/github/setup
-
-      - name: Format
-        run: pnpm format
-
-  typecheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Setup
-        uses: ./tooling/github/setup
-
-      - name: Typecheck
+      - name: Run Monorepo Typecheck
         run: pnpm typecheck
+
+      - name: Run Vitest Unit Tests
+        run: pnpm --filter @acme/validators test
+
+      - name: Install Playwright & Run E2E Browser Tests
+        run: |
+          pnpm --filter @acme/nextjs exec playwright install --with-deps chromium
+          pnpm --filter @acme/nextjs test:e2e

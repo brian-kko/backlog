@@ -1,0 +1,15 @@
+name: Backlog - Deal & Patch Poller
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Next.js Serverless Sync Endpoint
+        run: |
+          curl -X POST "${{ secrets.APP_URL }}/api/cron/sync-backlog" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
