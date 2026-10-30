@@ -47,7 +47,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Push Drizzle Schema to CI Postgres
-        run: pnpm db:push
+        run: pnpm --filter @acme/db push
 
       - name: Run Monorepo Typecheck
         run: pnpm typecheck

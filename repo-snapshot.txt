@@ -1,0 +1,2003 @@
+=== GIT STATUS & FILE TREE ===
+M  .gitignore
+MM CLAUDE.md
+AM PLAN.md
+AM apps/nextjs/e2e/discovery.spec.ts
+AM apps/nextjs/e2e/public-discovery.spec.ts
+MM apps/nextjs/e2e/smoke.spec.ts
+M  apps/nextjs/playwright.config.ts
+AM apps/nextjs/src/app/_components/backlog-feed.tsx
+AM apps/nextjs/src/app/_components/backlog-summary.tsx
+AM apps/nextjs/src/app/deals/page.tsx
+AM apps/nextjs/src/app/game/[appId]/game-hub.tsx
+A  apps/nextjs/src/app/game/[appId]/page.tsx
+MM apps/nextjs/src/app/layout.tsx
+AM apps/nextjs/src/app/library/page.tsx
+MM apps/nextjs/src/app/page.tsx
+MM apps/nextjs/src/app/styles.css
+AM apps/nextjs/src/app/updates/page.tsx
+AM apps/nextjs/src/app/wishlist/page.tsx
+AM apps/nextjs/src/components/backlog-provider.tsx
+AM apps/nextjs/src/components/deal-cards.tsx
+AM apps/nextjs/src/components/game-ui.tsx
+AM apps/nextjs/src/components/navbar.tsx
+M  apps/nextjs/src/trpc/react.tsx
+A  apps/nextjs/src/utils/launcher.ts
+A  packages/api/src/curated-games.ts
+M  packages/api/src/root.ts
+AM packages/api/src/router/backlog.ts
+AM packages/api/src/steam-discovery.ts
+A  packages/db/migrations/0001_backlog_completion_status.sql
+M  packages/db/src/schema.ts
+MM packages/validators/src/__tests__/backlog-parser.test.ts
+MM packages/validators/src/backlog-parser.ts
+?? apps/nextjs/src/components/backlog-editor.tsx
+?? docs/
+?? repo-snapshot-2.txt
+?? repo-snapshot.txt
+apps/nextjs/src/app/_components/auth-showcase.tsx
+apps/nextjs/src/app/_components/backlog-feed.tsx
+apps/nextjs/src/app/_components/backlog-summary.tsx
+apps/nextjs/src/app/_components/posts.tsx
+apps/nextjs/src/app/deals/page.tsx
+apps/nextjs/src/app/game/[appId]/game-hub.tsx
+apps/nextjs/src/app/game/[appId]/page.tsx
+apps/nextjs/src/app/layout.tsx
+apps/nextjs/src/app/library/page.tsx
+apps/nextjs/src/app/page.tsx
+apps/nextjs/src/app/styles.css
+apps/nextjs/src/app/updates/page.tsx
+apps/nextjs/src/app/wishlist/page.tsx
+apps/nextjs/src/auth/client.ts
+apps/nextjs/src/auth/server.ts
+apps/nextjs/src/components/backlog-editor.tsx
+apps/nextjs/src/components/backlog-provider.tsx
+apps/nextjs/src/components/deal-cards.tsx
+apps/nextjs/src/components/game-ui.tsx
+apps/nextjs/src/components/navbar.tsx
+apps/nextjs/src/env.ts
+apps/nextjs/src/trpc/query-client.ts
+apps/nextjs/src/trpc/react.tsx
+apps/nextjs/src/trpc/server.tsx
+apps/nextjs/src/utils/launcher.ts
+packages/api/src/curated-games.ts
+packages/api/src/index.ts
+packages/api/src/root.ts
+packages/api/src/router/auth.ts
+packages/api/src/router/backlog.ts
+packages/api/src/router/post.ts
+packages/api/src/steam-discovery.ts
+packages/api/src/trpc.ts
+packages/db/src/auth-schema.ts
+packages/db/src/client.ts
+packages/db/src/index.ts
+packages/db/src/schema.ts
+packages/validators/src/__tests__/backlog-parser.test.ts
+packages/validators/src/backlog-parser.ts
+packages/validators/src/index.ts
+
+==========================================
+FILE: packages/validators/src/backlog-parser.ts
+==========================================
+import { z } from "zod/v4";
+
+// Match PostgreSQL integer IDs and numeric(10, 2) prices.
+const SteamAppIdSchema = z.number().int().positive().max(2147483647);
+const PriceSchema = z.number().min(0).max(99999999.99).multipleOf(0.01);
+
+export const UpsertBacklogItemSchema = z.object({
+  steamAppId: SteamAppIdSchema,
+  title: z.string().trim().min(1).max(500),
+  isOwned: z.boolean().optional(),
+  amountPaid: PriceSchema.nullable().optional(),
+  targetPrice: PriceSchema.nullable().optional(),
+  notifyPatches: z.boolean().optional(),
+  notifyEvents: z.boolean().optional(),
+  completionStatus: z.enum(["backlog", "playing", "completed"]).optional(),
+});
+
+export const SearchDealsInputSchema = z
+  .object({
+    query: z.string().trim().max(200).optional().default(""),
+    storeIds: z
+      .array(
+        z.enum([
+          "1",
+          "2",
+          "3",
+          "7",
+          "11",
+          "13",
+          "15",
+          "21",
+          "23",
+          "25",
+          "27",
+          "28",
+          "30",
+          "35",
+        ]),
+      )
+      .max(14)
+      .optional(),
+    maxPrice: z.number().min(0).max(1000).optional(),
+    steamOnly: z.boolean().optional(),
+    onSale: z.boolean().optional(),
+    sort: z.enum(["deals", "price", "savings", "title", "recent"]).optional(),
+    page: z.number().int().min(0).max(100).optional(),
+    pageSize: z.number().int().min(1).max(60).optional(),
+  })
+  .optional();
+
+export const DealItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  cheapestPrice: z.coerce.number().nonnegative(),
+  normalPrice: z.coerce.number().nonnegative(),
+  savingsPercent: z.coerce.number().nonnegative(),
+  steamAppId: z.number().nullable().optional(),
+  thumb: z.string(),
+  source: z.enum(["cheapshark", "steam", "catalog"]).optional(),
+  storeId: z.string().optional(),
+  url: z.url().optional(),
+  steamRedeemable: z.boolean().optional(),
+});
+
+export const storeNames: Readonly<Record<string, string>> = {
+  "1": "Steam",
+  "2": "GamersGate",
+  "3": "Green Man Gaming",
+  "7": "GOG",
+  "11": "Humble Store",
+  "13": "Ubisoft Store",
+  "15": "Fanatical",
+  "21": "WinGameStore",
+  "23": "GameBillet",
+  "25": "Epic Games Store",
+  "27": "Gamesplanet",
+  "28": "Gamesload",
+  "30": "IndieGala",
+  "35": "DreamGame",
+};
+
+export const SteamFeedInputSchema = z
+  .object({
+    steamAppId: SteamAppIdSchema.optional(),
+    category: z.enum(["patch_note", "event"]).optional(),
+    limit: z.number().int().min(1).max(100).default(50),
+  })
+  .prefault({});
+
+export const BacklogExportSchema = z.object({
+  version: z.literal(1),
+  exportedAt: z.iso.datetime(),
+  items: z.array(
+    z.object({
+      steamAppId: SteamAppIdSchema,
+      title: z.string().trim().min(1).max(500),
+      isOwned: z.boolean(),
+      amountPaid: PriceSchema.optional(),
+      targetPrice: PriceSchema.optional(),
+      completionStatus: z.enum(["backlog", "playing", "completed"]).optional(),
+      notifyPatches: z.boolean().optional(),
+      notifyEvents: z.boolean().optional(),
+    }),
+  ),
+});
+
+export function cleanSteamText(text: string): string {
+  const entities: Record<string, string> = {
+    quot: '"',
+    amp: "&",
+    apos: "'",
+    lt: "<",
+    gt: ">",
+    nbsp: " ",
+    ndash: "–",
+    mdash: "—",
+    hellip: "…",
+    rsquo: "’",
+    lsquo: "‘",
+    ldquo: "“",
+    rdquo: "”",
+  };
+  return text
+    .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
+      if (!code.startsWith("#")) return entities[code.toLowerCase()] ?? entity;
+      const point = code.toLowerCase().startsWith("#x")
+        ? Number.parseInt(code.slice(2), 16)
+        : Number.parseInt(code.slice(1), 10);
+      return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : "";
+    })
+    .replace(/\[img\][\s\S]*?\[\/img\]/gi, "")
+    .replace(/\[\/?[a-z*][^\]]*\]/gi, "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/(?:https?:\/\/|www\.)[^\s<>\]]+/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function classifyAndCleanSteamNews(item: {
+  title: string;
+  contents: string;
+  tags?: string[];
+  feedlabel?: string;
+}): { category: "patch_note" | "event" | "general"; cleanSummary: string } {
+  const cleanSummary = cleanSteamText(item.contents).slice(0, 280);
+
+  const text = [
+    item.title,
+    cleanSummary,
+    ...(item.tags ?? []),
+    item.feedlabel ?? "",
+  ].join(" ");
+  const isPatch =
+    /\b(patch\w*|hotfix\w*|update\w*|changelog\w*|balance\w*|bug\w*|fix\w*|version\w*|notes|v\d+)\b/i.test(
+      text,
+    );
+
+  if (isPatch) return { category: "patch_note", cleanSummary };
+
+  const isEvent =
+    /\b(event\w*|double\s*xp|free\s*weekend|season\w*|tournament\w*|drops|raid\w*|festival\w*|limited[\s-]*time|anniversary|dlc|expansion\w*)\b/i.test(
+      text,
+    );
+
+  if (isEvent) return { category: "event", cleanSummary };
+
+  return { category: "general", cleanSummary };
+}
+
+export function evaluateDealAlert(params: {
+  isOwned: boolean;
+  currentPrice: number;
+  targetPrice: number | null;
+  historicalLow: number;
+}): { shouldAlert: boolean; reason: "TARGET_MET" | "ALL_TIME_LOW" | null } {
+  if (params.isOwned) return { shouldAlert: false, reason: null };
+  if (
+    params.targetPrice !== null &&
+    params.currentPrice <= params.targetPrice
+  ) {
+    return { shouldAlert: true, reason: "TARGET_MET" };
+  }
+  if (params.currentPrice > 0 && params.currentPrice <= params.historicalLow) {
+    return { shouldAlert: true, reason: "ALL_TIME_LOW" };
+  }
+  return { shouldAlert: false, reason: null };
+}
+
+==========================================
+FILE: packages/api/src/router/backlog.ts
+==========================================
+import type { TRPCRouterRecord } from "@trpc/server";
+import { z } from "zod/v4";
+
+import { and, asc, eq, sql } from "@acme/db";
+import { userBacklog } from "@acme/db/schema";
+import {
+  BacklogExportSchema,
+  DealItemSchema,
+  SearchDealsInputSchema,
+  SteamFeedInputSchema,
+  UpsertBacklogItemSchema,
+} from "@acme/validators";
+
+import {
+  fetchDeals,
+  fetchGameMetadata,
+  fetchGamePrices,
+  fetchSteamFeed,
+} from "../steam-discovery";
+import { protectedProcedure, publicProcedure } from "../trpc";
+
+export const backlogRouter = {
+  getSteamFeed: publicProcedure
+    .input(SteamFeedInputSchema)
+    .query(async ({ input }) => {
+      const feed = await fetchSteamFeed(input.steamAppId ?? 1091500);
+      return {
+        patchNotes:
+          input.category === "event"
+            ? []
+            : feed.patchNotes.slice(0, input.limit),
+        events:
+          input.category === "patch_note"
+            ? []
+            : feed.events.slice(0, input.limit),
+      };
+    }),
+
+  searchDeals: publicProcedure
+    .input(SearchDealsInputSchema)
+    .output(z.array(DealItemSchema))
+    .query(({ input }) => fetchDeals(input?.query, input)),
+
+  getGamePrices: publicProcedure
+    .input(
+      z.object({ steamAppId: z.number().int().positive().max(2147483647) }),
+    )
+    .query(async ({ input }) => ({
+      prices: await fetchGamePrices(input.steamAppId),
+    })),
+
+  removeBacklogItem: protectedProcedure
+    .input(
+      z.object({ steamAppId: z.number().int().positive().max(2147483647) }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(userBacklog)
+        .where(
+          and(
+            eq(userBacklog.userId, ctx.session.user.id),
+            eq(userBacklog.steamAppId, input.steamAppId),
+          ),
+        );
+      return { removed: input.steamAppId };
+    }),
+
+  getGameDetails: publicProcedure
+    .input(
+      z.object({ steamAppId: z.number().int().positive().max(2147483647) }),
+    )
+    .query(async ({ input }) => {
+      const metadata = fetchGameMetadata(input.steamAppId);
+      const [feed, game, prices] = await Promise.all([
+        fetchSteamFeed(input.steamAppId),
+        metadata,
+        fetchGamePrices(input.steamAppId, metadata),
+      ]);
+      return {
+        steamAppId: input.steamAppId,
+        feed,
+        metadata: game,
+        prices,
+      };
+    }),
+
+  getBacklog: protectedProcedure.query(async ({ ctx }) => {
+    const items = await ctx.db
+      .select()
+      .from(userBacklog)
+      .where(eq(userBacklog.userId, ctx.session.user.id))
+      .orderBy(asc(userBacklog.title));
+    return items.map((item) => ({
+      ...item,
+      amountPaid: item.amountPaid === null ? null : Number(item.amountPaid),
+      targetPrice: item.targetPrice === null ? null : Number(item.targetPrice),
+    }));
+  }),
+
+  importBacklogJson: protectedProcedure
+    .input(BacklogExportSchema)
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.transaction(async (tx) => {
+        for (const item of input.items) {
+          const values = {
+            ...item,
+            amountPaid: item.amountPaid?.toFixed(2) ?? null,
+            targetPrice: item.targetPrice?.toFixed(2) ?? null,
+            completionStatus: item.completionStatus ?? "backlog",
+            notifyPatches: item.notifyPatches ?? true,
+            notifyEvents: item.notifyEvents ?? true,
+          };
+          await tx
+            .insert(userBacklog)
+            .values({ ...values, userId: ctx.session.user.id })
+            .onConflictDoUpdate({
+              target: [userBacklog.userId, userBacklog.steamAppId],
+              set: values,
+            });
+        }
+      });
+      return { imported: input.items.length };
+    }),
+
+  getBacklogStats: protectedProcedure.query(async ({ ctx }) => {
+    const [stats] = await ctx.db
+      .select({
+        totalSpent: sql<string>`coalesce(sum(${userBacklog.amountPaid}) filter (where ${userBacklog.isOwned}), 0)`,
+        ownedCount:
+          sql<number>`count(*) filter (where ${userBacklog.isOwned})`.mapWith(
+            Number,
+          ),
+        wishlistedCount:
+          sql<number>`count(*) filter (where not ${userBacklog.isOwned})`.mapWith(
+            Number,
+          ),
+      })
+      .from(userBacklog)
+      .where(eq(userBacklog.userId, ctx.session.user.id));
+    return {
+      totalSpent: Number(stats?.totalSpent ?? 0),
+      ownedCount: stats?.ownedCount ?? 0,
+      wishlistedCount: stats?.wishlistedCount ?? 0,
+    };
+  }),
+
+  upsertBacklogItem: protectedProcedure
+    .input(UpsertBacklogItemSchema)
+    .mutation(async ({ ctx, input }) => {
+      // Undefined fields stay unchanged on conflict; null explicitly clears a price.
+      const values = {
+        ...input,
+        amountPaid:
+          input.amountPaid == null
+            ? input.amountPaid
+            : input.amountPaid.toFixed(2),
+        targetPrice:
+          input.targetPrice == null
+            ? input.targetPrice
+            : input.targetPrice.toFixed(2),
+      };
+      const [item] = await ctx.db
+        .insert(userBacklog)
+        .values({ ...values, userId: ctx.session.user.id })
+        .onConflictDoUpdate({
+          target: [userBacklog.userId, userBacklog.steamAppId],
+          set: values,
+        })
+        .returning();
+      return item;
+    }),
+
+  exportBacklogJson: protectedProcedure
+    .output(BacklogExportSchema)
+    .query(async ({ ctx }) => {
+      const items = await ctx.db
+        .select({
+          steamAppId: userBacklog.steamAppId,
+          title: userBacklog.title,
+          isOwned: userBacklog.isOwned,
+          amountPaid: userBacklog.amountPaid,
+          targetPrice: userBacklog.targetPrice,
+          completionStatus: userBacklog.completionStatus,
+          notifyPatches: userBacklog.notifyPatches,
+          notifyEvents: userBacklog.notifyEvents,
+        })
+        .from(userBacklog)
+        .where(eq(userBacklog.userId, ctx.session.user.id))
+        .orderBy(asc(userBacklog.steamAppId));
+      return {
+        version: 1 as const,
+        exportedAt: new Date().toISOString(),
+        items: items.map((item) => ({
+          ...item,
+          amountPaid:
+            item.amountPaid === null ? undefined : Number(item.amountPaid),
+          targetPrice:
+            item.targetPrice === null ? undefined : Number(item.targetPrice),
+        })),
+      };
+    }),
+} satisfies TRPCRouterRecord;
+
+==========================================
+FILE: apps/nextjs/src/components/navbar.tsx
+==========================================
+"use client";
+
+import { useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import { authClient } from "~/auth/client";
+import { useBacklog } from "./backlog-provider";
+
+const links = [
+  {
+    label: "Dashboard",
+    href: "/",
+    id: "home",
+    path: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  },
+  {
+    label: "Deals",
+    href: "/deals",
+    id: "deals",
+    path: "M20 13 13 20a2 2 0 0 1-3 0L3 13V3h10l7 7a2 2 0 0 1 0 3ZM7 7h.01",
+  },
+  {
+    label: "Library",
+    href: "/library",
+    id: "library",
+    path: "M4 4v16M9 4v16M14 4v16M18 4l4 16",
+  },
+  {
+    label: "Wishlist",
+    href: "/wishlist",
+    id: "wishlist",
+    path: "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z",
+  },
+  {
+    label: "Updates",
+    href: "/updates",
+    id: "updates",
+    path: "M12 3a6 6 0 0 0-6 6c0 7-3 7-3 9h18c0-2-3-2-3-9a6 6 0 0 0-6-6ZM10 21h4",
+  },
+] as const;
+
+const subscribeDesktop = () => () => undefined;
+const desktopSnapshot = () => Boolean(window.__TAURI__);
+const serverDesktopSnapshot = () => false;
+
+export function Navbar() {
+  const pathname = usePathname();
+  const session = authClient.useSession();
+  const { items, isGuest } = useBacklog();
+  const desktop = useSyncExternalStore(
+    subscribeDesktop,
+    desktopSnapshot,
+    serverDesktopSnapshot,
+  );
+  const [authError, setAuthError] = useState("");
+
+  return (
+    <header className="site-nav">
+      <div className="nav-shell">
+        <Link href="/" aria-label="Backlog home" className="brand">
+          <span className="brand-emblem" aria-hidden="true">
+            ♦
+          </span>{" "}
+          <span>
+            <span className="brand-name">Backlog</span>
+          </span>
+        </Link>
+        <nav aria-label="Main navigation" className="nav-links">
+          {links.map(({ label, href, id, path }) => (
+            <Link
+              key={id}
+              href={href}
+              data-testid={`nav-${id}`}
+              aria-current={pathname === href ? "page" : undefined}
+              className="nav-link"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d={path} />
+              </svg>
+              {label}
+              {(id === "library" || id === "wishlist") && (
+                <span
+                  className="nav-count"
+                  aria-label={`${id === "library" ? "Owned" : "Wishlisted"} games`}
+                >
+                  {
+                    items.filter((item) =>
+                      id === "library" ? item.isOwned : !item.isOwned,
+                    ).length
+                  }
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+        <div className="nav-controls">
+          <span
+            className="companion-badge"
+            title="The desktop companion unlocks local .vdf auto-detection, standalone .exe launching, and live playtime tracking."
+          >
+            <span aria-hidden="true">●</span>{" "}
+            {desktop ? "Desktop Connected" : "PC Companion: Web URI Mode"}
+          </span>
+          {!isGuest && session.data ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm">{session.data.user.name}</span>
+              <button
+                className="action secondary"
+                onClick={() => void authClient.signOut()}
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <button
+              className="action secondary"
+              onClick={async () => {
+                try {
+                  const result = await authClient.signIn.social({
+                    provider: "discord",
+                    callbackURL: "/",
+                  });
+                  if (result.error)
+                    setAuthError("Sign in is unavailable. Please try again.");
+                } catch {
+                  setAuthError("Sign in is unavailable. Please try again.");
+                }
+              }}
+            >
+              Sign in
+            </button>
+          )}
+        </div>
+        {authError && <p role="alert">{authError}</p>}
+      </div>
+    </header>
+  );
+}
+
+==========================================
+FILE: apps/nextjs/src/app/page.tsx
+==========================================
+"use client";
+
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+
+import { featuredGames, useBacklog } from "~/components/backlog-provider";
+import { DealCards } from "~/components/deal-cards";
+import {
+  GameArt,
+  GameLink,
+  LaunchLink,
+  PageHeading,
+} from "~/components/game-ui";
+import { useTRPC } from "~/trpc/react";
+import { NewsCards } from "./_components/backlog-feed";
+import { BacklogSummary } from "./_components/backlog-summary";
+
+export default function HomePage() {
+  const { items, isGuest, error } = useBacklog();
+  const trpc = useTRPC();
+  const deals = useQuery(trpc.backlog.searchDeals.queryOptions({}));
+  const feed = useQuery(
+    trpc.backlog.getSteamFeed.queryOptions({ steamAppId: 1091500 }),
+  );
+  const owned = items
+    .filter((item) => item.isOwned)
+    .sort(
+      (a, b) =>
+        Number(b.completionStatus === "playing") -
+        Number(a.completionStatus === "playing"),
+    );
+  const quickLaunch = (owned.length ? owned : featuredGames).slice(0, 3);
+  const featured = quickLaunch[0];
+  const completed = owned.filter(
+    (item) => item.completionStatus === "completed",
+  ).length;
+  const updates = [
+    ...(feed.data?.patchNotes ?? []),
+    ...(feed.data?.events ?? []),
+  ]
+    .filter((item) => item.official !== false)
+    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+    .slice(0, 4);
+  return (
+    <main className="page-shell">
+      <PageHeading eyebrow="YOUR COLLECTION" title="Dashboard">
+        Your games, prices, and recent updates in one place.
+      </PageHeading>
+      {isGuest && (
+        <aside className="guest-banner">
+          <div>
+            <strong>You’re exploring in Guest Mode</strong>
+            <p>
+              Your collection stays in this browser. Sign in to save it to your
+              account.
+            </p>
+          </div>
+          <Link href="/deals" className="action secondary">
+            Explore live sales →
+          </Link>
+        </aside>
+      )}
+      {error && <p role="alert">{error}</p>}
+      <BacklogSummary />
+      <section className="space-y-5">
+        <div className="section-heading">
+          <h2>Jump Back In</h2>
+          <Link className="text-link" href="/library">
+            Your library →
+          </Link>
+        </div>
+        <div className="feature-layout">
+          {featured && (
+            <article className="feature-game">
+              <GameArt
+                appId={featured.steamAppId}
+                title={featured.title}
+                priority
+              />
+              <div className="feature-copy">
+                <p className="eyebrow">
+                  {owned.length ? "From your library" : "Explore a game"}
+                </p>
+                <h3>{featured.title}</h3>
+                <p className="text-muted-foreground text-sm">
+                  {items.find((item) => item.steamAppId === featured.steamAppId)
+                    ?.completionStatus === "playing"
+                    ? "Currently playing"
+                    : owned.length
+                      ? "Ready for your next session"
+                      : "Add a game from Deals to start your collection."}
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-5">
+                  {owned.length > 0 && (
+                    <LaunchLink steamAppId={featured.steamAppId} />
+                  )}
+                  <GameLink steamAppId={featured.steamAppId}>Details</GameLink>
+                </div>
+              </div>
+            </article>
+          )}
+          <aside
+            className="collection-queue"
+            aria-label="Your collection at a glance"
+          >
+            <div className="queue-heading">
+              <h3>
+                {owned.length ? "In your library" : "Explore these games"}
+              </h3>
+              <span className="eyebrow">
+                {owned.length ? `${owned.length} GAMES` : "Featured"}
+              </span>
+            </div>
+            {quickLaunch.map((game, index) => (
+              <div className="queue-item" key={game.steamAppId}>
+                <span className="queue-number" aria-hidden="true">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <GameArt appId={game.steamAppId} title={game.title} />
+                <div className="space-y-2">
+                  <h4>{game.title}</h4>
+                  <GameLink steamAppId={game.steamAppId}>Open game</GameLink>
+                </div>
+              </div>
+            ))}
+            <p className="queue-footer">
+              {owned.length
+                ? `${completed} of ${owned.length} games completed.`
+                : "Browse Deals to build your library."}
+            </p>
+          </aside>
+        </div>
+      </section>
+      <div className="journal-columns">
+        <section className="space-y-5">
+          <div className="section-heading">
+            <h2>Top Live Deals</h2>
+            <Link className="text-link" href="/deals">
+              View All Deals →
+            </Link>
+          </div>
+          {deals.isPending ? (
+            <p role="status">Loading live deals…</p>
+          ) : deals.isError ? (
+            <p role="alert">
+              Deals are temporarily unavailable.{" "}
+              <button
+                className="text-link"
+                onClick={() => void deals.refetch()}
+              >
+                Try again
+              </button>
+            </p>
+          ) : deals.data.length ? (
+            <DealCards compact deals={deals.data.slice(0, 4)} />
+          ) : (
+            <p className="empty-state">
+              No featured deals available right now.
+            </p>
+          )}
+        </section>
+        <section className="space-y-5">
+          <div className="section-heading">
+            <h2>Latest Game Updates</h2>
+            <Link className="text-link" href="/updates">
+              View All Updates →
+            </Link>
+          </div>
+          {feed.isPending ? (
+            <p role="status">Loading Steam news…</p>
+          ) : feed.isError ? (
+            <p role="alert">
+              Steam news is temporarily unavailable.{" "}
+              <button className="text-link" onClick={() => void feed.refetch()}>
+                Try again
+              </button>
+            </p>
+          ) : updates.length ? (
+            <NewsCards compact items={updates} />
+          ) : (
+            <p className="empty-state">No recent announcements.</p>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+==========================================
+FILE: apps/nextjs/src/app/deals/page.tsx
+==========================================
+"use client";
+
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import { SearchDealsInputSchema, storeNames } from "@acme/validators";
+
+import { useBacklog } from "~/components/backlog-provider";
+import { DealCards } from "~/components/deal-cards";
+import { PageHeading } from "~/components/game-ui";
+import { useTRPC } from "~/trpc/react";
+
+interface Filters {
+  query: string;
+  storeIds: string[];
+  maxPrice?: number;
+  steamOnly: boolean;
+  onSale: boolean;
+  minDiscount: number;
+  hideOwned: boolean;
+  sort: "deals" | "price" | "savings" | "title" | "recent";
+  page: number;
+  pageSize: number;
+  view: "grid" | "list";
+}
+const defaults: Filters = {
+  query: "",
+  storeIds: [],
+  maxPrice: undefined,
+  steamOnly: false,
+  onSale: false,
+  minDiscount: 0,
+  hideOwned: false,
+  sort: "deals",
+  page: 0,
+  pageSize: 24,
+  view: "grid",
+};
+function readFilters(): Filters {
+  const params = new URLSearchParams(window.location.search);
+  const input = SearchDealsInputSchema.safeParse({
+    query: params.get("q") ?? "",
+    storeIds: (params.get("stores") ?? "")
+      .split(",")
+      .filter((id) => id in storeNames),
+    maxPrice: params.has("price") ? Number(params.get("price")) : undefined,
+    steamOnly: params.get("steam") === "1",
+    onSale: params.get("sale") === "1",
+    sort: params.get("sort") ?? "deals",
+    page: Number(params.get("page") ?? 0),
+    pageSize: Number(params.get("size") ?? 24),
+  });
+  return input.success
+    ? ({
+        ...defaults,
+        ...input.data,
+        minDiscount: [0, 25, 50, 75].includes(Number(params.get("discount")))
+          ? Number(params.get("discount"))
+          : 0,
+        hideOwned: params.get("owned") === "1",
+        view: params.get("view") === "list" ? "list" : "grid",
+      } as Filters)
+    : defaults;
+}
+function writeFilters(value: Filters) {
+  const params = new URLSearchParams();
+  if (value.query) params.set("q", value.query);
+  if (value.storeIds.length)
+    params.set("stores", [...value.storeIds].sort().join(","));
+  if (value.maxPrice !== undefined) params.set("price", String(value.maxPrice));
+  if (value.steamOnly) params.set("steam", "1");
+  if (value.onSale) params.set("sale", "1");
+  if (value.hideOwned) params.set("owned", "1");
+  if (value.minDiscount) params.set("discount", String(value.minDiscount));
+  if (value.sort !== "deals") params.set("sort", value.sort);
+  if (value.page) params.set("page", String(value.page));
+  if (value.pageSize !== 24) params.set("size", String(value.pageSize));
+  if (value.view === "list") params.set("view", "list");
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${params.size ? `?${params}` : ""}`,
+  );
+}
+
+export default function DealsPage() {
+  const trpc = useTRPC();
+  const { items } = useBacklog();
+  const [filters, setFilters] = useState(defaults);
+  const [search, setSearch] = useState("");
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const restore = () => {
+      const value = readFilters();
+      setFilters(value);
+      setSearch(value.query);
+      setReady(true);
+    };
+    restore();
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, []);
+  function change(patch: Partial<Filters>) {
+    const value = { ...filters, page: 0, ...patch };
+    setFilters(value);
+    writeFilters(value);
+  }
+  const input = SearchDealsInputSchema.parse({
+    query: filters.query,
+    storeIds: filters.storeIds,
+    maxPrice: filters.maxPrice,
+    steamOnly: filters.steamOnly,
+    onSale: filters.onSale,
+    sort: filters.sort,
+    page: filters.page,
+    pageSize: filters.pageSize,
+  });
+  const deals = useQuery(
+    trpc.backlog.searchDeals.queryOptions(input, { enabled: ready }),
+  );
+  const owned = new Set(
+    items.filter((item) => item.isOwned).map((item) => item.steamAppId),
+  );
+  const filtered = (deals.data ?? [])
+    .filter(
+      (deal) =>
+        (!filters.storeIds.length ||
+          filters.storeIds.includes(deal.storeId ?? "")) &&
+        (filters.maxPrice === undefined ||
+          deal.cheapestPrice <= filters.maxPrice) &&
+        (!filters.steamOnly || deal.steamRedeemable || deal.storeId === "1") &&
+        (!filters.onSale || deal.savingsPercent > 0) &&
+        deal.savingsPercent >= filters.minDiscount &&
+        (!filters.hideOwned || !deal.steamAppId || !owned.has(deal.steamAppId)),
+    )
+    .sort((a, b) =>
+      filters.sort === "price"
+        ? a.cheapestPrice - b.cheapestPrice
+        : filters.sort === "savings"
+          ? b.savingsPercent - a.savingsPercent
+          : filters.sort === "title"
+            ? a.title.localeCompare(b.title)
+            : 0,
+    );
+  const active =
+    filters.storeIds.length > 0 ||
+    filters.maxPrice !== undefined ||
+    filters.steamOnly ||
+    filters.onSale ||
+    filters.minDiscount > 0 ||
+    filters.hideOwned;
+  return (
+    <main className="page-shell">
+      <PageHeading eyebrow="DEALS" title="PC game deals">
+        Compare PC game offers across stores. All prices are in USD.
+      </PageHeading>
+      <section
+        aria-label="Search and filter deals"
+        className="panel deal-toolbar"
+      >
+        <form
+          className="deal-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            change({ query: search.trim() });
+          }}
+        >
+          <label className="field-label" htmlFor="deal-search">
+            Search game deals
+          </label>
+          <div className="flex gap-3">
+            <input
+              className="form-control min-w-0 flex-1"
+              id="deal-search"
+              data-testid="deal-search-input"
+              placeholder="Game title…"
+              maxLength={200}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <button className="action" type="submit">
+              Search
+            </button>
+          </div>
+          {filters.query && (
+            <button
+              type="button"
+              className="text-link mt-2"
+              onClick={() => {
+                setSearch("");
+                change({ query: "" });
+              }}
+            >
+              Clear search
+            </button>
+          )}
+        </form>
+        <div className="deal-filter-grid">
+          <details
+            className="store-picker"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+              }
+            }}
+          >
+            <summary>
+              Stores{" "}
+              <span>
+                {filters.storeIds.length
+                  ? `${filters.storeIds.length} selected`
+                  : "All stores"}
+              </span>
+            </summary>
+            <fieldset>
+              <legend className="sr-only">Buy from</legend>
+              <div className="flex justify-between gap-4">
+                <button
+                  type="button"
+                  className="text-link"
+                  onClick={() => change({ storeIds: [] })}
+                >
+                  All stores
+                </button>
+                <button
+                  type="button"
+                  className="text-link"
+                  onClick={(event) => {
+                    const picker = event.currentTarget.closest("details");
+                    if (picker) {
+                      picker.open = false;
+                      picker.querySelector("summary")?.focus();
+                    }
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+              {Object.entries(storeNames).map(([id, name]) => (
+                <label key={id}>
+                  <input
+                    type="checkbox"
+                    aria-label={`${name} store`}
+                    checked={filters.storeIds.includes(id)}
+                    onChange={(event) =>
+                      change({
+                        storeIds: event.target.checked
+                          ? [...filters.storeIds, id]
+                          : filters.storeIds.filter((value) => value !== id),
+                      })
+                    }
+                  />
+                  {name}
+                </label>
+              ))}
+            </fieldset>
+          </details>
+          <label className="field-label">
+            Maximum price
+            <select
+              className="form-control mt-2 w-full"
+              aria-label="Maximum price"
+              value={filters.maxPrice ?? ""}
+              onChange={(event) =>
+                change({
+                  maxPrice:
+                    event.target.value === ""
+                      ? undefined
+                      : Number(event.target.value),
+                })
+              }
+            >
+              {[
+                ["", "Any price"],
+                ["0", "Free"],
+                ["5", "$5"],
+                ["10", "$10"],
+                ["14.99", "Under $15"],
+                ["20", "$20"],
+                ["30", "$30"],
+                ["50", "$50"],
+                ["100", "$100"],
+              ].map(([value, label]) => (
+                <option
+                  key={value}
+                  value={value}
+                  className="bg-zinc-900 text-zinc-100"
+                >
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-label">
+            Minimum discount
+            <select
+              className="form-control mt-2 w-full"
+              aria-label="Minimum discount"
+              value={filters.minDiscount}
+              onChange={(event) =>
+                change({ minDiscount: Number(event.target.value) })
+              }
+            >
+              {[0, 25, 50, 75].map((value) => (
+                <option
+                  key={value}
+                  value={value}
+                  className="bg-zinc-900 text-zinc-100"
+                >
+                  {value ? `${value}% off` : "Any discount"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-label">
+            Sort by
+            <select
+              className="form-control mt-2 w-full"
+              aria-label="Sort deals"
+              value={filters.sort}
+              onChange={(event) =>
+                change({ sort: event.target.value as Filters["sort"] })
+              }
+            >
+              {[
+                ["deals", "Best deals"],
+                ["price", "Lowest price"],
+                ["savings", "Biggest discount"],
+                ["title", "Title A–Z"],
+                ["recent", "Newest offers"],
+              ].map(([value, label]) => (
+                <option
+                  key={value}
+                  value={value}
+                  className="bg-zinc-900 text-zinc-100"
+                >
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="filter-bar" aria-label="Deal filters">
+          <button
+            className="filter-pill"
+            aria-pressed={!active}
+            onClick={() => change({ ...defaults, query: filters.query })}
+          >
+            All Deals
+          </button>
+          <button
+            className="filter-pill"
+            aria-pressed={filters.maxPrice === 14.99}
+            onClick={() =>
+              change({
+                maxPrice: filters.maxPrice === 14.99 ? undefined : 14.99,
+              })
+            }
+          >
+            Under $15
+          </button>
+          <button
+            className="filter-pill"
+            aria-pressed={filters.minDiscount === 50}
+            onClick={() =>
+              change({ minDiscount: filters.minDiscount === 50 ? 0 : 50 })
+            }
+          >
+            50%+ Off
+          </button>
+          <button
+            className="filter-pill"
+            aria-pressed={filters.steamOnly}
+            onClick={() => change({ steamOnly: !filters.steamOnly })}
+          >
+            Steam Redeemable
+          </button>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={filters.onSale}
+              onChange={(event) => change({ onSale: event.target.checked })}
+            />
+            On sale only
+          </label>
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={filters.hideOwned}
+              onChange={(event) => change({ hideOwned: event.target.checked })}
+            />
+            Hide owned games
+          </label>
+          {active && (
+            <button
+              className="text-link"
+              onClick={() => change({ ...defaults, query: filters.query })}
+            >
+              Reset filters
+            </button>
+          )}
+        </div>
+        <p className="filter-help">
+          Filters combine. Store and Steam activation data come from CheapShark;
+          check the seller’s activation details before buying. Discount and
+          ownership filters apply to this page of offers.
+        </p>
+      </section>
+      <section className="space-y-5" aria-busy={deals.isFetching}>
+        <div className="section-heading">
+          <h2>
+            {filters.query
+              ? `Results for “${filters.query}”`
+              : "Featured Deals"}
+          </h2>
+          <p className="text-muted-foreground text-sm" aria-live="polite">
+            {deals.isFetching
+              ? "Finding offers…"
+              : `${filtered.length} of ${deals.data?.length ?? 0} offers · page ${filters.page + 1}`}
+          </p>
+          <div className="result-controls">
+            <label>
+              Per page{" "}
+              <select
+                className="form-control"
+                aria-label="Offers per page"
+                value={filters.pageSize}
+                onChange={(event) =>
+                  change({ pageSize: Number(event.target.value) })
+                }
+              >
+                {[12, 24, 60].map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="filter-pill"
+              aria-pressed={filters.view === "grid"}
+              onClick={() => change({ view: "grid", page: filters.page })}
+            >
+              Grid
+            </button>
+            <button
+              className="filter-pill"
+              aria-pressed={filters.view === "list"}
+              onClick={() => change({ view: "list", page: filters.page })}
+            >
+              List
+            </button>
+          </div>
+        </div>
+        {deals.isPending ? (
+          <p role="status">Loading deals…</p>
+        ) : deals.isError ? (
+          <p role="alert">
+            Couldn’t load deals.{" "}
+            <button className="text-link" onClick={() => void deals.refetch()}>
+              Try again
+            </button>
+          </p>
+        ) : filtered.length ? (
+          <DealCards deals={filtered} list={filters.view === "list"} />
+        ) : (
+          <div className="empty-state">
+            <p>No offers match this combination.</p>
+            <button
+              className="text-link mt-3"
+              onClick={() => change({ ...defaults, query: filters.query })}
+            >
+              Clear active filters
+            </button>
+          </div>
+        )}
+        <div className="pagination">
+          <button
+            className="action secondary"
+            disabled={!filters.page || deals.isFetching}
+            onClick={() => change({ page: filters.page - 1 })}
+          >
+            Previous page
+          </button>
+          <span>Page {filters.page + 1}</span>
+          <button
+            className="action secondary"
+            disabled={
+              deals.isFetching ||
+              (deals.data?.length ?? 0) < filters.pageSize ||
+              filters.page >= 100
+            }
+            onClick={() => change({ page: filters.page + 1 })}
+          >
+            Next page
+          </button>
+        </div>
+        {deals.data?.some((deal) => deal.source === "catalog") && (
+          <p className="filter-help">
+            Live stores could not be reached. These are saved catalog offers;
+            some store and activation filters may have fewer matches.
+          </p>
+        )}
+      </section>
+    </main>
+  );
+}
+
+==========================================
+FILE: apps/nextjs/src/app/library/page.tsx
+==========================================
+"use client";
+
+import { useState } from "react";
+
+import type { BacklogItem } from "~/components/backlog-provider";
+import { useBacklog } from "~/components/backlog-provider";
+import {
+  GameArt,
+  GameLink,
+  LaunchLink,
+  money,
+  PageHeading,
+  PriceField,
+  RemoveGameButton,
+} from "~/components/game-ui";
+import { BacklogSummary } from "../_components/backlog-summary";
+
+const statuses = [
+  ["all", "All Games"],
+  ["backlog", "Backlog (Unplayed)"],
+  ["playing", "Playing"],
+  ["completed", "Completed"],
+] as const;
+
+function LibraryCard({ item }: { item: BacklogItem }) {
+  const { save } = useBacklog();
+  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
+  async function update(change: Partial<BacklogItem>) {
+    setPending(true);
+    try {
+      await save({
+        steamAppId: item.steamAppId,
+        title: item.title,
+        isOwned: true,
+        ...change,
+      });
+      setMessage("Library updated.");
+    } catch {
+      setMessage("Unable to save changes. Please try again.");
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <article
+      className="game-card"
+      data-testid="library-card"
+      aria-busy={pending}
+    >
+      <GameArt appId={item.steamAppId} title={item.title} />
+      <div className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-lg font-semibold">{item.title}</h2>
+          <span className="badge capitalize">
+            {item.completionStatus ?? "backlog"}
+          </span>
+        </div>
+        <p className="text-muted-foreground text-sm">
+          {item.amountPaid === undefined
+            ? "Amount paid not recorded"
+            : `Paid ${money(item.amountPaid)}`}
+        </p>
+        <label className="field-label">
+          Completion Status
+          <select
+            aria-label={`Completion status for ${item.title}`}
+            className="form-control mt-2 w-full"
+            value={item.completionStatus ?? "backlog"}
+            onChange={(event) =>
+              void update({
+                completionStatus: event.target
+                  .value as BacklogItem["completionStatus"],
+              })
+            }
+          >
+            <option className="bg-zinc-900 text-zinc-100" value="backlog">
+              Backlog
+            </option>
+            <option className="bg-zinc-900 text-zinc-100" value="playing">
+              Playing
+            </option>
+            <option className="bg-zinc-900 text-zinc-100" value="completed">
+              Completed
+            </option>
+          </select>
+        </label>
+        <PriceField
+          label="Amount Paid ($)"
+          ariaLabel={`Amount paid for ${item.title}`}
+          value={item.amountPaid}
+          onSave={(amountPaid) => update({ amountPaid })}
+        />
+        <div className="flex flex-wrap items-center gap-4">
+          <LaunchLink steamAppId={item.steamAppId}>Launch Game</LaunchLink>
+          <GameLink steamAppId={item.steamAppId} />
+          <RemoveGameButton steamAppId={item.steamAppId} title={item.title} />
+        </div>
+        {message && (
+          <p role="status" className="text-sm">
+            {message}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+export default function LibraryPage() {
+  const { items, isGuest, isDemo, isLoading, error, exportItems, importItems } =
+    useBacklog();
+  const [filter, setFilter] = useState<(typeof statuses)[number][0]>("all");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("playing");
+  const owned = items.filter(
+    (item) =>
+      item.isOwned &&
+      (filter === "all" || (item.completionStatus ?? "backlog") === filter) &&
+      `${item.title} ${item.steamAppId}`
+        .toLowerCase()
+        .includes(search.trim().toLowerCase()),
+  );
+  owned.sort((a, b) =>
+    sort === "title"
+      ? a.title.localeCompare(b.title)
+      : sort === "paid"
+        ? (b.amountPaid ?? -1) - (a.amountPaid ?? -1)
+        : Number(b.completionStatus === "playing") -
+            Number(a.completionStatus === "playing") ||
+          a.title.localeCompare(b.title),
+  );
+  async function downloadBackup() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const backup = await exportItems();
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(backup, null, 2)], {
+          type: "application/json",
+        }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `backlog-${backup.exportedAt.slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMessage("Backlog exported.");
+    } catch {
+      setMessage("Unable to export your backlog. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="page-shell">
+      <PageHeading eyebrow="LIBRARY" title="Your library">
+        Find a game, update your progress, or launch your next session.
+      </PageHeading>
+      <div className="collection-search">
+        <label className="field-label">
+          Find in your library
+          <input
+            type="search"
+            disabled={isLoading}
+            className="form-control mt-2 w-full"
+            placeholder="Game title or Steam AppID"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <label className="field-label">
+          Sort library
+          <select
+            className="form-control mt-2 w-full"
+            value={sort}
+            disabled={isLoading}
+            onChange={(event) => setSort(event.target.value)}
+          >
+            <option value="playing">Playing first</option>
+            <option value="title">Title A–Z</option>
+            <option value="paid">Amount paid: high to low</option>
+          </select>
+        </label>
+      </div>
+      <section
+        aria-label="Library toolbar"
+        className="flex flex-wrap items-center justify-between gap-4"
+      >
+        <div className="filter-bar" aria-label="Library status filters">
+          {statuses.map(([value, label]) => (
+            <button
+              key={value}
+              className="filter-pill"
+              aria-pressed={filter === value}
+              disabled={isLoading}
+              onClick={() => setFilter(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="action"
+            data-testid="export-json-btn"
+            disabled={busy || isLoading || Boolean(error && !isGuest)}
+            onClick={() => void downloadBackup()}
+          >
+            Export Backlog JSON
+          </button>
+          <label
+            className={`action secondary ${busy || isLoading ? "opacity-50" : ""}`}
+          >
+            Import JSON
+            <input
+              className="sr-only"
+              aria-label="Import JSON"
+              type="file"
+              accept=".json,application/json"
+              disabled={busy || isLoading}
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                setBusy(true);
+                try {
+                  await importItems(JSON.parse(await file.text()));
+                  setMessage("Backlog imported successfully.");
+                } catch {
+                  setMessage(
+                    "Unable to import. Choose a valid Backlog JSON backup and try again.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          </label>
+        </div>
+      </section>
+      {message && <p role="status">{message}</p>}
+      {error && <p role="alert">{error}</p>}
+      <BacklogSummary ledger />
+      {isGuest && (
+        <aside className="guest-banner">
+          <div>
+            <strong>
+              {isDemo
+                ? "Starter Demo Library (Sign in to sync your Steam account)"
+                : "Guest library · saved in this browser"}
+            </strong>
+            <p>
+              Demo purchases and progress are editable. Your guest collection is
+              saved in this browser; account saving is available after sign in.
+              Steam account sync is coming soon.
+            </p>
+          </div>
+        </aside>
+      )}
+      {isLoading ? (
+        <p role="status">Loading your library…</p>
+      ) : owned.length ? (
+        <section
+          aria-label="Owned games"
+          className="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
+        >
+          {owned.map((item) => (
+            <LibraryCard key={item.steamAppId} item={item} />
+          ))}
+        </section>
+      ) : (
+        <p className="empty-state">
+          No games match this view. Try another search or All Games.
+        </p>
+      )}
+    </main>
+  );
+}
+
+==========================================
+FILE: apps/nextjs/src/app/wishlist/page.tsx
+==========================================
+"use client";
+
+import { useState } from "react";
+import { useQueries } from "@tanstack/react-query";
+
+import type { RouterOutputs } from "@acme/api";
+import { evaluateDealAlert } from "@acme/validators";
+
+import type { BacklogItem } from "~/components/backlog-provider";
+import { useBacklog } from "~/components/backlog-provider";
+import {
+  GameArt,
+  GameLink,
+  money,
+  PageHeading,
+  PriceField,
+  RemoveGameButton,
+} from "~/components/game-ui";
+import { useTRPC } from "~/trpc/react";
+
+type Prices = RouterOutputs["backlog"]["getGameDetails"]["prices"];
+function alertFor(item: BacklogItem, prices: Prices | undefined) {
+  return prices?.currentPrice == null
+    ? { shouldAlert: false, reason: null }
+    : evaluateDealAlert({
+        isOwned: item.isOwned,
+        currentPrice: prices.currentPrice,
+        targetPrice: item.targetPrice ?? null,
+        historicalLow: prices.historicalLow ?? -1,
+      });
+}
+
+function WatchCard({
+  item,
+  prices,
+  pending,
+}: {
+  item: BacklogItem;
+  prices: Prices | undefined;
+  pending: boolean;
+}) {
+  const { save } = useBacklog();
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const alert = alertFor(item, prices);
+  async function update(change: Partial<BacklogItem>) {
+    setSaving(true);
+    try {
+      await save({
+        steamAppId: item.steamAppId,
+        title: item.title,
+        isOwned: false,
+        ...change,
+      });
+      setMessage("Price watch updated.");
+    } catch {
+      setMessage("Unable to save changes. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <article className="game-card">
+      <GameArt appId={item.steamAppId} title={item.title} />
+      <div className="space-y-5 p-5">
+        <h2 className="text-xl font-semibold">{item.title}</h2>
+        <span className="watch-state" data-alert-state={alert.reason ?? "WAIT"}>
+          {alert.reason === "ALL_TIME_LOW"
+            ? "All-time low"
+            : alert.reason === "TARGET_MET"
+              ? "Target met"
+              : "Watching for a drop"}
+        </span>
+        <dl className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <dt className="text-muted-foreground">Current Best Price ($)</dt>
+            <dd className="mt-1 text-xl font-semibold">
+              {pending ? "Loading…" : money(prices?.currentPrice)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Historical Low ($)</dt>
+            <dd className="mt-1 text-xl font-semibold">
+              {pending
+                ? "Loading…"
+                : prices?.historicalLow == null
+                  ? "Not recorded"
+                  : money(prices.historicalLow)}
+            </dd>
+          </div>
+        </dl>
+        {prices?.source === "catalog" && (
+          <p className="text-sm text-amber-500">
+            Cached USD prices · checked {prices.verifiedAt?.slice(0, 10)}.
+            Confirm at the store.
+          </p>
+        )}
+        <PriceField
+          label="Your Target Price ($)"
+          ariaLabel={`Target price for ${item.title}`}
+          value={item.targetPrice}
+          onSave={(targetPrice) => update({ targetPrice })}
+        />
+        <div className="space-y-3">
+          {(["notifyPatches", "notifyEvents"] as const).map((field) => (
+            <label
+              key={field}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span>
+                {field === "notifyPatches"
+                  ? "Notify on Patch Notes"
+                  : "Notify on Live Events"}
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label={`${field === "notifyPatches" ? "Notify on Patch Notes" : "Notify on Live Events"} for ${item.title}`}
+                checked={item[field] ?? true}
+                disabled={saving}
+                onChange={(event) =>
+                  void update({ [field]: event.target.checked })
+                }
+                className="h-5 w-5 accent-emerald-500"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-5">
+          <GameLink steamAppId={item.steamAppId} />
+          <button
+            className="action secondary"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await save({
+                  steamAppId: item.steamAppId,
+                  title: item.title,
+                  isOwned: true,
+                });
+              } catch {
+                setMessage("Couldn’t move the game to your library.");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            Mark Owned
+          </button>
+          <RemoveGameButton steamAppId={item.steamAppId} title={item.title} />
+          <a
+            className="text-link"
+            href={
+              prices?.deals[0]?.url ??
+              `https://store.steampowered.com/app/${item.steamAppId}`
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            View store deal ↗
+          </a>
+        </div>
+        {!pending && prices?.currentPrice == null && (
+          <p className="text-muted-foreground text-sm">
+            Live pricing is unavailable. Your target and notification
+            preferences are saved.
+          </p>
+        )}
+        {message && (
+          <p role="status" className="text-sm">
+            {message}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+export default function WishlistPage() {
+  const { items, isGuest, isDemo, isLoading, error } = useBacklog();
+  const trpc = useTRPC();
+  const wishlist = items.filter((item) => !item.isOwned);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("title");
+  const prices = useQueries({
+    queries: wishlist.map((item) =>
+      trpc.backlog.getGamePrices.queryOptions(
+        { steamAppId: item.steamAppId },
+        { retry: false },
+      ),
+    ),
+  });
+  const visible = wishlist
+    .map((item, index) => ({ item, price: prices[index] }))
+    .filter(({ item }) =>
+      item.title.toLowerCase().includes(search.trim().toLowerCase()),
+    )
+    .sort((a, b) =>
+      sort === "price"
+        ? (a.price?.data?.prices?.currentPrice ?? Infinity) -
+          (b.price?.data?.prices?.currentPrice ?? Infinity)
+        : sort === "target"
+          ? (a.price?.data?.prices?.currentPrice ?? Infinity) -
+            (a.item.targetPrice ?? 0) -
+            ((b.price?.data?.prices?.currentPrice ?? Infinity) -
+              (b.item.targetPrice ?? 0))
+          : a.item.title.localeCompare(b.item.title),
+    );
+  const alertCount = wishlist.filter(
+    (item, index) => alertFor(item, prices[index]?.data?.prices).shouldAlert,
+  ).length;
+  return (
+    <main className="page-shell">
+      <PageHeading eyebrow="PRICE WATCH" title="Your wishlist">
+        Track prices and set a target for the games you want.
+      </PageHeading>
+      <aside className="guest-banner">
+        <div>
+          <strong>{alertCount} games meet a target or all-time low</strong>
+          <p>
+            {isGuest
+              ? isDemo
+                ? "Starter watchlist · preferences stay in this browser. "
+                : "Your watchlist and preferences stay in this browser. "
+              : "Notification preferences are saved to your account. "}
+            Automatic notification delivery is coming in a future milestone.
+          </p>
+        </div>
+      </aside>
+      <div className="collection-search">
+        <label className="field-label">
+          Find in your wishlist
+          <input
+            type="search"
+            disabled={isLoading}
+            className="form-control mt-2 w-full"
+            placeholder="Game title"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <label className="field-label">
+          Sort wishlist
+          <select
+            className="form-control mt-2 w-full"
+            value={sort}
+            disabled={isLoading}
+            onChange={(event) => setSort(event.target.value)}
+          >
+            <option value="title">Title A–Z</option>
+            <option value="price">Lowest price</option>
+            <option value="target">Closest to target</option>
+          </select>
+        </label>
+      </div>
+      {error && <p role="alert">{error}</p>}
+      {isLoading ? (
+        <p role="status">Loading your wishlist…</p>
+      ) : visible.length ? (
+        <section
+          aria-label="Price watches"
+          className="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
+        >
+          {visible.map(({ item, price }) => (
+            <WatchCard
+              key={item.steamAppId}
+              item={item}
+              prices={price?.data?.prices}
+              pending={price?.isPending ?? false}
+            />
+          ))}
+        </section>
+      ) : (
+        <p className="empty-state">
+          {wishlist.length
+            ? "No games match your search."
+            : "Your wishlist is empty. Add a game from Deals to start watching its price."}
+        </p>
+      )}
+    </main>
+  );
+}
+
+==========================================
+FILE: apps/nextjs/src/app/updates/page.tsx
+==========================================
+"use client";
+
+import { useState } from "react";
+
+import { featuredGames, useBacklog } from "~/components/backlog-provider";
+import { PageHeading } from "~/components/game-ui";
+import { BacklogFeed } from "../_components/backlog-feed";
+
+export default function UpdatesPage() {
+  const [appId, setAppId] = useState(1091500);
+  const [customId, setCustomId] = useState("");
+  const { items } = useBacklog();
+  const title =
+    items.find((game) => game.steamAppId === appId)?.title ??
+    featuredGames.find((game) => game.steamAppId === appId)?.title ??
+    `Steam App ${appId}`;
+  return (
+    <main className="page-shell">
+      <PageHeading eyebrow="PATCH NOTES & LIVE EVENTS" title="Stay in the loop">
+        The latest fixes, fresh content, and things worth logging in for.
+      </PageHeading>
+      <section aria-label="Game selector" className="panel space-y-5">
+        {items.length > 0 && (
+          <label className="field-label max-w-lg">
+            Updates for your games
+            <select
+              className="form-control mt-2 w-full"
+              value={
+                items.some((item) => item.steamAppId === appId) ? appId : ""
+              }
+              onChange={(event) => {
+                if (event.target.value) setAppId(Number(event.target.value));
+              }}
+            >
+              <option value="">Choose from your collection</option>
+              {items.map((item) => (
+                <option key={item.steamAppId} value={item.steamAppId}>
+                  {item.title}
+                  {item.isOwned ? " — Library" : " — Wishlist"}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <div className="filter-bar">
+          {featuredGames.map((game) => (
+            <button
+              className="filter-pill"
+              key={game.steamAppId}
+              aria-pressed={appId === game.steamAppId}
+              onClick={() => setAppId(game.steamAppId)}
+            >
+              {game.title} [{game.steamAppId}]
+            </button>
+          ))}
+        </div>
+        <form
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setAppId(Number(customId));
+          }}
+        >
+          <div>
+            <label className="field-label" htmlFor="custom-app-id">
+              Custom Steam AppID
+            </label>
+            <input
+              className="form-control"
+              id="custom-app-id"
+              type="number"
+              min="1"
+              max="2147483647"
+              step="1"
+              required
+              value={customId}
+              onChange={(event) => setCustomId(event.target.value)}
+              placeholder="e.g. 570"
+            />
+          </div>
+          <button className="action secondary" type="submit">
+            Load game
+          </button>
+        </form>
+      </section>
+      <section className="space-y-5">
+        <h2 className="text-2xl font-semibold">
+          {title}{" "}
+          <span className="text-muted-foreground text-base">· Steam news</span>
+        </h2>
+        <BacklogFeed key={appId} steamAppId={appId} />
+      </section>
+    </main>
+  );
+}
+

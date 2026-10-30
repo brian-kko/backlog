@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { pgTable, uuid, text, integer, numeric, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,9 +18,15 @@ export const games = pgTable("games", {
   itadId: text("itad_id"),
   title: text("title").notNull(),
   headerImage: text("header_image").notNull(),
-  currentBestPrice: numeric("current_best_price", { precision: 10, scale: 2 }).notNull(),
+  currentBestPrice: numeric("current_best_price", {
+    precision: 10,
+    scale: 2,
+  }).notNull(),
   bestStore: text("best_store").notNull(),
-  historicalLow: numeric("historical_low", { precision: 10, scale: 2 }).notNull(),
+  historicalLow: numeric("historical_low", {
+    precision: 10,
+    scale: 2,
+  }).notNull(),
   lastCheckedAt: timestamp("last_checked_at").defaultNow().notNull(),
 });
 
@@ -26,20 +41,27 @@ export const gameFeedItems = pgTable("game_feed_items", {
   publishedAt: timestamp("published_at").notNull(),
 });
 
-export const userBacklog = pgTable("user_backlog", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: text("user_id").notNull(),
-  steamAppId: integer("steam_app_id").notNull(),
-  title: text("title").notNull(),
-  isOwned: boolean("is_owned").default(false).notNull(),
-  amountPaid: numeric("amount_paid", { precision: 10, scale: 2 }),
-  targetPrice: numeric("target_price", { precision: 10, scale: 2 }),
-  notifyPatches: boolean("notify_patches").default(true).notNull(),
-  notifyEvents: boolean("notify_events").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (t) => [
-  uniqueIndex("user_backlog_game_idx").on(t.userId, t.steamAppId),
-]);
+export const userBacklog = pgTable(
+  "user_backlog",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id").notNull(),
+    steamAppId: integer("steam_app_id").notNull(),
+    title: text("title").notNull(),
+    isOwned: boolean("is_owned").default(false).notNull(),
+    amountPaid: numeric("amount_paid", { precision: 10, scale: 2 }),
+    targetPrice: numeric("target_price", { precision: 10, scale: 2 }),
+    notifyPatches: boolean("notify_patches").default(true).notNull(),
+    notifyEvents: boolean("notify_events").default(true).notNull(),
+    completionStatus: text("completion_status", {
+      enum: ["backlog", "playing", "completed"],
+    })
+      .default("backlog")
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("user_backlog_game_idx").on(t.userId, t.steamAppId)],
+);
 
 // Keep starter Post table temporarily so default UI screens compile cleanly
 export const Post = pgTable("post", (t) => ({

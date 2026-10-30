@@ -5,6 +5,8 @@ import { cn } from "@acme/ui";
 import { ThemeProvider, ThemeToggle } from "@acme/ui/theme";
 import { Toaster } from "@acme/ui/toast";
 
+import { BacklogProvider } from "~/components/backlog-provider";
+import { Navbar } from "~/components/navbar";
 import { env } from "~/env";
 import { TRPCReactProvider } from "~/trpc/react";
 
@@ -16,13 +18,13 @@ export const metadata: Metadata = {
       ? "https://turbo.t3.gg"
       : "http://localhost:3000",
   ),
-  title: "Create T3 Turbo",
-  description: "Simple monorepo with shared backend for web & mobile apps",
+  title: "Backlog",
+  description: "Track game deals, Steam news, and your game library.",
   openGraph: {
-    title: "Create T3 Turbo",
-    description: "Simple monorepo with shared backend for web & mobile apps",
+    title: "Backlog",
+    description: "Track game deals, Steam news, and your game library.",
     url: "https://create-t3-turbo.vercel.app",
-    siteName: "Create T3 Turbo",
+    siteName: "Backlog",
   },
   twitter: {
     card: "summary_large_image",
@@ -58,8 +60,19 @@ export default function RootLayout(props: { children: React.ReactNode }) {
         )}
       >
         <ThemeProvider>
-          <TRPCReactProvider>{props.children}</TRPCReactProvider>
-          <div className="absolute right-4 bottom-4">
+          <TRPCReactProvider>
+            <BacklogProvider>
+              <Navbar />
+              {props.children}
+              <footer className="site-footer">
+                <span>Backlog</span>
+                <span>
+                  PC game prices in USD · Powered by Steam and CheapShark
+                </span>
+              </footer>
+            </BacklogProvider>
+          </TRPCReactProvider>
+          <div className="fixed right-4 bottom-4 z-10">
             <ThemeToggle />
           </div>
           <Toaster />
