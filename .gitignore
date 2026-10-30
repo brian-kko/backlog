@@ -41,7 +41,22 @@ yarn-error.log*
 
 # local env files
 .env
-.env*.local
+.env.*
+!.env.example
+
+# private keys and local credentials
+*.key
+*.p12
+*.pfx
+*.p8
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+.aws/
+.ssh/
+.netrc
+.pgpass
 
 # vercel
 .vercel
