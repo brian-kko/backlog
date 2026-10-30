@@ -1,0 +1,953 @@
+==> packages/api/src/steam-discovery.ts <==
+import { z } from "zod/v4";
+
+import {
+  classifyAndCleanSteamNews,
+  cleanSteamText,
+  DealItemSchema,
+} from "@acme/validators";
+
+import { catalogVerifiedAt, curatedGames } from "./curated-games";
+
+// All upstream I/O, including reading JSON, has a deadline and fails closed into
+// the next provider. Provider outages must never become failed public tRPC calls.
+async function fetchJson(url: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "BacklogApp/1.0" },
+    });
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const newsItemSchema = z.object({
+  gid: z.string(),
+  title: z.string(),
+  contents: z.string(),
+  url: z.string(),
+  date: z.number(),
+  tags: z.array(z.string()).optional(),
+  feedlabel: z.string().optional(),
+  feedname: z.string().optional(),
+  feed_type: z.number().optional(),
+});
+const newsSchema = z.object({
+  appnews: z.object({ newsitems: z.array(z.unknown()).default([]) }),
+});
+
+export async function fetchSteamFeed(steamAppId: number) {
+  const data = newsSchema.safeParse(
+    await fetchJson(
+      `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steamAppId}&count=30&maxlength=0&format=json&l=english`,
+    ),
+  );
+  const english = (data.success ? data.data.appnews.newsitems : [])
+    .flatMap((item) => {
+      const parsed = newsItemSchema.safeParse(item);
+      return parsed.success ? [parsed.data] : [];
+    })
+    .filter(
+      (item) =>
+        !/[\u0400-\u04FF]/.test(
+          item.title +
+            item.contents +
+            cleanSteamText(item.title + " " + item.contents),
+        ),
+    )
+    .sort((a, b) => b.date - a.date);
+  const isOfficial = (item: z.infer<typeof newsItemSchema>) =>
+    item.feedname === "steam_community_announcements" || item.feed_type === 1;
+  const official = english.filter(isOfficial);
+  // Only supplement a sparse official feed, and keep official posts first.
+  const selected =
+    official.length >= 4
+      ? official
+      : [
+          ...official,
+          ...english
+            .filter((item) => !isOfficial(item))
+            .slice(0, 4 - official.length),
+        ];
+  const items = selected.map((item) => ({
+    id: item.gid,
+    steamAppId,
+    title: cleanSteamText(item.title),
+    url: item.url,
+    publishedAt: new Date(item.date * 1000),
+    ...classifyAndCleanSteamNews(item),
+  }));
+  return {
+    patchNotes: items.filter((item) => item.category === "patch_note"),
+    events: items.filter((item) => item.category !== "patch_note"),
+  };
+}
+
+// Empty strings and null are missing prices, never a free offer.
+const providerPrice = z
+  .union([z.string().trim().min(1), z.number()])
+  .pipe(z.coerce.number<string | number>().nonnegative());
+const providerAppId = z.union([z.string(), z.number()]).nullish();
+const dealSchema = z.object({
+  dealID: z.string(),
+  title: z.string(),
+  salePrice: z.unknown().optional(),
+  normalPrice: z.unknown().optional(),
+  savings: z.unknown().optional(),
+  steamAppID: providerAppId,
+  thumb: z.string().default(""),
+});
+const savings = (price: number, normal: number) =>
+  normal > 0 ? Math.max(0, (1 - price / normal) * 100) : 0;
+const storeUrl = (id: number) => `https://store.steampowered.com/app/${id}/`;
+const dealUrl = (id: string) => {
+  // CheapShark sometimes supplies an already percent-encoded ID.
+  try {
+    return `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(decodeURIComponent(id))}`;
+  } catch {
+    return `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(id)}`;
+  }
+};
+
+const steamGameSchema = z.object({
+  name: z.string(),
+  is_free: z.boolean().optional(),
+  short_description: z.string().optional(),
+  header_image: z.string().optional(),
+  developers: z.array(z.string()).optional(),
+  genres: z.array(z.object({ description: z.string() })).optional(),
+  price_overview: z
+    .object({
+      currency: z.literal("USD"),
+      initial: z.coerce.number().nonnegative(),
+      final: z.coerce.number().nonnegative(),
+    })
+    .nullish()
+    .catch(undefined),
+});
+type SteamGame = z.infer<typeof steamGameSchema>;
+
+export async function fetchGameMetadata(
+  steamAppId: number,
+): Promise<SteamGame | null> {
+  const response = z
+    .record(
+      z.string(),
+      z.object({
+        success: z.boolean(),
+        data: z.unknown().optional(),
+      }),
+    )
+    .safeParse(
+      await fetchJson(
+        `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&cc=us&l=en&filters=price_overview,basic`,
+      ),
+    );
+  const game = response.success ? response.data[String(steamAppId)] : null;
+  const parsed = steamGameSchema.safeParse(game?.success ? game.data : null);
+  if (parsed.success) return parsed.data;
+  const cached = curatedGames.find((item) => item.steamAppId === steamAppId);
+  return cached ? { name: cached.title, header_image: cached.thumb } : null;
+}
+
+function steamPrice(game: SteamGame | null) {
+  if (game?.is_free) return { current: 0, normal: 0 };
+  return game?.price_overview
+    ? {
+        current: game.price_overview.final / 100,
+        normal: game.price_overview.initial / 100,
+      }
+    : null;
+}
+
+export async function fetchDeals(query?: string) {
+  const title = query?.trim() ?? "";
+  const url = title
+    ? `https://www.cheapshark.com/api/1.0/deals?title=${encodeURIComponent(title)}&pageSize=12`
+    : "https://www.cheapshark.com/api/1.0/deals?storeID=1&upperPrice=50&pageSize=12";
+  const response = await fetchJson(url);
+  const rows = Array.isArray(response) ? (response as unknown[]) : [];
+  const deals = (
+    await Promise.all(
+      rows.map(async (row) => {
+        const parsed = dealSchema.safeParse(row);
+        if (!parsed.success) return null;
+        const deal = parsed.data;
+        const id = Number(deal.steamAppID);
+        const steamAppId = Number.isInteger(id) && id > 0 ? id : null;
+        const price = providerPrice.safeParse(deal.salePrice);
+        const retail = providerPrice.safeParse(deal.normalPrice);
+        const discount = providerPrice.safeParse(deal.savings);
+        const fallback =
+          !price.success && steamAppId
+            ? await fetchPriceFallback(steamAppId)
+            : null;
+        const cheapestPrice = price.success
+          ? price.data
+          : fallback?.currentPrice;
+        if (cheapestPrice == null) return null;
+        const normalPrice = retail.success
+          ? retail.data
+          : (fallback?.deals[0]?.retailPrice ?? cheapestPrice);
+        const item = DealItemSchema.safeParse({
+          id: deal.dealID,
+          title: deal.title,
+          cheapestPrice,
+          normalPrice,
+          savingsPercent:
+            price.success && discount.success
+              ? discount.data
+              : savings(cheapestPrice, normalPrice),
+          steamAppId,
+          thumb: deal.thumb,
+          ...(fallback ? { source: fallback.source } : {}),
+        });
+        return item.success ? item.data : null;
+      }),
+    )
+  ).filter((item) => item !== null);
+  if (deals.length) return deals;
+  // Preserve search semantics during an outage; do not show unrelated titles.
+  const catalog = curatedGames.filter((item) =>
+    item.title.toLowerCase().includes(title.toLowerCase()),
+  );
+  return Promise.all(
+    catalog.map(async (item) => {
+      const prices = await fetchPriceFallback(item.steamAppId);
+      const cheapestPrice = prices?.currentPrice ?? item.salePrice;
+      const normalPrice = prices?.deals[0]?.retailPrice ?? item.normalPrice;
+      return DealItemSchema.parse({
+        id: `catalog-${item.steamAppId}`,
+        title: item.title,
+        cheapestPrice,
+        normalPrice,
+        savingsPercent: savings(cheapestPrice, normalPrice),
+        steamAppId: item.steamAppId,
+        thumb: item.thumb,
+        source: prices?.source ?? "catalog",
+      });
+    }),
+  );
+}
+
+const priceDealSchema = z.object({
+  storeID: z.string(),
+  dealID: z.string(),
+  price: providerPrice,
+  retailPrice: providerPrice,
+  savings: providerPrice,
+});
+const gamePricesSchema = z.object({
+  info: z.object({
+    title: z.string(),
+    steamAppID: providerAppId,
+    thumb: z.string().optional(),
+  }),
+  cheapestPriceEver: z
+    .object({ price: providerPrice })
+    .nullish()
+    .catch(undefined),
+  deals: z.array(z.unknown()).default([]),
+});
+
+async function fetchPriceFallback(
+  steamAppId: number,
+  metadata?: Promise<SteamGame | null>,
+) {
+  const game = await (metadata ?? fetchGameMetadata(steamAppId));
+  const live = steamPrice(game);
+  const cached = curatedGames.find((item) => item.steamAppId === steamAppId);
+  if (!live && !cached) return null;
+  const currentPrice = live?.current ?? cached!.salePrice;
+  const retailPrice = live?.normal ?? cached!.normalPrice;
+  return {
+    title: game?.name ?? cached!.title,
+    currentPrice,
+    // Steam has no historical API. Preserve that distinction for non-catalog games.
+    historicalLow: cached ? Math.min(cached.historicalLow, currentPrice) : null,
+    source: live ? ("steam" as const) : ("catalog" as const),
+    verifiedAt: live ? new Date().toISOString() : catalogVerifiedAt,
+    deals: [
+      {
+        storeID: live ? "1" : cached!.storeID,
+        dealID: live ? `steam-${steamAppId}` : cached!.dealID,
+        price: currentPrice,
+        retailPrice,
+        savings: savings(currentPrice, retailPrice),
+        url: live ? storeUrl(steamAppId) : dealUrl(cached!.dealID),
+      },
+    ],
+  };
+}
+
+export async function fetchGamePrices(
+  steamAppId: number,
+  metadata?: Promise<SteamGame | null>,
+) {
+  const matches = z
+    .array(z.object({ gameID: z.string() }))
+    .safeParse(
+      await fetchJson(
+        `https://www.cheapshark.com/api/1.0/games?steamAppID=${steamAppId}`,
+      ),
+    );
+  const match = matches.success ? matches.data[0] : null;
+  const parsed = match
+    ? gamePricesSchema.safeParse(
+        await fetchJson(
+          `https://www.cheapshark.com/api/1.0/games?id=${encodeURIComponent(match.gameID)}`,
+        ),
+      )
+    : null;
+  if (parsed?.success) {
+    const data = parsed.data;
+    const deals = data.deals
+      .flatMap((row) => {
+        const deal = priceDealSchema.safeParse(row);
+        return deal.success
+          ? [{ ...deal.data, url: dealUrl(deal.data.dealID) }]
+          : [];
+      })
+      .sort((a, b) => a.price - b.price);
+    const currentPrice = deals[0]?.price;
+    if (currentPrice != null) {
+      const historicalLow =
+        data.cheapestPriceEver?.price ??
+        curatedGames.find((item) => item.steamAppId === steamAppId)
+          ?.historicalLow;
+      return {
+        title: data.info.title,
+        currentPrice,
+        historicalLow:
+          historicalLow == null ? null : Math.min(historicalLow, currentPrice),
+        deals,
+        source: "cheapshark" as const,
+        verifiedAt: new Date().toISOString(),
+      };
+    }
+  }
+  return fetchPriceFallback(steamAppId, metadata);
+}
+
+==> packages/api/src/curated-games.ts <==
+// USD snapshot verified against Steam appdetails and CheapShark games on 2026-10-29.
+// These are cached offers, not a promise that a sale remains live.
+export const catalogVerifiedAt = "2026-10-29";
+export const curatedGames = [
+  {
+    steamAppId: 1091500,
+    title: "Cyberpunk 2077",
+    normalPrice: 59.99,
+    salePrice: 17.99,
+    historicalLow: 17.99,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/48a93d6445a67520ea49833c93dae8f2e68fc540/header_alt_assets_9.jpg?t=1792682505",
+    dealID: "KTOzm9HzGL%2FECX6QwgAdbEdqnw8fAWGTIfrly4J9Cfg%3D",
+    storeID: "7",
+  },
+  {
+    steamAppId: 1245620,
+    title: "Elden Ring",
+    normalPrice: 59.99,
+    salePrice: 52.89,
+    historicalLow: 29.95,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1245620/header.jpg?t=1790290043",
+    dealID: "0yH%2B27fnkwwPMEtLKiv52IGhamBesRW%2F9Ictx3%2B%2B2t0%3D",
+    storeID: "23",
+  },
+  {
+    steamAppId: 553850,
+    title: "Helldivers 2",
+    normalPrice: 39.99,
+    salePrice: 32.99,
+    historicalLow: 25.57,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/553850/850e2f9e5bb15c5706bb9a1edc832f4f782e8be5/header.jpg?t=1792487611",
+    dealID: "m%2FqQjo0uKy1J43MzqV%2B3wHWO4xOCNp9UMfo%2BfATGaNY%3D",
+    storeID: "23",
+  },
+  {
+    steamAppId: 1086940,
+    title: "Baldur's Gate 3",
+    normalPrice: 59.99,
+    salePrice: 41.99,
+    historicalLow: 41.99,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1086940/48a2fcbda8565bb45025e98fd8ebde8a7203f6a0/header.jpg?t=1777363040",
+    dealID: "KR6JzYIE5jQz4X%2FqfqZL7uqeWAALnY%2Beipr2lwHIFGI%3D",
+    storeID: "7",
+  },
+  {
+    steamAppId: 1145360,
+    title: "Hades",
+    normalPrice: 24.99,
+    salePrice: 24.99,
+    historicalLow: 6.24,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1145360/header.jpg?t=1758127023",
+    dealID: "%2FRRvRbW4trH2Me4HcfUIFk5pCGamwlMuyid9ZTDJ4do%3D",
+    storeID: "1",
+  },
+  {
+    steamAppId: 1145350,
+    title: "Hades II",
+    normalPrice: 29.99,
+    salePrice: 29.99,
+    historicalLow: 20.99,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1145350/91ac334a2c137d08968ccc0bc474a02579602100/header.jpg?t=1779901265",
+    dealID: "bvpO%2FWkluJf8hKbYUbwauDKGpNUvoJOSBDiJNUP2Jf0%3D",
+    storeID: "1",
+  },
+  {
+    steamAppId: 1174180,
+    title: "Red Dead Redemption 2",
+    normalPrice: 59.99,
+    salePrice: 13.46,
+    historicalLow: 12.9,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1174180/header.jpg?t=1759502961",
+    dealID: "HSOeP5tBDY0pqLD5iNdyKrR0pjko1oLC3oihJ%2FaJ438%3D",
+    storeID: "23",
+  },
+  {
+    steamAppId: 990080,
+    title: "Hogwarts Legacy",
+    normalPrice: 59.99,
+    salePrice: 5.99,
+    historicalLow: 4.8,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/990080/be2971b1023bccb04f993887d70ef4d2060262cf/header.jpg?t=1790708992",
+    dealID: "%2Fn%2F5x2ClvrvzThtgmxBpOUqhfG1owwHqQE%2FQLlEqczY%3D",
+    storeID: "25",
+  },
+  {
+    steamAppId: 367520,
+    title: "Hollow Knight",
+    normalPrice: 14.99,
+    salePrice: 14.99,
+    historicalLow: 2.99,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/367520/3c3489495136b26b34f8a9543c7f5645b99d388c/header.jpg?t=1776125684",
+    dealID: "HbFcJnIgpBCSwS4Qb%2B7mXtKwv8%2BMkRyOmH6v3Rng4Gw%3D",
+    storeID: "7",
+  },
+  {
+    steamAppId: 413150,
+    title: "Stardew Valley",
+    normalPrice: 14.99,
+    salePrice: 14.99,
+    historicalLow: 5.99,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/413150/header.jpg?t=1786554168",
+    dealID: "E3ecNmf5bHYtfrYPa0KNgRMwu%2Bc3uZ9awLB%2B1g4hl0k%3D",
+    storeID: "7",
+  },
+  {
+    steamAppId: 2358720,
+    title: "Black Myth: Wukong",
+    normalPrice: 59.99,
+    salePrice: 40.19,
+    historicalLow: 39.59,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2358720/header.jpg?t=1760601605",
+    dealID: "vYH45EkpGjBbugjen2gtrYDR2a2I1w4zkdqKB55BQ%2FI%3D",
+    storeID: "15",
+  },
+  {
+    steamAppId: 582010,
+    title: "Monster Hunter: World",
+    normalPrice: 29.99,
+    salePrice: 6.63,
+    historicalLow: 6.4,
+    thumb:
+      "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/582010/header.jpg?t=1791439347",
+    dealID: "kvpKTyZe8Ug03duRvWwDO05%2FJTZZIwGGJEsTa6gyul0%3D",
+    storeID: "3",
+  },
+];
+
+==> apps/nextjs/src/app/game/[appId]/game-hub.tsx <==
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+import { useQuery } from "@tanstack/react-query";
+
+import type { BacklogItem } from "~/components/backlog-provider";
+import { featuredGames, useBacklog } from "~/components/backlog-provider";
+import { headerArt, LaunchLink, money } from "~/components/game-ui";
+import { useTRPC } from "~/trpc/react";
+import { BacklogFeed } from "../../_components/backlog-feed";
+
+export function GameHub({ steamAppId }: { steamAppId: number }) {
+  const trpc = useTRPC();
+  const game = useQuery(
+    trpc.backlog.getGameDetails.queryOptions({ steamAppId }),
+  );
+  const { items, save, isLoading } = useBacklog();
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const item = items.find((value) => value.steamAppId === steamAppId);
+  const title =
+    game.data?.metadata?.name ??
+    game.data?.prices?.title ??
+    item?.title ??
+    featuredGames.find((value) => value.steamAppId === steamAppId)?.title ??
+    `Steam App ${steamAppId}`;
+  const prices = game.data?.prices;
+  async function update(change: Partial<BacklogItem>) {
+    setSaving(true);
+    try {
+      await save({
+        ...item,
+        steamAppId,
+        title,
+        isOwned: item?.isOwned ?? false,
+        ...change,
+      });
+      setMessage("Backlog status updated.");
+    } catch {
+      setMessage("Unable to update your backlog. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <main className="page-shell">
+      <section className="game-hero">
+        <Image
+          className="w-full rounded-xl object-cover md:w-1/2"
+          src={game.data?.metadata?.header_image ?? headerArt(steamAppId)}
+          width={460}
+          height={215}
+          unoptimized
+          priority
+          alt={`${title} Steam header artwork`}
+        />
+        <div className="space-y-5">
+          <p className="eyebrow">GAME HUB & LAUNCHPAD</p>
+          <h1 className="text-4xl font-bold tracking-tight">{title}</h1>
+          <span className="badge">Steam AppID {steamAppId}</span>
+          <p className="text-muted-foreground">
+            {game.data?.metadata?.short_description?.replace(/<[^>]*>/g, "")}
+          </p>
+          <LaunchLink steamAppId={steamAppId} testId="launch-game-btn" />
+        </div>
+      </section>
+      {game.isError && (
+        <p role="alert">
+          Game details are unavailable.{" "}
+          <button className="text-link" onClick={() => void game.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
+      <section className="grid gap-5 md:grid-cols-2">
+        <div className="panel space-y-4">
+          <h2 className="text-xl font-semibold">Best live price</h2>
+          <p className="text-3xl font-semibold">
+            {game.isPending ? "Loading…" : money(prices?.currentPrice)}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            Historical low:{" "}
+            {game.isPending ? "Loading…" : money(prices?.historicalLow)} · USD
+          </p>
+          {prices?.source === "catalog" && (
+            <p className="text-sm text-amber-500">
+              Cached USD prices · checked {prices.verifiedAt?.slice(0, 10)}.
+              Confirm the current offer at the store.
+            </p>
+          )}
+          <a
+            className="action secondary"
+            href={`https://store.steampowered.com/app/${steamAppId}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View on Steam ↗
+          </a>
+          {prices?.deals.length ? (
+            <ul className="space-y-3">
+              {prices.deals.slice(0, 4).map((deal) => (
+                <li
+                  key={deal.dealID}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <a
+                    className="text-link"
+                    href={deal.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {deal.storeID === "1" ? "Steam" : `Store ${deal.storeID}`}{" "}
+                    ↗
+                  </a>
+                  <span>
+                    {money(deal.price)}{" "}
+                    <s className="text-muted-foreground text-xs">
+                      {money(deal.retailPrice)}
+                    </s>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            !game.isPending && (
+              <p className="text-muted-foreground text-sm">
+                No live price is available for this AppID.{" "}
+                <a
+                  className="text-link"
+                  href={`https://store.steampowered.com/app/${steamAppId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Visit Steam ↗
+                </a>
+              </p>
+            )
+          )}
+        </div>
+        <div className="panel space-y-5">
+          <h2 className="text-xl font-semibold">Your backlog status</h2>
+          <p className="text-muted-foreground">
+            {item
+              ? item.isOwned
+                ? "In your library"
+                : "On your wishlist"
+              : "Not tracked yet"}
+          </p>
+          <div className="filter-bar" aria-label="Backlog membership">
+            {([true, false] as const).map((isOwned) => (
+              <button
+                key={String(isOwned)}
+                className="filter-pill"
+                aria-pressed={Boolean(item) && item?.isOwned === isOwned}
+                disabled={isLoading || saving}
+                onClick={() => void update({ isOwned })}
+              >
+                {isOwned ? "In Library" : "On Wishlist"}
+              </button>
+            ))}
+          </div>
+          <label className="field-label">
+            Completion Status
+            <select
+              className="form-control mt-2 w-full"
+              aria-label="Backlog completion status"
+              disabled={isLoading || saving}
+              value={item?.completionStatus ?? "backlog"}
+              onChange={(event) =>
+                void update({
+                  completionStatus: event.target
+                    .value as BacklogItem["completionStatus"],
+                })
+              }
+            >
+              <option className="bg-zinc-900 text-zinc-100" value="backlog">
+                Backlog
+              </option>
+              <option className="bg-zinc-900 text-zinc-100" value="playing">
+                Playing
+              </option>
+              <option className="bg-zinc-900 text-zinc-100" value="completed">
+                Completed
+              </option>
+            </select>
+          </label>
+          <label className="field-label">
+            {item?.isOwned ? "Amount Paid ($)" : "Target Price ($)"}
+            <input
+              key={`${item?.isOwned ? "paid" : "target"}-${steamAppId}`}
+              aria-label={
+                item?.isOwned ? "Amount Paid ($)" : "Target Price ($)"
+              }
+              className="form-control mt-2 w-full"
+              type="number"
+              min="0"
+              max="99999999.99"
+              step="0.01"
+              defaultValue={
+                (item?.isOwned ? item.amountPaid : item?.targetPrice) ?? ""
+              }
+              placeholder={item?.isOwned ? "Enter amount paid" : "Set a target"}
+              disabled={isLoading}
+              onBlur={(event) => {
+                if (!event.currentTarget.checkValidity()) return;
+                const value =
+                  event.currentTarget.value === ""
+                    ? undefined
+                    : Number(event.currentTarget.value);
+                const field = item?.isOwned ? "amountPaid" : "targetPrice";
+                if (value !== item?.[field]) void update({ [field]: value });
+              }}
+            />
+          </label>
+          {message && <p role="status">{message}</p>}
+        </div>
+      </section>
+      <section className="space-y-5">
+        <h2 className="text-2xl font-semibold">Patch Notes & Live Events</h2>
+        {game.isPending ? (
+          <p role="status">Loading game news…</p>
+        ) : (
+          <BacklogFeed
+            key={steamAppId}
+            steamAppId={steamAppId}
+            initialFeed={game.data?.feed ?? undefined}
+          />
+        )}
+      </section>
+    </main>
+  );
+}
+
+==> apps/nextjs/src/app/styles.css <==
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@acme/tailwind-config/theme";
+
+@source "../../../../packages/ui/src/*.{ts,tsx}";
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant light (&:where(.light, .light *));
+@custom-variant auto (&:where(.auto, .auto *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    letter-spacing: var(--tracking-normal);
+  }
+  input,
+  select {
+    @apply border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-400 focus:border-emerald-500;
+    color-scheme: dark;
+  }
+  option {
+    @apply bg-zinc-900 text-zinc-100;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto flex max-w-7xl flex-col gap-9 px-5 py-9 sm:px-8 sm:py-12;
+  }
+  .site-nav {
+    @apply bg-background/95 sticky top-0 z-20 border-b backdrop-blur-md;
+  }
+  .brand {
+    @apply flex shrink-0 items-center gap-2.5 text-xl font-bold tracking-tight;
+  }
+  .brand-emblem {
+    @apply flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-2xl text-emerald-500;
+  }
+  .nav-link {
+    @apply text-muted-foreground relative inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors;
+  }
+  .nav-link:hover {
+    @apply bg-muted text-foreground;
+  }
+  .nav-link[aria-current="page"] {
+    @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400;
+    box-shadow: inset 0 -2px 0 var(--color-emerald-500);
+  }
+  .nav-count {
+    @apply rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 tabular-nums dark:text-emerald-400;
+  }
+  .companion-badge {
+    @apply text-muted-foreground flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs;
+  }
+  .companion-badge > span {
+    @apply text-emerald-500;
+  }
+  .page-heading h1 {
+    @apply mt-3 text-3xl font-bold tracking-tight sm:text-4xl;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold tracking-[0.18em] text-emerald-600 dark:text-emerald-400;
+  }
+  .panel {
+    @apply bg-card rounded-2xl border p-5 sm:p-6;
+  }
+  .metric-card {
+    @apply bg-card rounded-2xl border p-5 sm:p-6;
+  }
+  .metric-card dt {
+    @apply text-muted-foreground text-sm;
+  }
+  .metric-card dd {
+    @apply mt-3 text-3xl font-semibold tracking-tight tabular-nums;
+  }
+  .guest-banner {
+    @apply flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-6 py-5;
+  }
+  .guest-banner p {
+    @apply text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed;
+  }
+  .section-heading {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+  .section-heading h2 {
+    @apply text-xl font-semibold tracking-tight;
+  }
+  .game-card {
+    @apply bg-card overflow-hidden rounded-2xl border;
+  }
+  .game-art {
+    @apply aspect-[460/215] w-full bg-zinc-800 object-cover;
+  }
+  .game-hero {
+    @apply bg-card flex flex-col items-start gap-8 rounded-2xl border p-5 md:flex-row md:items-center md:p-7;
+  }
+  .action {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50;
+  }
+  .action.secondary {
+    @apply bg-background text-foreground hover:bg-muted border;
+  }
+  .text-link {
+    @apply font-medium text-emerald-700 underline-offset-4 hover:underline dark:text-emerald-400;
+  }
+  .filter-bar {
+    @apply flex flex-wrap gap-2;
+  }
+  .filter-pill {
+    @apply bg-background text-muted-foreground hover:bg-muted cursor-pointer rounded-full border px-4 py-2 text-sm font-medium transition-colors;
+  }
+  .filter-pill[aria-pressed="true"],
+  .filter-pill[aria-selected="true"] {
+    @apply border-emerald-600 bg-emerald-600 text-white;
+  }
+  .form-control {
+    @apply rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-400 focus:border-emerald-500 disabled:opacity-50;
+  }
+  .field-label {
+    @apply mb-2 block text-sm font-medium;
+  }
+  .badge {
+    @apply bg-muted text-muted-foreground inline-block rounded-md px-2.5 py-1 text-xs font-medium;
+  }
+  .savings {
+    @apply absolute top-3 right-3 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white;
+  }
+  .empty-state {
+    @apply text-muted-foreground rounded-2xl border border-dashed p-8 text-center;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    @apply outline-2 outline-offset-4 outline-emerald-500;
+  }
+}
+
+==> apps/nextjs/src/app/_components/backlog-summary.tsx <==
+"use client";
+
+import { useQueries } from "@tanstack/react-query";
+
+import type { BacklogItem } from "~/components/backlog-provider";
+import { useBacklog } from "~/components/backlog-provider";
+import { money } from "~/components/game-ui";
+import { useTRPC } from "~/trpc/react";
+
+export function useCurrentValues(items: BacklogItem[]) {
+  const trpc = useTRPC();
+  const queries = useQueries({
+    queries: items.map((item) =>
+      trpc.backlog.getGameDetails.queryOptions(
+        { steamAppId: item.steamAppId },
+        { retry: false },
+      ),
+    ),
+  });
+  const available = queries.flatMap((query, index) =>
+    query.data?.prices?.currentPrice == null
+      ? []
+      : [{ item: items[index], value: query.data.prices.currentPrice }],
+  );
+  return {
+    available,
+    pending: queries.some((query) => query.isPending),
+    complete: available.length === items.length,
+  };
+}
+
+export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
+  const { items, isLoading } = useBacklog();
+  const owned = items.filter((item) => item.isOwned);
+  const totalSpent = owned.reduce(
+    (sum, item) => sum + (item.amountPaid ?? 0),
+    0,
+  );
+  const values = useCurrentValues(items);
+  const currentValue = values.available.reduce(
+    (sum, price) => sum + price.value,
+    0,
+  );
+  const backlogValue = values.available
+    .filter(
+      (price) =>
+        price.item?.isOwned &&
+        (price.item.completionStatus ?? "backlog") === "backlog",
+    )
+    .reduce((sum, price) => sum + price.value, 0);
+  const valuation = (value: number) =>
+    values.pending
+      ? "Loading…"
+      : values.available.length
+        ? `${money(value)}${values.complete ? "" : "*"}`
+        : items.length
+          ? "Check Steam"
+          : money(0);
+  const metrics = ledger
+    ? [
+        ["Total Spent", money(totalSpent)],
+        ["Owned Count", owned.length],
+        ["Backlog Value", valuation(backlogValue)],
+        ["Cost-Per-Game", money(owned.length ? totalSpent / owned.length : 0)],
+      ]
+    : [
+        ["Total Spent", money(totalSpent)],
+        ["Owned Library", owned.length],
+        ["Wishlist Alerts", items.filter((item) => !item.isOwned).length],
+        ["Estimated Value", valuation(currentValue)],
+      ];
+  return (
+    <section aria-label="Library analytics" className="space-y-2">
+      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {metrics.map(([label, value]) => (
+          <div key={label} className="metric-card">
+            <dt>{label}</dt>
+            <dd>{isLoading ? "…" : value}</dd>
+          </div>
+        ))}
+      </dl>
+      {!values.pending && !values.complete && values.available.length > 0 && (
+        <p className="text-muted-foreground text-xs">
+          * Partial estimate: some live prices are unavailable. Prices in USD.
+        </p>
+      )}
+    </section>
+  );
+}

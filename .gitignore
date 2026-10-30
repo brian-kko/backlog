@@ -7,6 +7,8 @@ node_modules
 
 # testing
 coverage
+apps/nextjs/test-results/
+apps/nextjs/playwright-report/
 
 # next.js
 .next/
