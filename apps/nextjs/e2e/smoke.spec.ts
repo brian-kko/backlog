@@ -8,6 +8,8 @@ import { z } from "zod/v4";
 
 import {
   BacklogExportSchema,
+  CollectionFeedInputSchema,
+  GameSearchInputSchema,
   SearchDealsInputSchema,
   SteamFeedInputSchema,
   UpsertBacklogItemSchema,
@@ -44,6 +46,7 @@ function steamFeed(steamAppId: number) {
     official: true,
   };
   return {
+    available: true,
     patchNotes: [0, 1, 2].map((index) => ({
       ...item,
       id: `patch-${index}`,
@@ -87,6 +90,8 @@ function fixturePrices(steamAppId: number) {
     title: titles[steamAppId] ?? "Game",
     currentPrice: 19.99,
     historicalLow: 14.99,
+    historicalLowSource: "cheapshark",
+    steamPrice: 24.99,
     source: "cheapshark",
     verifiedAt: "2026-10-29",
     deals: [
@@ -100,6 +105,27 @@ function fixturePrices(steamAppId: number) {
       },
     ],
   };
+}
+function searchFixtureDeals(input: z.infer<typeof SearchDealsInputSchema>) {
+  if ((input?.page ?? 0) > 0) return [];
+          let result = deals.filter(
+            (deal) =>
+              !input?.query ||
+              deal.title.toLowerCase().includes(input.query.toLowerCase()),
+          );
+          if (input?.storeIds?.length)
+            result = result.filter((deal) =>
+              input.storeIds?.some((id) => id === deal.storeId),
+            );
+          if (input?.maxPrice !== undefined)
+            result = result.filter(
+              (deal) => deal.cheapestPrice <= input.maxPrice!,
+            );
+          if (input?.steamOnly)
+            result = result.filter((deal) => deal.steamRedeemable);
+          if (input?.onSale)
+            result = result.filter((deal) => deal.savingsPercent > 0);
+          return result;
 }
 const browserErrors = new WeakMap<Page, string[]>();
 
@@ -142,6 +168,8 @@ test.beforeEach(async ({ page }) => {
           completionStatus: item.completionStatus ?? "backlog",
           notifyPatches: item.notifyPatches ?? true,
           notifyEvents: item.notifyEvents ?? true,
+          purchaseStore: item.purchaseStore ?? null,
+          platform: item.platform ?? null,
         })),
       ),
       exportBacklogJson: t.procedure
@@ -153,6 +181,46 @@ test.beforeEach(async ({ page }) => {
           accountItems = input.items;
           return { imported: input.items.length };
         }),
+      importGuestItems: t.procedure
+        .input(BacklogExportSchema)
+        .mutation(({ input }) => {
+          const fresh = input.items.filter(
+            (item) =>
+              !accountItems.some((value) => value.steamAppId === item.steamAppId),
+          );
+          accountItems = [...accountItems, ...fresh];
+          return { added: fresh.length, skipped: input.items.length - fresh.length };
+        }),
+      searchGames: t.procedure
+        .input(GameSearchInputSchema)
+        .query(({ input }) => ({
+          source: "steam" as const,
+          results: Object.entries(titles)
+            .filter(([, title]) =>
+              title.toLowerCase().includes(input.query.toLowerCase()),
+            )
+            .map(([id, title]) => ({
+              steamAppId: Number(id),
+              title,
+              image: "",
+              price: 19.99,
+            })),
+        })),
+      getCollectionFeed: t.procedure
+        .input(CollectionFeedInputSchema)
+        .query(({ input }) => ({
+          unavailable: [],
+          items: input.steamAppIds
+            .flatMap((id) => {
+              const feed = steamFeed(id);
+              return [...feed.patchNotes, ...feed.events].map((item) => ({
+                ...item,
+                id: `${id}-${item.id}`,
+              }));
+            })
+            .filter((item) => item.official)
+            .slice(0, input.limit),
+        })),
       removeBacklogItem: t.procedure
         .input(z.object({ steamAppId: z.number() }))
         .mutation(({ input }) => {
@@ -161,29 +229,30 @@ test.beforeEach(async ({ page }) => {
           );
           return { removed: input.steamAppId };
         }),
+      getSteamPrices: t.procedure
+        .input(z.object({ steamAppIds: z.array(z.number()) }))
+        .query(({ input }) =>
+          Object.fromEntries(input.steamAppIds.map((id) => [id, 39.99])),
+        ),
       searchDeals: t.procedure
         .input(SearchDealsInputSchema)
-        .query(({ input }) => {
-          if ((input?.page ?? 0) > 0) return [];
-          let result = deals.filter(
-            (deal) =>
-              !input?.query ||
-              deal.title.toLowerCase().includes(input.query.toLowerCase()),
-          );
-          if (input?.storeIds?.length)
-            result = result.filter((deal) =>
-              input.storeIds?.some((id) => id === deal.storeId),
-            );
-          if (input?.maxPrice !== undefined)
-            result = result.filter(
-              (deal) => deal.cheapestPrice <= input.maxPrice!,
-            );
-          if (input?.steamOnly)
-            result = result.filter((deal) => deal.steamRedeemable);
-          if (input?.onSale)
-            result = result.filter((deal) => deal.savingsPercent > 0);
-          return result;
-        }),
+        .query(({ input }) =>
+          // "saved" simulates a store outage answered from the saved catalog.
+          input?.query === "saved"
+            ? {
+                live: false,
+                snapshotAt: "2026-10-29",
+                offers: searchFixtureDeals({ ...input, query: "" })
+                  .slice(1, 3)
+                  .map((deal) => ({ ...deal, source: "catalog" as const })),
+              }
+            : {
+                live: true,
+                snapshotAt: null,
+                offers: searchFixtureDeals(input),
+              },
+        ),
+
       getGamePrices: t.procedure
         .input(z.object({ steamAppId: z.number() }))
         .query(({ input }) => ({ prices: fixturePrices(input.steamAppId) })),
@@ -203,6 +272,12 @@ test.beforeEach(async ({ page }) => {
             targetPrice: Object.hasOwn(input, "targetPrice")
               ? (input.targetPrice ?? undefined)
               : previous?.targetPrice,
+            purchaseStore: Object.hasOwn(input, "purchaseStore")
+              ? (input.purchaseStore ?? undefined)
+              : previous?.purchaseStore,
+            platform: Object.hasOwn(input, "platform")
+              ? (input.platform ?? undefined)
+              : previous?.platform,
           };
           accountItems = [
             ...accountItems.filter(
@@ -260,59 +335,98 @@ test("guest dashboard previews and persistent navigation cover all main routes",
 }) => {
   await page.goto("/");
   await expect(page).toHaveTitle("Backlog");
-  await expect(page.getByText("You’re exploring in Guest Mode")).toBeVisible();
-  for (const metric of [
-    "Total Spent",
-    "Owned Library",
-    "Wishlist Alerts",
-    "Estimated Value",
-  ])
-    await expect(page.getByText(metric, { exact: true })).toBeVisible();
-  await expect(page.getByTestId("deal-card")).toHaveCount(4);
   await expect(
-    page.getByRole("heading", { name: /Jump Back In/ }),
+    page.getByText("You’re exploring with sample games"),
   ).toBeVisible();
+  for (const metric of [
+    "Playing now",
+    "Unplayed",
+    "Price alerts",
+    "Total spent",
+  ])
+    await expect(
+      page.locator(".metric-card dt").getByText(metric, { exact: true }),
+    ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Price watch" })).toBeVisible();
+  await expect(page.locator(".watch-row")).toHaveCount(2);
+  await expect(
+    page.locator(".watch-row").first().locator(".watch-row-meta"),
+  ).toContainText("less than Steam");
+  await expect(page.getByRole("heading", { name: "Play next" })).toBeVisible();
+  await expect(page.locator(".queue-card")).toHaveCount(2);
   await expect(
     page
       .locator("section")
-      .filter({
-        has: page.getByRole("heading", { name: "Latest Game Updates" }),
-      })
+      .filter({ has: page.getByRole("heading", { name: "What changed" }) })
       .getByRole("article"),
   ).toHaveCount(4);
+  await expect(page.locator(".news-game").first()).toBeVisible();
   for (const [id, path, heading] of [
-    ["deals", "/deals", "PC game deals"],
-    ["library", "/library", "Your library"],
-    ["wishlist", "/wishlist", "Your wishlist"],
-    ["updates", "/updates", "Stay in the loop"],
+    ["deals", "/deals", "Deals"],
+    ["library", "/library", "Library"],
+    ["wishlist", "/wishlist", "Wishlist"],
+    ["updates", "/updates", "Updates"],
     ["home", "/", "Dashboard"],
   ]) {
     await page.getByTestId(`nav-${id}`).click();
     await expect(page).toHaveURL(path ?? "/");
     await expect(
-      page.getByRole("heading", { name: heading, exact: true }),
+      page.getByRole("heading", { level: 1, name: heading, exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("PC Companion: Web URI Mode")).toBeVisible();
+    await expect(page.getByText("PC Companion: Web URI Mode")).toHaveCount(0);
   }
+});
+
+test("clearing sample games keeps games the guest added", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add game" }).first().click();
+  await page.getByRole("dialog").getByLabel("Search games").fill("Dota");
+  await page
+    .getByRole("button", {
+      name: "I own it: add Dota 2 to library",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByText("✓ In library")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Clear sample games", exact: true })
+    .click();
+  await expect(
+    page.getByText("Your games are saved in this browser"),
+  ).toBeVisible();
+  await page.getByTestId("nav-library").click();
+  await expect(page.getByTestId("library-card")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Dota 2", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("nav-wishlist")).toContainText("0");
 });
 
 test("deals stack filters, show stores, sort offers, and save a wishlist", async ({
   page,
 }) => {
   await page.goto("/deals");
-  await expect(page.getByTestId("deal-card")).toHaveCount(12);
+  // Owned games are hidden by default; the sample library owns Cyberpunk 2077.
+  await expect(page.getByTestId("deal-card")).toHaveCount(11);
+  await expect(
+    page
+      .getByTestId("deal-card")
+      .filter({ hasText: "Featured Game 11" })
+      .locator(".deal-untracked"),
+  ).toHaveText("No Steam match from the price feed. Find it on Steam");
   await page.getByRole("button", { name: "Under $15", exact: true }).click();
   await expect(page.getByTestId("deal-card")).toHaveCount(1);
-  await page.getByRole("button", { name: "50%+ Off", exact: true }).click();
+  await page.getByRole("button", { name: "50%+ off", exact: true }).click();
   await expect(page.getByTestId("deal-card")).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Under $15", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(
-    page.getByRole("button", { name: "50%+ Off", exact: true }),
+    page.getByRole("button", { name: "50%+ off", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page
-    .getByRole("button", { name: "Steam Redeemable", exact: true })
+    .getByRole("button", { name: "Activates on Steam", exact: true })
     .click();
   await expect(page.getByTestId("deal-card")).toHaveCount(1);
   await page.getByLabel("Sort deals", { exact: true }).selectOption("price");
@@ -324,26 +438,25 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
   await page
     .getByRole("button", { name: "Reset filters", exact: true })
     .click();
-  await expect(page.getByTestId("deal-card")).toHaveCount(12);
+  await expect(page.getByTestId("deal-card")).toHaveCount(11);
   await page.locator(".store-picker summary").click();
   await page.getByLabel("GOG store", { exact: true }).check();
-  await expect(page.getByTestId("deal-card")).toHaveCount(4);
+  await expect(page.getByTestId("deal-card")).toHaveCount(3);
   await page.getByLabel("Steam store", { exact: true }).check();
-  await expect(page.getByTestId("deal-card")).toHaveCount(8);
+  await expect(page.getByTestId("deal-card")).toHaveCount(7);
   await page.getByLabel("Steam store", { exact: true }).uncheck();
-  await expect(page.getByTestId("deal-card")).toHaveCount(4);
+  await expect(page.getByTestId("deal-card")).toHaveCount(3);
   await page.getByRole("button", { name: "Done", exact: true }).click();
-  await page.getByRole("button", { name: "All Deals", exact: true }).click();
+  await page.getByRole("button", { name: "All deals", exact: true }).click();
   await page.getByTestId("deal-search-input").fill("Featured Game 1");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await page
-    .getByTestId("deal-card")
-    .first()
-    .getByRole("button", { name: "+ Wishlist", exact: true })
-    .click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Featured Game 1 added to wishlist.",
-  );
+  const card = page.getByTestId("deal-card").first();
+  await card.getByRole("button", { name: "+ Wishlist", exact: true }).click();
+  await expect(card.getByText("On your wishlist")).toBeVisible();
+  // Wishlisting never invents a target; the card asks for one instead.
+  await expect(
+    card.getByLabel("Target price for Featured Game 1", { exact: true }),
+  ).toHaveValue("");
   await page.getByTestId("nav-wishlist").click();
   await expect(
     page.getByRole("heading", { name: "Featured Game 1", exact: true }),
@@ -358,14 +471,16 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
   page,
 }) => {
   await page.goto("/library");
-  await expect(
-    page.getByText("Starter Demo Library (Sign in to sync your Steam account)"),
-  ).toBeVisible();
+  await expect(page.getByText("Showing sample games.")).toBeVisible();
   await expect(page.getByTestId("library-card")).toHaveCount(3);
   await expect(
-    page.getByRole("link", { name: /Launch Game/ }).first(),
+    page.getByRole("link", { name: "Launch Cyberpunk 2077 in Steam" }),
   ).toHaveAttribute("href", "steam://rungameid/1091500");
-  await page.getByRole("button", { name: "Completed", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Filter by status" })
+    .getByRole("button", { name: /Completed/ })
+    .click();
+  await expect(page).toHaveURL(/status=completed/);
   await expect(page.getByTestId("library-card")).toHaveCount(1);
   await expect(
     page.getByRole("heading", { name: "Baldur's Gate 3", exact: true }),
@@ -387,36 +502,72 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
     title: "Counter-Strike 2",
     isOwned: true,
     amountPaid: 0,
+    purchaseStore: "steam",
   });
   await page.getByLabel("Import JSON", { exact: true }).setInputFiles({
     name: "backup.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(payload)),
   });
-  await expect(page.getByRole("status")).toHaveText(
-    "Backlog imported successfully.",
-  );
-  await page.getByRole("button", { name: "All Games", exact: true }).click();
+  await expect(
+    page.locator(".backup-panel").getByRole("status"),
+  ).toHaveText("Backup restored.");
+  await page
+    .getByRole("group", { name: "Filter by status" })
+    .getByRole("button", { name: /All/ })
+    .click();
   await expect(page.getByTestId("library-card")).toHaveCount(4);
   await page.reload();
   await expect(page.getByTestId("library-card")).toHaveCount(4);
+  await expect(
+    page
+      .getByTestId("library-card")
+      .filter({ hasText: "Counter-Strike 2" })
+      .getByText("Paid $0.00 at Steam"),
+  ).toBeVisible();
+  // Table view is remembered and sortable.
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await expect(page.locator(".ledger-table")).toBeVisible();
+  await page.getByRole("button", { name: /^Paid/ }).click();
+  await expect(
+    page.locator(".ledger-table tbody tr").first().getByRole("rowheader"),
+  ).toContainText("Baldur's Gate 3");
+  await page.reload();
+  await expect(page.locator(".ledger-table")).toBeVisible();
 });
 
-test("updates tabs, keyboard navigation, game pills and custom AppIDs", async ({
+test("updates merge your games, filter by game, and keep tabs keyboard friendly", async ({
   page,
 }) => {
   await page.goto("/updates");
+  const feed = page.getByRole("tabpanel");
+  // All my games: official posts from every collection game, each labelled.
   await expect(
-    page.getByRole("heading", { name: "Cyberpunk 2077 Patch 1", exact: true }),
+    feed.getByRole("heading", { name: "Cyberpunk 2077 Patch 1", exact: true }),
   ).toBeVisible();
+  await expect(
+    feed.getByRole("heading", { name: "Elden Ring Patch 1", exact: true }),
+  ).toBeVisible();
+  await expect(feed.locator(".news-game").first()).toBeVisible();
   await page.getByTestId("tab-events").click();
   await expect(page.getByTestId("tab-events")).toHaveAttribute(
     "aria-selected",
     "true",
   );
   await expect(
-    page.getByRole("heading", { name: "Night City Festival" }),
+    feed.getByRole("heading", { name: "Night City Festival" }).first(),
   ).toBeVisible();
+  await page.getByTestId("tab-events").press("ArrowLeft");
+  await expect(page.getByTestId("tab-patches")).toBeFocused();
+  await page.getByRole("button", { name: "Elden Ring", exact: true }).click();
+  await expect(page).toHaveURL(/game=1245620/);
+  await expect(
+    page.getByRole("heading", { name: "Elden Ring Patch 1", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Cyberpunk 2077 Patch 1", exact: true }),
+  ).toHaveCount(0);
+  await page.getByTestId("tab-events").click();
   await expect(
     page.getByRole("heading", { name: "A letter from the developers" }),
   ).toHaveCount(0);
@@ -426,22 +577,10 @@ test("updates tabs, keyboard navigation, game pills and custom AppIDs", async ({
   await expect(
     page.getByRole("heading", { name: "A letter from the developers" }),
   ).toBeVisible();
+  await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Cyberpunk 2077 Patch 1", exact: true }),
-  ).toHaveCount(0);
-  await page.getByTestId("tab-events").press("ArrowLeft");
-  await expect(page.getByTestId("tab-patches")).toBeFocused();
-  await page
-    .getByRole("button", { name: "Elden Ring [1245620]", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Elden Ring Patch 1", exact: true }),
-  ).toBeVisible();
-  await page.getByLabel("Custom Steam AppID").fill("570");
-  await page.getByRole("button", { name: "Load game", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Dota 2 Patch 1", exact: true }),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Elden Ring", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 });
 
 test("dynamic game hub displays prices, news, tracking and desktop launch", async ({
@@ -479,8 +618,11 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
     args: { url: "steam://rungameid/1091500" },
   });
   await expect(
-    page.getByRole("heading", { name: "Best live price" }),
+    page.getByRole("heading", { name: "Prices across stores" }),
   ).toBeVisible();
+  await expect(page.getByText("$5.00 less than Steam")).toBeVisible();
+  // Owned games show the Steam baseline and the cheapest stores only.
+  await expect(page.getByText("baseline")).toBeVisible();
   await page.getByTestId("tab-events").click();
   await expect(
     page.getByRole("heading", { name: "Night City Festival" }),
@@ -488,15 +630,45 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
   await page
     .getByLabel("Backlog completion status", { exact: true })
     .selectOption("completed");
-  await expect(page.getByRole("status")).toHaveText("Backlog status updated.");
+  await expect(page.locator(".save-feedback")).toHaveText("Saved.");
+  // Key sellers activate on Steam, so launching stays available.
+  await page.getByLabel("Bought from").selectOption("gamebillet");
+  await expect(page.getByTestId("launch-game-btn")).toBeVisible();
+  // Games that run in another launcher can't be launched through Steam.
+  await page.getByLabel("Bought from").selectOption("gog");
+  await expect(page.getByTestId("launch-game-btn")).toHaveCount(0);
+  await expect(
+    page.getByText("Plays on GOG Galaxy. Launch it from there."),
+  ).toBeVisible();
   await page.getByTestId("nav-library").click();
-  await page.getByRole("button", { name: "Completed", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Filter by status" })
+    .getByRole("button", { name: /Completed/ })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Cyberpunk 2077", exact: true }),
   ).toBeVisible();
+  // Editing a sample made it the user's own and dropped its invented price.
+  await expect(
+    page.getByText("Price not recorded at GOG · GOG Galaxy (assumed)"),
+  ).toBeVisible();
 });
 
-test("wishlist targets and notification preferences persist in guest mode", async ({
+test("games you don't own offer buying instead of launching", async ({
+  page,
+}) => {
+  await page.goto("/game/553850");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Helldivers 2",
+  );
+  await expect(page.getByTestId("launch-game-btn")).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Buy for $19.99 at Steam" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "← Wishlist" })).toBeVisible();
+});
+
+test("wishlist targets persist in guest mode and drive alerts", async ({
   page,
 }) => {
   await page.goto("/wishlist");
@@ -504,11 +676,18 @@ test("wishlist targets and notification preferences persist in guest mode", asyn
     has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
   });
   await expect(watch.locator('[data-alert-state="TARGET_MET"]')).toBeVisible();
-  const toggle = page.getByRole("switch", {
-    name: "Notify on Patch Notes for Helldivers 2",
-    exact: true,
-  });
-  await toggle.uncheck();
+  await expect(watch.getByText("$5.01 under your $25.00 target")).toBeVisible();
+  await expect(watch.getByText("$5.00 less than Steam")).toBeVisible();
+  await expect(
+    watch.getByRole("link", { name: "Buy at Steam" }),
+  ).toHaveAttribute("href", /dealID=steam-deal/);
+  await expect(page.getByText("1 game worth buying now.")).toBeVisible();
+  // The nav shows the alert count, not the list size, while alerts exist.
+  await expect(page.getByTestId("nav-wishlist")).toContainText("1 price alert");
+  await expect(watch.getByText("Your target: $25.00")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Edit target price for Helldivers 2" })
+    .click();
   await page
     .getByLabel("Target price for Helldivers 2", { exact: true })
     .fill("5");
@@ -516,41 +695,43 @@ test("wishlist targets and notification preferences persist in guest mode", asyn
     .getByLabel("Target price for Helldivers 2", { exact: true })
     .press("Tab");
   await expect(watch.locator('[data-alert-state="WAIT"]')).toBeVisible();
-  await page.reload();
-  await expect(toggle).not.toBeChecked();
   await expect(
-    page.getByLabel("Target price for Helldivers 2", { exact: true }),
-  ).toHaveValue("5");
+    page.getByText("Nothing has hit your targets yet."),
+  ).toBeVisible();
+  await expect(page.getByTestId("nav-wishlist")).toContainText(
+    "2 wishlisted games",
+  );
+  await page.reload();
+  await expect(watch.getByText("Your target: $5.00")).toBeVisible();
+  await expect(page.getByRole("switch")).toHaveCount(0);
 });
+
+const signedInSession = {
+  user: {
+    id: "test-user",
+    name: "Test Player",
+    email: "player@example.com",
+    emailVerified: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  session: {
+    id: "test-session",
+    userId: "test-user",
+    token: "test-token",
+    expiresAt: "2099-01-01T00:00:00.000Z",
+  },
+};
 
 test("signed in library uses account data and exports the server backup", async ({
   page,
 }) => {
   await page.route("**/api/auth/get-session**", (route) =>
-    route.fulfill({
-      json: {
-        user: {
-          id: "test-user",
-          name: "Test Player",
-          email: "player@example.com",
-          emailVerified: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        session: {
-          id: "test-session",
-          userId: "test-user",
-          token: "test-token",
-          expiresAt: "2099-01-01T00:00:00.000Z",
-        },
-      },
-    }),
+    route.fulfill({ json: signedInSession }),
   );
   await page.goto("/library");
   await expect(page.getByTestId("library-card")).toHaveCount(1);
-  await expect(
-    page.getByText("Starter Demo Library (Sign in to sync your Steam account)"),
-  ).toHaveCount(0);
+  await expect(page.getByText("Showing sample games.")).toHaveCount(0);
   const downloadPromise = page.waitForEvent("download");
   await page.getByTestId("export-json-btn").click();
   const download = await downloadPromise;
@@ -561,26 +742,30 @@ test("signed in library uses account data and exports the server backup", async 
     BacklogExportSchema.parse(JSON.parse(await readFile(path, "utf8"))),
   ).toEqual(backup);
   await page.getByTestId("nav-deals").click();
-  await expect(page.getByTestId("deal-card")).toHaveCount(12);
-  await page
-    .getByTestId("deal-card")
-    .nth(1)
-    .getByRole("button", { name: "Mark Owned", exact: true })
-    .click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Featured Game 1 marked owned.",
-  );
+  // Hiding owned games is the default, so Cyberpunk is filtered out.
+  await expect(page.getByTestId("deal-card")).toHaveCount(11);
+  const owned = page.getByTestId("deal-card").first();
+  await owned.getByRole("button", { name: "I own this", exact: true }).click();
+  // The card stays put so purchase details can be added; nothing is assumed.
+  await expect(page.getByTestId("deal-card")).toHaveCount(11);
+  await expect(owned.getByText("Added to your library.")).toBeVisible();
+  await expect(
+    owned.getByLabel("Amount paid for Featured Game 1", { exact: true }),
+  ).toHaveValue("");
+  await owned.getByRole("button", { name: /I paid \$9\.99 at Steam: use this/ }).click();
+  await expect(
+    owned.getByLabel("Amount paid for Featured Game 1", { exact: true }),
+  ).toHaveValue("9.99");
   await page.getByTestId("nav-library").click();
   await expect(page.getByTestId("library-card")).toHaveCount(2);
-  const cyberpunk = page.getByTestId("library-card").filter({
-    has: page.getByRole("heading", { name: "Cyberpunk 2077", exact: true }),
-  });
-  await cyberpunk
-    .getByRole("link", { name: "Game Hub →", exact: true })
+  await page
+    .getByTestId("library-card")
+    .filter({ hasText: "Cyberpunk 2077" })
+    .getByRole("link", { name: "View game", exact: true })
     .click();
-  await page.getByLabel("Amount Paid ($)", { exact: true }).fill("12.34");
-  await page.getByLabel("Amount Paid ($)", { exact: true }).press("Tab");
-  await expect(page.getByRole("status")).toHaveText("Backlog status updated.");
+  await page.getByLabel("Amount paid", { exact: true }).fill("12.34");
+  await page.getByLabel("Amount paid", { exact: true }).press("Tab");
+  await expect(page.locator(".save-feedback")).toHaveText("Saved.");
   await page
     .getByLabel("Backlog completion status", { exact: true })
     .selectOption("completed");
@@ -589,35 +774,66 @@ test("signed in library uses account data and exports the server backup", async 
   ).toBeEnabled();
   await page.getByRole("button", { name: "On Wishlist", exact: true }).click();
   await expect(page.getByTestId("nav-library")).toContainText("1");
-  await expect(page.getByTestId("nav-wishlist")).toContainText("1");
-  await page.getByLabel("Target Price ($)", { exact: true }).fill("7.50");
-  await page.getByLabel("Target Price ($)", { exact: true }).press("Tab");
+  await page.getByLabel("Target price", { exact: true }).fill("7.50");
+  await page.getByLabel("Target price", { exact: true }).press("Tab");
   await expect(
     page.getByRole("button", { name: "In Library", exact: true }),
   ).toBeEnabled();
   await page.getByTestId("nav-wishlist").click();
-  await expect(
-    page.getByLabel("Target price for Cyberpunk 2077", { exact: true }),
-  ).toHaveValue("7.5");
+  await expect(page.getByText("Your target: $7.50")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Edit target price for Cyberpunk 2077" })
+    .click();
   await page
     .getByLabel("Target price for Cyberpunk 2077", { exact: true })
     .fill("");
   await page
     .getByLabel("Target price for Cyberpunk 2077", { exact: true })
     .press("Tab");
-  await expect(page.getByRole("status")).toHaveText("Price watch updated.");
+  await expect(page.locator(".watch-card .save-feedback")).toHaveText(
+    "Target saved.",
+  );
   await page.reload();
   await expect(
-    page.getByLabel("Target price for Cyberpunk 2077", { exact: true }),
-  ).toHaveValue("");
-  await page.getByRole("link", { name: "Game Hub →", exact: true }).click();
+    page.getByText("No target: flagged at its lowest ever price"),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "View game", exact: true }).click();
   await page.getByRole("button", { name: "In Library", exact: true }).click();
-  await expect(page.getByLabel("Amount Paid ($)", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Amount paid", { exact: true })).toHaveValue(
     "12.34",
   );
   await expect(
     page.getByLabel("Backlog completion status", { exact: true }),
   ).toHaveValue("completed");
+});
+
+test("signing in offers to move guest games without overwriting account games", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add game" }).first().click();
+  await page.getByRole("dialog").getByLabel("Search games").fill("Dota");
+  await page
+    .getByRole("button", {
+      name: "I own it: add Dota 2 to library",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByText("✓ In library")).toBeVisible();
+  await page.route("**/api/auth/get-session**", (route) =>
+    route.fulfill({ json: signedInSession }),
+  );
+  await page.goto("/library");
+  await expect(page.getByTestId("library-card")).toHaveCount(1);
+  await expect(
+    page.getByText("You have 1 game saved in this browser."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Add to account", exact: true }).click();
+  await expect(page.getByText("Added 1 game to your account.")).toBeVisible();
+  await expect(page.getByTestId("library-card")).toHaveCount(2);
+  await expect(
+    page.getByRole("heading", { name: "Dota 2", exact: true }),
+  ).toBeVisible();
 });
 
 test("Game Hub ownership, completion and prices persist across pages with live nav counts", async ({
@@ -628,16 +844,14 @@ test("Game Hub ownership, completion and prices persist across pages with live n
     "Cyberpunk 2077",
   );
   await expect(
-    page.getByRole("link", { name: "View on Steam ↗", exact: true }),
+    page.getByRole("link", { name: "Steam store page", exact: true }),
   ).toHaveAttribute("href", "https://store.steampowered.com/app/1091500/");
-  await expect(
-    page.getByText("Historical low: $14.99 · USD", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("Lowest ever $14.99", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "← Library" })).toBeVisible();
   await expect(page.getByTestId("nav-library")).toContainText("3");
-  await expect(page.getByTestId("nav-wishlist")).toContainText("2");
-  await page.getByLabel("Amount Paid ($)", { exact: true }).fill("12.34");
-  await page.getByLabel("Amount Paid ($)", { exact: true }).press("Tab");
-  await expect(page.getByRole("status")).toHaveText("Backlog status updated.");
+  await page.getByLabel("Amount paid", { exact: true }).fill("12.34");
+  await page.getByLabel("Amount paid", { exact: true }).press("Tab");
+  await expect(page.locator(".save-feedback")).toHaveText("Saved.");
   await page
     .getByLabel("Backlog completion status", { exact: true })
     .selectOption("completed");
@@ -645,18 +859,17 @@ test("Game Hub ownership, completion and prices persist across pages with live n
   const card = page.getByTestId("library-card").filter({
     has: page.getByRole("heading", { name: "Cyberpunk 2077", exact: true }),
   });
-  await expect(card.getByLabel("Amount paid for Cyberpunk 2077")).toHaveValue(
-    "12.34",
-  );
+  await expect(card.getByText("Paid $12.34")).toBeVisible();
   await expect(
-    card.getByLabel("Completion status for Cyberpunk 2077"),
-  ).toHaveValue("completed");
-  await card.getByRole("link", { name: "Game Hub →", exact: true }).click();
+    card
+      .getByRole("group", { name: "Status for Cyberpunk 2077" })
+      .getByRole("button", { name: "Completed" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await card.getByRole("link", { name: "View game", exact: true }).click();
   await page.getByRole("button", { name: "On Wishlist", exact: true }).click();
   await expect(page.getByTestId("nav-library")).toContainText("2");
-  await expect(page.getByTestId("nav-wishlist")).toContainText("3");
-  await page.getByLabel("Target Price ($)", { exact: true }).fill("7.50");
-  await page.getByLabel("Target Price ($)", { exact: true }).press("Tab");
+  await page.getByLabel("Target price", { exact: true }).fill("7.50");
+  await page.getByLabel("Target price", { exact: true }).press("Tab");
   await expect(
     page.getByLabel("Backlog completion status", { exact: true }),
   ).toHaveCount(0);
@@ -664,23 +877,20 @@ test("Game Hub ownership, completion and prices persist across pages with live n
     page.getByRole("button", { name: "On Wishlist", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("nav-wishlist").click();
-  await expect(
-    page.getByLabel("Target price for Cyberpunk 2077", { exact: true }),
-  ).toHaveValue("7.5");
+  const watch = page.getByRole("article").filter({ hasText: "Cyberpunk 2077" });
+  await expect(watch.getByText("Your target: $7.50")).toBeVisible();
   await page.reload();
-  await expect(
-    page.getByLabel("Target price for Cyberpunk 2077", { exact: true }),
-  ).toHaveValue("7.5");
+  await expect(watch.getByText("Your target: $7.50")).toBeVisible();
   await page.getByTestId("nav-home").click();
   await expect(
-    page.locator(".metric-card").filter({ hasText: "Total Spent" }),
+    page.locator(".metric-card").filter({ hasText: "Total spent" }),
   ).toContainText("$99.98");
   await expect(
-    page.locator(".metric-card").filter({ hasText: "Owned Library" }),
-  ).toContainText("2");
+    page.locator(".metric-card").filter({ hasText: "Playing now" }),
+  ).toContainText("0");
   await expect(
-    page.locator(".metric-card").filter({ hasText: "Estimated Value" }),
-  ).toContainText("$99.95");
+    page.locator(".metric-card").filter({ hasText: "Unplayed" }),
+  ).toContainText("1");
 });
 
 test("library search, removal undo, and owning a wishlist game keep purchase data honest", async ({
@@ -701,56 +911,51 @@ test("library search, removal undo, and owning a wishlist game keep purchase dat
   ).toBeVisible();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByTestId("library-card")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Edit purchase details for Elden Ring" })
+    .click();
   await expect(
     page.getByLabel("Amount paid for Elden Ring", { exact: true }),
   ).toHaveValue("39.99");
   await page.getByTestId("nav-wishlist").click();
   await page.getByLabel("Find in your wishlist", { exact: true }).fill("Hades");
   await expect(page.getByRole("article")).toHaveCount(1);
-  await page.getByRole("button", { name: "Mark Owned", exact: true }).click();
+  await page.getByRole("button", { name: "I own this", exact: true }).click();
   await page.getByTestId("nav-library").click();
   await page.getByLabel("Find in your library", { exact: true }).fill("Hades");
   await expect(
-    page.getByLabel("Amount paid for Hades", { exact: true }),
-  ).toHaveValue("");
-  await expect(
-    page.getByText("Amount paid not recorded", { exact: true }),
+    page.getByText("Price not recorded · Steam (assumed)", { exact: true }),
   ).toBeVisible();
   await page.getByTestId("nav-home").click();
   await expect(
-    page.locator(".metric-card").filter({ hasText: "Total Spent" }),
+    page.locator(".metric-card").filter({ hasText: "Total spent" }),
   ).toContainText("$129.97");
+  await expect(
+    page.locator(".metric-card").filter({ hasText: "Total spent" }),
+  ).toContainText("3 of 4 purchases recorded");
 });
 
-test("deal views, ownership filters and page controls survive refresh", async ({
+test("deal filters survive refresh and more batches load on demand", async ({
   page,
 }) => {
   await page.goto("/deals");
-  await expect(page.getByTestId("deal-card")).toHaveCount(12);
-  await page.getByLabel("Hide owned games", { exact: true }).check();
   await expect(page.getByTestId("deal-card")).toHaveCount(11);
-  await page.getByRole("button", { name: "List", exact: true }).click();
-  await expect(page.locator(".deal-grid-list")).toBeVisible();
+  await page.locator(".more-filters summary").click();
+  await page.getByLabel("Hide games I already own", { exact: true }).uncheck();
+  await expect(page.getByTestId("deal-card")).toHaveCount(12);
+  await expect(page).toHaveURL(/owned=show/);
   await page.reload();
   await expect(
-    page.getByLabel("Hide owned games", { exact: true }),
-  ).toBeChecked();
-  await expect(page.locator(".deal-grid-list")).toBeVisible();
-  await page
-    .getByRole("button", { name: "Reset filters", exact: true })
-    .click();
+    page.getByLabel("Hide games I already own", { exact: true }),
+  ).not.toBeChecked();
+  await expect(page.getByTestId("deal-card")).toHaveCount(12);
   await page.getByLabel("Offers per page", { exact: true }).selectOption("12");
+  await expect(page.getByText("12 games from 12 offers")).toBeVisible();
+  await page.getByRole("button", { name: "Load more deals", exact: true }).click();
+  // The fixture has no second batch, so nothing more is offered.
   await expect(
-    page.getByRole("button", { name: "Next page", exact: true }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "Next page", exact: true }).click();
-  await expect(page).toHaveURL(/page=1/);
-  await expect(
-    page.getByText("No offers match this combination.", { exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Previous page", exact: true })
-    .click();
+    page.getByRole("button", { name: "Load more deals", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByTestId("deal-card")).toHaveCount(12);
 });
 
@@ -782,7 +987,9 @@ for (const signedIn of [false, true]) {
     const publicRequests: string[] = [];
     page.on("request", (request) => {
       if (
-        /\/api\/trpc\/.*backlog\.(getGameDetails|getGamePrices|getSteamFeed)/.test(
+        // Edits must not refetch game details or news. (Moving a game to the
+        // wishlist legitimately starts a price check for it.)
+        /\/api\/trpc\/.*backlog\.(getGameDetails|getSteamFeed)/.test(
           request.url(),
         )
       )
@@ -790,34 +997,34 @@ for (const signedIn of [false, true]) {
     });
     await page.goto("/game/1091500");
     await expect(
-      page.getByLabel("Amount Paid ($)", { exact: true }),
+      page.getByLabel("Amount paid", { exact: true }),
     ).toHaveValue("29.99");
     await expect(
-      page.getByText("Historical low: $14.99 · USD", { exact: true }),
+      page.getByText("Lowest ever $14.99", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByLabel("Amount Paid ($)", { exact: true }),
+      page.getByLabel("Amount paid", { exact: true }),
     ).toBeEnabled();
     const initialRequests = publicRequests.length;
-    await page.getByLabel("Amount Paid ($)", { exact: true }).fill("18.25");
+    await page.getByLabel("Amount paid", { exact: true }).fill("18.25");
     // Clicking directly blurs the field and changes membership in the same gesture.
     await page
       .getByRole("button", { name: "On Wishlist", exact: true })
       .click();
     await expect(
-      page.getByLabel("Target Price ($)", { exact: true }),
+      page.getByLabel("Target price", { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByLabel("Backlog completion status", { exact: true }),
     ).toHaveCount(0);
-    await page.getByLabel("Target Price ($)", { exact: true }).fill("7.50");
+    await page.getByLabel("Target price", { exact: true }).fill("7.50");
     await page.getByRole("button", { name: "In Library", exact: true }).click();
     await expect(
-      page.getByLabel("Amount Paid ($)", { exact: true }),
+      page.getByLabel("Amount paid", { exact: true }),
     ).toHaveValue("18.25");
     await expect(page.locator(".save-state")).toContainText("Saved");
     expect(publicRequests).toHaveLength(initialRequests);
-    await page.getByLabel("Amount Paid ($)", { exact: true }).fill("19.25");
+    await page.getByLabel("Amount paid", { exact: true }).fill("19.25");
     await page
       .getByRole("button", {
         name: "Remove Cyberpunk 2077 from collection",
@@ -829,17 +1036,178 @@ for (const signedIn of [false, true]) {
     ).toBeVisible();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(
-      page.getByLabel("Amount Paid ($)", { exact: true }),
+      page.getByLabel("Amount paid", { exact: true }),
     ).toHaveValue("19.25");
     await page.reload();
     await expect(
-      page.getByLabel("Amount Paid ($)", { exact: true }),
+      page.getByLabel("Amount paid", { exact: true }),
     ).toHaveValue("19.25");
     await page
       .getByRole("button", { name: "On Wishlist", exact: true })
       .click();
     await expect(
-      page.getByLabel("Target Price ($)", { exact: true }),
+      page.getByLabel("Target price", { exact: true }),
     ).toHaveValue("7.5");
   });
 }
+
+test.describe("phone layout", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("deal rows keep tracking behind Track and show where the price buys", async ({
+    page,
+  }) => {
+    await page.goto("/deals");
+    const card = page.getByTestId("deal-card").first();
+    await expect(card.locator(".price-link-cue")).toHaveText(/at Steam ↗/);
+    await expect(
+      card.getByRole("button", { name: "+ Wishlist", exact: true }),
+    ).toBeHidden();
+    await card.getByRole("button", { name: /Track/ }).click();
+    await expect(
+      card.getByRole("button", { name: "+ Wishlist", exact: true }),
+    ).toBeVisible();
+  });
+});
+
+test("desktop deal cards show tracking actions without a Track toggle", async ({
+  page,
+}) => {
+  await page.goto("/deals");
+  const card = page.getByTestId("deal-card").first();
+  await expect(card.getByRole("button", { name: /Track/ })).toBeHidden();
+  await expect(
+    card.getByRole("button", { name: "+ Wishlist", exact: true }),
+  ).toBeVisible();
+});
+
+test("saved offers during a store outage are labelled and never promise savings", async ({
+  page,
+}) => {
+  await page.goto("/deals?q=saved");
+  await expect(
+    page.getByText(
+      "Live store prices couldn’t be reached, so these are offers saved on 2026-10-29.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  const card = page.getByTestId("deal-card").first();
+  await expect(card.locator(".saved-price")).toHaveText("Saved price");
+  await expect(
+    card.getByRole("link", { name: /^Saved price \$9\.99 at Steam/ }),
+  ).toBeVisible();
+  await expect(card.getByRole("link", { name: /Check price at/ })).toBeVisible();
+  await expect(card.locator(".steam-line")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Load more deals" })).toHaveCount(0);
+});
+
+test("wishlist moves stay coherent while saves are slow or fail", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/get-session**", (route) =>
+    route.fulfill({ json: signedInSession }),
+  );
+  await page.goto("/game/1091500");
+  await page.getByRole("button", { name: "On Wishlist", exact: true }).click();
+  await expect(page.getByTestId("nav-wishlist")).toContainText("1");
+  await page.getByTestId("nav-wishlist").click();
+  // Hold the next save open until the test releases it.
+  let release = () => undefined as void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/trpc/**upsertBacklogItem**", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await page.getByRole("button", { name: "I own this", exact: true }).click();
+  const panel = page.getByRole("complementary", { name: "Moved to library" });
+  await expect(panel).toContainText("Moving Cyberpunk 2077 to your library…");
+  await expect(panel.getByRole("button", { name: "Done" })).toBeDisabled();
+  release();
+  await expect(panel).toContainText("Cyberpunk 2077 moved to your library.");
+  await expect(panel.getByRole("button", { name: "Done" })).toBeEnabled();
+  await page.unroute("**/api/trpc/**upsertBacklogItem**");
+  // Two overlapping purchase-detail saves: nothing settles until both finish.
+  const gates: (() => void)[] = [];
+  await page.route("**/api/trpc/**upsertBacklogItem**", async (route) => {
+    await new Promise<void>((resolve) => gates.push(resolve));
+    await route.fallback();
+  });
+  await panel
+    .getByLabel("Store Cyberpunk 2077 was bought from", { exact: true })
+    .selectOption("gog");
+  await panel
+    .getByLabel("Launcher Cyberpunk 2077 plays on", { exact: true })
+    .selectOption("steam");
+  // Writes are serialized, so the second request starts after the first.
+  await expect.poll(() => gates.length).toBe(1);
+  await expect(panel.getByText("Saving…")).toBeVisible();
+  gates[0]?.();
+  await expect.poll(() => gates.length).toBe(2);
+  // The first finished, but the second is still outstanding.
+  await expect(panel.getByText("Saving…")).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Done" })).toBeDisabled();
+  await expect(panel.getByRole("button", { name: "Undo" })).toBeDisabled();
+  gates[1]?.();
+  await expect(panel.getByText("Saved.")).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Done" })).toBeEnabled();
+  await page.unroute("**/api/trpc/**upsertBacklogItem**");
+  // A failed purchase-detail save stays visible.
+  await page.route("**/api/trpc/**upsertBacklogItem**", (route) =>
+    route.fulfill({ status: 500, body: "{}" }),
+  );
+  await panel.getByLabel("Amount paid for Cyberpunk 2077", { exact: true }).fill("5");
+  await panel.getByLabel("Amount paid for Cyberpunk 2077", { exact: true }).press("Tab");
+  await expect(
+    panel.getByText("Couldn’t save the amount paid. Try changing it again."),
+  ).toBeVisible();
+  await page.unroute("**/api/trpc/**upsertBacklogItem**");
+  // A failed store write followed by a successful launcher write must not
+  // announce "Saved."; retrying the store clears its error.
+  let calls = 0;
+  await page.route("**/api/trpc/**upsertBacklogItem**", async (route) => {
+    calls += 1;
+    if (calls === 1) await route.fulfill({ status: 500, body: "{}" });
+    else await route.fallback();
+  });
+  await panel
+    .getByLabel("Store Cyberpunk 2077 was bought from", { exact: true })
+    .selectOption("humble");
+  await panel
+    .getByLabel("Launcher Cyberpunk 2077 plays on", { exact: true })
+    .selectOption("gog");
+  await expect.poll(() => calls).toBe(2);
+  await expect(
+    panel.getByText(
+      "Couldn’t save the amount paid and store. Try changing them again.",
+    ),
+  ).toBeVisible();
+  await expect(panel.getByText("Saved.")).toHaveCount(0);
+  await panel
+    .getByLabel("Store Cyberpunk 2077 was bought from", { exact: true })
+    .selectOption("fanatical");
+  await expect(
+    panel.getByText("Couldn’t save the amount paid. Try changing it again."),
+  ).toBeVisible();
+  await panel
+    .getByLabel("Amount paid for Cyberpunk 2077", { exact: true })
+    .fill("6");
+  await panel
+    .getByLabel("Amount paid for Cyberpunk 2077", { exact: true })
+    .press("Tab");
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(panel.getByText("Saved.")).toBeVisible();
+  await page.unroute("**/api/trpc/**upsertBacklogItem**");
+  // Undo returns the card and puts focus back on its button.
+  await panel.getByRole("button", { name: "Undo" }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('[data-own-button="1091500"]')).toBeFocused();
+  // Moving the last wishlist game and closing the panel keeps focus on the
+  // results region, which stays mounted for the empty state.
+  await page.getByRole("button", { name: "I own this", exact: true }).click();
+  await expect(panel).toContainText("Cyberpunk 2077 moved to your library.");
+  await panel.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByText("Your wishlist is empty.")).toBeVisible();
+  await expect(page.locator("main [tabindex='-1']").first()).toBeFocused();
+  // The forced 500 above is expected; clear it from the error log.
+  browserErrors.get(page)?.splice(0);
+});

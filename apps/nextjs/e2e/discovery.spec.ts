@@ -29,15 +29,15 @@ test("Steam adapter requests 30 posts and retains general announcements in event
           newsitems: [
             {
               gid: "patch",
-              title: "From the team",
+              title: "Patch v3.1",
               contents: "[b]Version v3[/b] fixes are ready.",
               url: "https://steamcommunity.com/patch",
               date: 100,
             },
             {
               gid: "event",
-              title: "Join us",
-              contents: "[h1]Anniversary DLC[/h1]",
+              title: "Anniversary DLC",
+              contents: "[h1]Join us[/h1]",
               url: "https://steamcommunity.com/event",
               date: 200,
             },
@@ -204,7 +204,11 @@ test("adapters recover from unavailable providers and preserve missing games", a
         (item) => item.cheapestPrice >= 0 && item.source === "catalog",
       ),
     ).toBe(true);
-    expect(await fetchSteamFeed(730)).toEqual({ patchNotes: [], events: [] });
+    expect(await fetchSteamFeed(730)).toEqual({
+      available: false,
+      patchNotes: [],
+      events: [],
+    });
     expect(await fetchGamePrices(1091500)).toMatchObject({
       title: "Cyberpunk 2077",
       currentPrice: 17.99,
@@ -326,7 +330,11 @@ test("rate limits, invalid JSON and network failures use Steam then verified cat
     expect(await fetchDeals()).toHaveLength(12);
     globalThis.fetch = () => Promise.reject(new TypeError("fetch failed"));
     expect(await fetchDeals()).toHaveLength(12);
-    expect(await fetchSteamFeed(730)).toEqual({ patchNotes: [], events: [] });
+    expect(await fetchSteamFeed(730)).toEqual({
+      available: false,
+      patchNotes: [],
+      events: [],
+    });
   } finally {
     globalThis.fetch = original;
   }

@@ -1,185 +1,311 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 
-import { featuredGames, useBacklog } from "~/components/backlog-provider";
-import { DealCards } from "~/components/deal-cards";
+import { storeNames } from "@acme/validators";
+
+import type { BacklogItem } from "~/components/backlog-provider";
+import { AddGameButton } from "~/components/add-game";
+import { useBacklog } from "~/components/backlog-provider";
+import { canLaunch, followedGames } from "~/components/collection";
+import { GameArt, LaunchLink, money, PageHeading } from "~/components/game-ui";
+import { GuestBanner } from "~/components/guest-banner";
+import { useNewsSeen } from "~/components/news-seen";
 import {
-  GameArt,
-  GameLink,
-  LaunchLink,
-  PageHeading,
-} from "~/components/game-ui";
-import { useTRPC } from "~/trpc/react";
-import { NewsCards } from "./_components/backlog-feed";
+  AlertBadge,
+  bestOffer,
+  steamDelta,
+  targetGap,
+  useWishlistPrices,
+} from "~/components/price-ui";
+import {
+  FeedGaps,
+  NewsCards,
+  ownPosts,
+  useCollectionFeed,
+} from "./_components/backlog-feed";
 import { BacklogSummary } from "./_components/backlog-summary";
 
-export default function HomePage() {
-  const { items, isGuest, error } = useBacklog();
-  const trpc = useTRPC();
-  const deals = useQuery(trpc.backlog.searchDeals.queryOptions({}));
-  const feed = useQuery(
-    trpc.backlog.getSteamFeed.queryOptions({ steamAppId: 1091500 }),
-  );
-  const owned = items
-    .filter((item) => item.isOwned)
-    .sort(
-      (a, b) =>
-        Number(b.completionStatus === "playing") -
-        Number(a.completionStatus === "playing"),
+function PriceWatch() {
+  const { items } = useBacklog();
+  const { rows } = useWishlistPrices(items);
+  const rank = (row: (typeof rows)[number]) =>
+    (row.state === "live" || row.state === "steam-only") &&
+    (row.alert === "ALL_TIME_LOW" || row.alert === "TARGET_MET")
+      ? 0
+      : row.state === "checking" || row.state === "unavailable"
+        ? 2
+        : 1;
+  const sorted = [...rows].sort((a, b) => rank(a) - rank(b)).slice(0, 4);
+  if (!rows.length)
+    return (
+      <div className="empty-state space-y-4">
+        <p>
+          Wishlist a game and set the price you’d pay. Backlog compares{" "}
+          {Object.keys(storeNames).length} stores and flags it when it’s worth
+          buying.
+        </p>
+        <AddGameButton secondary label="Add a game to watch" />
+      </div>
     );
-  const quickLaunch = (owned.length ? owned : featuredGames).slice(0, 3);
-  const featured = quickLaunch[0];
-  const completed = owned.filter(
-    (item) => item.completionStatus === "completed",
-  ).length;
-  const updates = [
-    ...(feed.data?.patchNotes ?? []),
-    ...(feed.data?.events ?? []),
-  ]
-    .filter((item) => item.official !== false)
-    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+  return (
+    <ul className="watch-list">
+      {sorted.map(({ item, prices, state, alert }) => {
+        const offer = bestOffer(prices);
+        const delta = steamDelta(prices);
+        return (
+          <li key={item.steamAppId} className="watch-row">
+            <GameArt appId={item.steamAppId} title={item.title} />
+            <div className="min-w-0 space-y-1">
+              <h3>
+                <Link href={`/game/${item.steamAppId}`}>{item.title}</Link>
+              </h3>
+              <AlertBadge state={state} alert={alert} />
+              <p className="watch-row-meta">
+                {state === "checking"
+                  ? "Comparing stores…"
+                  : state === "unavailable"
+                    ? "Prices couldn’t be checked right now"
+                    : [targetGap(item, prices), delta]
+                        .filter(Boolean)
+                        .map((part) => (
+                          <span key={part} className="meta-part">
+                            {part}
+                          </span>
+                        ))}
+              </p>
+            </div>
+            <div className="watch-row-price">
+              {offer ? (
+                <>
+                  <a href={offer.url} target="_blank" rel="noopener noreferrer">
+                    <strong>{money(offer.price)}</strong>
+                    <span className="sr-only">
+                      {" "}
+                      at {offer.store} (opens store)
+                    </span>
+                  </a>
+                  <span>
+                    {offer.state === "cached"
+                      ? "last known"
+                      : offer.state === "steam-only"
+                        ? "on Steam"
+                        : `at ${offer.store}`}
+                  </span>
+                </>
+              ) : (
+                <span>—</span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function WhatChanged() {
+  const { items } = useBacklog();
+  const [since] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const seen = useNewsSeen();
+  const games = followedGames(items).slice(0, 24);
+  const feed = useCollectionFeed(games.map((game) => game.steamAppId));
+  const titles = new Map(games.map((game) => [game.steamAppId, game.title]));
+  if (!games.length)
+    return (
+      <p className="empty-state">
+        Patch notes and events from your games will show up here.
+      </p>
+    );
+  if (feed.isPending)
+    return (
+      <p role="status" className="filter-help">
+        {feed.fetchStatus === "paused"
+          ? "You’re offline. News will load when you reconnect."
+          : "Loading Steam news…"}
+      </p>
+    );
+  if (feed.isError || feed.data.unavailable.length === games.length)
+    return (
+      <p role="alert">
+        Steam news is unavailable right now.{" "}
+        <button className="text-link" onClick={() => void feed.refetch()}>
+          Try again
+        </button>
+      </p>
+    );
+  // Patch notes and events only, newest per game, so one busy game can't
+  // fill the preview. General announcements stay on Updates.
+  const perGame = new Set<number>();
+  const owned = new Set(
+    games.filter((game) => game.isOwned).map((game) => game.steamAppId),
+  );
+  const posts = ownPosts(feed.data.items, titles)
+    // Recent only: patches for games you own, events for any of your games.
+    .filter((item) => item.publishedAt.getTime() > since)
+    .filter((item) =>
+      owned.has(item.steamAppId)
+        ? item.category !== "general"
+        : item.category === "event",
+    )
+    .filter((item) => {
+      if (perGame.has(item.steamAppId)) return false;
+      perGame.add(item.steamAppId);
+      return true;
+    })
     .slice(0, 4);
   return (
-    <main className="page-shell">
-      <PageHeading eyebrow="YOUR COLLECTION" title="Dashboard">
-        Your games, prices, and recent updates in one place.
-      </PageHeading>
-      {isGuest && (
-        <aside className="guest-banner">
-          <div>
-            <strong>You’re exploring in Guest Mode</strong>
-            <p>
-              Your collection stays in this browser. Sign in to save it to your
-              account.
+    <div className="space-y-3">
+      <FeedGaps
+        unavailable={feed.data.unavailable}
+        titles={titles}
+        retry={() => void feed.refetch()}
+      />
+      {posts.length ? (
+        <>
+          <NewsCards compact items={posts} titles={titles} newSince={seen} />
+          {posts.length < 4 && (
+            <p className="filter-help">
+              Nothing else in the last 30 days.{" "}
+              <Link className="text-link" href="/updates">
+                All updates
+              </Link>
             </p>
-          </div>
-          <Link href="/deals" className="action secondary">
-            Explore live sales →
+          )}
+        </>
+      ) : (
+        <p className="empty-state">
+          Nothing new in the last 30 days.{" "}
+          <Link className="text-link" href="/updates">
+            All updates
           </Link>
-        </aside>
+        </p>
       )}
-      {error && <p role="alert">{error}</p>}
+    </div>
+  );
+}
+
+const statusLabel = {
+  playing: "Playing",
+  backlog: "Unplayed",
+  completed: "Completed",
+} as const;
+
+function QueueCard({ game }: { game: BacklogItem }) {
+  const { save } = useBacklog();
+  const [error, setError] = useState(false);
+  const playing = game.completionStatus === "playing";
+  return (
+    <article className="queue-card">
+      <GameArt appId={game.steamAppId} title={game.title} />
+      <div className="queue-card-body">
+        <div className="min-w-0">
+          <h3 className="queue-title">
+            <Link href={`/game/${game.steamAppId}`}>{game.title}</Link>
+          </h3>
+          <p className="queue-status">
+            {statusLabel[game.completionStatus ?? "backlog"]}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {playing && canLaunch(game) ? (
+            <LaunchLink steamAppId={game.steamAppId} title={game.title}>
+              Play
+            </LaunchLink>
+          ) : null}
+          {!playing && (
+            <button
+              className="action secondary compact"
+              onClick={() =>
+                void save({
+                  steamAppId: game.steamAppId,
+                  title: game.title,
+                  isOwned: true,
+                  completionStatus: "playing",
+                }).catch(() => setError(true))
+              }
+            >
+              Mark as playing
+            </button>
+          )}
+        </div>
+        {error && (
+          <p role="alert" className="field-error">
+            Couldn’t update. Try again.
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function PlayNext() {
+  const { items, isLoading } = useBacklog();
+  const queue = followedGames(items.filter((item) => item.isOwned))
+    .filter((item) => item.completionStatus !== "completed")
+    .slice(0, 4);
+  if (isLoading) return <p role="status">Loading your library…</p>;
+  if (!queue.length)
+    return (
+      <div className="empty-state space-y-4">
+        <p>
+          Nothing in progress. Add the games you own and pick one to play next.
+        </p>
+        <AddGameButton secondary />
+      </div>
+    );
+  return (
+    <div className="queue-grid">
+      {queue.map((game) => (
+        <QueueCard key={game.steamAppId} game={game} />
+      ))}
+    </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <main className="page-shell">
+      <PageHeading title="Dashboard">
+        What’s worth buying, what changed in your games, and what to play
+        next, with prices from {Object.keys(storeNames).length} stores, not
+        just Steam.
+      </PageHeading>
+      <GuestBanner />
       <BacklogSummary />
-      <section className="space-y-5">
-        <div className="section-heading">
-          <h2>Jump Back In</h2>
-          <Link className="text-link" href="/library">
-            Your library →
-          </Link>
-        </div>
-        <div className="feature-layout">
-          {featured && (
-            <article className="feature-game">
-              <GameArt
-                appId={featured.steamAppId}
-                title={featured.title}
-                priority
-              />
-              <div className="feature-copy">
-                <p className="eyebrow">
-                  {owned.length ? "From your library" : "Explore a game"}
-                </p>
-                <h3>{featured.title}</h3>
-                <p className="text-muted-foreground text-sm">
-                  {items.find((item) => item.steamAppId === featured.steamAppId)
-                    ?.completionStatus === "playing"
-                    ? "Currently playing"
-                    : owned.length
-                      ? "Ready for your next session"
-                      : "Add a game from Deals to start your collection."}
-                </p>
-                <div className="mt-4 flex flex-wrap items-center gap-5">
-                  {owned.length > 0 && (
-                    <LaunchLink steamAppId={featured.steamAppId} />
-                  )}
-                  <GameLink steamAppId={featured.steamAppId}>Details</GameLink>
-                </div>
-              </div>
-            </article>
-          )}
-          <aside
-            className="collection-queue"
-            aria-label="Your collection at a glance"
-          >
-            <div className="queue-heading">
-              <h3>
-                {owned.length ? "In your library" : "Explore these games"}
-              </h3>
-              <span className="eyebrow">
-                {owned.length ? `${owned.length} GAMES` : "Featured"}
-              </span>
-            </div>
-            {quickLaunch.map((game, index) => (
-              <div className="queue-item" key={game.steamAppId}>
-                <span className="queue-number" aria-hidden="true">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <GameArt appId={game.steamAppId} title={game.title} />
-                <div className="space-y-2">
-                  <h4>{game.title}</h4>
-                  <GameLink steamAppId={game.steamAppId}>Open game</GameLink>
-                </div>
-              </div>
-            ))}
-            <p className="queue-footer">
-              {owned.length
-                ? `${completed} of ${owned.length} games completed.`
-                : "Browse Deals to build your library."}
-            </p>
-          </aside>
-        </div>
-      </section>
       <div className="journal-columns">
-        <section className="space-y-5">
-          <div className="section-heading">
-            <h2>Top Live Deals</h2>
+        <div className="space-y-10">
+          <section className="space-y-4">
+            <div className="section-heading">
+              <h2>Price watch</h2>
+              <Link className="text-link" href="/wishlist">
+                Wishlist
+              </Link>
+            </div>
+            <PriceWatch />
             <Link className="text-link" href="/deals">
-              View All Deals →
+              Browse deals across stores
             </Link>
-          </div>
-          {deals.isPending ? (
-            <p role="status">Loading live deals…</p>
-          ) : deals.isError ? (
-            <p role="alert">
-              Deals are temporarily unavailable.{" "}
-              <button
-                className="text-link"
-                onClick={() => void deals.refetch()}
-              >
-                Try again
-              </button>
-            </p>
-          ) : deals.data.length ? (
-            <DealCards compact deals={deals.data.slice(0, 4)} />
-          ) : (
-            <p className="empty-state">
-              No featured deals available right now.
-            </p>
-          )}
-        </section>
-        <section className="space-y-5">
+          </section>
+          <section className="space-y-4">
+            <div className="section-heading">
+              <h2>Play next</h2>
+              <Link className="text-link" href="/library">
+                Library
+              </Link>
+            </div>
+            <PlayNext />
+          </section>
+        </div>
+        <section className="space-y-4">
           <div className="section-heading">
-            <h2>Latest Game Updates</h2>
+            <h2>What changed</h2>
             <Link className="text-link" href="/updates">
-              View All Updates →
+              All updates
             </Link>
           </div>
-          {feed.isPending ? (
-            <p role="status">Loading Steam news…</p>
-          ) : feed.isError ? (
-            <p role="alert">
-              Steam news is temporarily unavailable.{" "}
-              <button className="text-link" onClick={() => void feed.refetch()}>
-                Try again
-              </button>
-            </p>
-          ) : updates.length ? (
-            <NewsCards compact items={updates} />
-          ) : (
-            <p className="empty-state">No recent announcements.</p>
-          )}
+          <WhatChanged />
         </section>
       </div>
     </main>

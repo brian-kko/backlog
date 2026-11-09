@@ -3,9 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import type { Platform, PurchaseStore } from "@acme/validators";
+import {
+  defaultPlatform,
+  platformNames,
+  purchaseStoreNames,
+} from "@acme/validators";
+
 import type { BacklogItem } from "./backlog-provider";
 import { useBacklog } from "./backlog-provider";
-import { PriceField, RemoveGameButton } from "./game-ui";
+import { PriceField, RemoveGameButton, SampleTag } from "./game-ui";
 
 export function BacklogEditor({
   steamAppId,
@@ -27,13 +34,15 @@ export function BacklogEditor({
     try {
       // Send only the edited fields. The provider serializes writes and merges
       // against the latest item, including when a price blur precedes a click.
-      await save({
-        steamAppId,
-        title,
-        isOwned: item?.isOwned ?? false,
-        ...change,
-      });
-      setMessage("Backlog status updated.");
+      await save(
+        {
+          steamAppId,
+          title,
+          isOwned: item?.isOwned ?? false,
+          ...change,
+        },
+      );
+      setMessage("Saved.");
     } catch {
       setError("Couldn’t save this change. Please try again.");
     } finally {
@@ -44,8 +53,9 @@ export function BacklogEditor({
   return (
     <section className="panel backlog-editor" aria-label="Your backlog status">
       <div className="section-heading">
-        <h2>Your backlog status</h2>
+        <h2>In your collection</h2>
         <span className="save-state">
+          {item && <SampleTag item={item} />}{" "}
           {pending
             ? "Saving…"
             : item
@@ -58,9 +68,9 @@ export function BacklogEditor({
       <p className="text-muted-foreground text-sm">
         {item
           ? item.isOwned
-            ? "You own this game. Keep your progress and purchase details here."
-            : "You’re watching this game. Set a price you’d like to pay."
-          : "Add this game to your library or watch it on your wishlist."}
+            ? "Track your progress and what you paid."
+            : "Set the price you’re willing to pay and we’ll flag it when a store hits it."
+          : "Add it to your library if you own it, or wishlist it to watch prices across stores."}
       </p>
       <div className="membership-picker" aria-label="Backlog membership">
         <button
@@ -71,7 +81,7 @@ export function BacklogEditor({
           onClick={() => void update({ isOwned: true })}
         >
           <strong>In Library</strong>
-          <span>I own this game</span>
+          <span>I own it</span>
         </button>
         <button
           className="membership-option"
@@ -81,7 +91,7 @@ export function BacklogEditor({
           onClick={() => void update({ isOwned: false })}
         >
           <strong>On Wishlist</strong>
-          <span>I’m waiting to buy</span>
+          <span>Watch the price</span>
         </button>
       </div>
       {item && (
@@ -89,7 +99,7 @@ export function BacklogEditor({
           {item.isOwned ? (
             <>
               <label className="field-label">
-                Completion Status
+                Status
                 <select
                   className="form-control mt-2 w-full"
                   aria-label="Backlog completion status"
@@ -103,66 +113,103 @@ export function BacklogEditor({
                   }
                 >
                   {[
-                    ["backlog", "Backlog — haven’t started"],
+                    ["backlog", "Unplayed"],
                     ["playing", "Playing"],
                     ["completed", "Completed"],
                   ].map(([value, label]) => (
                     <option
                       key={value}
                       value={value}
-                      className="bg-zinc-900 text-zinc-100"
+                     
                     >
                       {label}
                     </option>
                   ))}
                 </select>
               </label>
-              <PriceField
-                label="Amount Paid ($)"
-                value={item.amountPaid}
-                disabled={disabled}
-                onSave={(amountPaid) => update({ amountPaid })}
-              />
+              <div className="card-fields">
+                <PriceField
+                  label="Amount paid"
+                  value={item.amountPaid}
+                  disabled={disabled}
+                  onSave={(amountPaid) => update({ amountPaid })}
+                />
+                <label className="field-label">
+                  <span>Bought from</span>
+                  <select
+                    className="form-control w-full"
+                    value={item.purchaseStore ?? ""}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      void update({
+                        purchaseStore: (event.target.value || undefined) as
+                          | PurchaseStore
+                          | undefined,
+                      })
+                    }
+                  >
+                    <option value="">Not set</option>
+                    {(Object.keys(purchaseStoreNames) as PurchaseStore[]).map(
+                      (store) => (
+                        <option key={store} value={store}>
+                          {purchaseStoreNames[store]}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+                <label className="field-label col-span-full">
+                  <span>Plays on</span>
+                  <select
+                    className="form-control w-full"
+                    value={item.platform ?? ""}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      void update({
+                        platform: (event.target.value || undefined) as
+                          | Platform
+                          | undefined,
+                      })
+                    }
+                  >
+                    <option value="">
+                      {platformNames[defaultPlatform(item.purchaseStore)]}{" "}
+                      (assumed)
+                    </option>
+                    {(Object.keys(platformNames) as Platform[]).map((key) => (
+                      <option key={key} value={key}>
+                        {platformNames[key]}
+                      </option>
+                    ))}
+                  </select>
+                  {!item.platform && (
+                    <span className="field-hint">
+                      Not confirmed. Change it if this plays elsewhere.
+                    </span>
+                  )}
+                </label>
+              </div>
             </>
           ) : (
             <>
               <PriceField
-                label="Target Price ($)"
+                label="Target price"
                 value={item.targetPrice}
                 disabled={disabled}
+                hint="Leave blank to be flagged only at an all-time low."
                 onSave={(targetPrice) => update({ targetPrice })}
               />
-              <p className="filter-help">
-                Leave the target blank to watch for an all-time low. Automatic
-                notifications arrive in a later milestone.
-              </p>
-              {(["notifyPatches", "notifyEvents"] as const).map((field) => (
-                <label className="check-label" key={field}>
-                  <input
-                    type="checkbox"
-                    checked={item[field] ?? true}
-                    disabled={disabled}
-                    onChange={(event) =>
-                      void update({ [field]: event.target.checked })
-                    }
-                  />
-                  {field === "notifyPatches"
-                    ? "Track patch notes"
-                    : "Track live events"}
-                </label>
-              ))}
             </>
           )}
           <p className="filter-help">
-            Changes save automatically. Press Enter or leave a price field to
-            save it.
+            Changes save automatically.
           </p>
           <div className="editor-footer">
             <Link
               className="text-link"
               href={item.isOwned ? "/library" : "/wishlist"}
             >
-              {item.isOwned ? "Open your library" : "Open your wishlist"} →
+              {item.isOwned ? "Open your library" : "Open your wishlist"}
             </Link>
             <RemoveGameButton steamAppId={steamAppId} title={title} />
           </div>
