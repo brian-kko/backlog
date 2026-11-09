@@ -7,3 +7,4 @@ export const unused = z.string().describe(
   `,
 );
 export * from "./backlog-parser";
+export * from "./game-search";

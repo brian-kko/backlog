@@ -5,17 +5,24 @@ import { and, asc, eq, sql } from "@acme/db";
 import { userBacklog } from "@acme/db/schema";
 import {
   BacklogExportSchema,
+  CollectionFeedInputSchema,
   DealItemSchema,
+  GameSearchInputSchema,
+  GameSearchResultSchema,
   SearchDealsInputSchema,
   SteamFeedInputSchema,
   UpsertBacklogItemSchema,
 } from "@acme/validators";
 
+import { catalogVerifiedAt } from "../curated-games";
 import {
-  fetchDeals,
+  fetchCollectionFeed,
+  fetchDealsWithStatus,
   fetchGameMetadata,
   fetchGamePrices,
   fetchSteamFeed,
+  fetchSteamPrices,
+  searchGames,
 } from "../steam-discovery";
 import { protectedProcedure, publicProcedure } from "../trpc";
 
@@ -25,6 +32,7 @@ export const backlogRouter = {
     .query(async ({ input }) => {
       const feed = await fetchSteamFeed(input.steamAppId ?? 1091500);
       return {
+        available: feed.available,
         patchNotes:
           input.category === "event"
             ? []
@@ -36,10 +44,45 @@ export const backlogRouter = {
       };
     }),
 
+  searchGames: publicProcedure
+    .input(GameSearchInputSchema)
+    .output(
+      z.object({
+        source: z.enum(["steam", "catalog"]),
+        results: z.array(GameSearchResultSchema),
+      }),
+    )
+    .query(({ input }) => searchGames(input.query)),
+
+  getCollectionFeed: publicProcedure
+    .input(CollectionFeedInputSchema)
+    .query(({ input }) => fetchCollectionFeed(input.steamAppIds, input.limit)),
+
   searchDeals: publicProcedure
     .input(SearchDealsInputSchema)
-    .output(z.array(DealItemSchema))
-    .query(({ input }) => fetchDeals(input?.query, input)),
+    .output(
+      z.object({
+        offers: z.array(DealItemSchema),
+        /** False when stores were unreachable; offers are then saved ones. */
+        live: z.boolean(),
+        snapshotAt: z.string().nullable(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const result = await fetchDealsWithStatus(input?.query, input);
+      return {
+        ...result,
+        snapshotAt: result.live ? null : catalogVerifiedAt,
+      };
+    }),
+
+  getSteamPrices: publicProcedure
+    .input(
+      z.object({
+        steamAppIds: z.array(z.number().int().positive().max(2147483647)).max(60),
+      }),
+    )
+    .query(({ input }) => fetchSteamPrices(input.steamAppIds)),
 
   getGamePrices: publicProcedure
     .input(
@@ -96,6 +139,34 @@ export const backlogRouter = {
       targetPrice: item.targetPrice === null ? null : Number(item.targetPrice),
     }));
   }),
+
+  // Moves guest games into an account without overwriting games it already has.
+  importGuestItems: protectedProcedure
+    .input(BacklogExportSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!input.items.length) return { added: 0, skipped: 0 };
+      const added = await ctx.db
+        .insert(userBacklog)
+        .values(
+          input.items.map((item) => ({
+            ...item,
+            userId: ctx.session.user.id,
+            amountPaid: item.amountPaid?.toFixed(2) ?? null,
+            targetPrice: item.targetPrice?.toFixed(2) ?? null,
+            completionStatus: item.completionStatus ?? "backlog",
+            notifyPatches: item.notifyPatches ?? true,
+            notifyEvents: item.notifyEvents ?? true,
+          })),
+        )
+        .onConflictDoNothing({
+          target: [userBacklog.userId, userBacklog.steamAppId],
+        })
+        .returning({ steamAppId: userBacklog.steamAppId });
+      return {
+        added: added.length,
+        skipped: input.items.length - added.length,
+      };
+    }),
 
   importBacklogJson: protectedProcedure
     .input(BacklogExportSchema)
@@ -183,6 +254,8 @@ export const backlogRouter = {
           completionStatus: userBacklog.completionStatus,
           notifyPatches: userBacklog.notifyPatches,
           notifyEvents: userBacklog.notifyEvents,
+          purchaseStore: userBacklog.purchaseStore,
+          platform: userBacklog.platform,
         })
         .from(userBacklog)
         .where(eq(userBacklog.userId, ctx.session.user.id))
@@ -196,6 +269,8 @@ export const backlogRouter = {
             item.amountPaid === null ? undefined : Number(item.amountPaid),
           targetPrice:
             item.targetPrice === null ? undefined : Number(item.targetPrice),
+          purchaseStore: item.purchaseStore ?? undefined,
+          platform: item.platform ?? undefined,
         })),
       };
     }),

@@ -27,19 +27,21 @@ test("public pages load through the real API without browser or tRPC errors", as
   await expect(
     page
       .locator(".metric-card")
-      .filter({ hasText: "Estimated Value" })
-      .locator("dd"),
+      .filter({ hasText: "Total spent" })
+      .locator("dd")
+      .first(),
   ).toHaveText(/^\$[\d,.]+$/, { timeout: 15000 });
-  await expect(page.getByTestId("deal-card")).toHaveCount(4, {
-    timeout: 15000,
-  });
+  await expect(page.locator(".watch-row")).toHaveCount(2, { timeout: 15000 });
   await page.getByTestId("nav-deals").click();
   await expect(page.getByTestId("deal-card").first()).toBeVisible({
     timeout: 15000,
   });
   await page.getByTestId("nav-library").click();
   await expect(page.getByTestId("library-card")).toHaveCount(3);
-  const completion = page.getByLabel("Completion status for Cyberpunk 2077", {
+  await page
+    .getByRole("button", { name: "Edit purchase details for Cyberpunk 2077" })
+    .click();
+  const completion = page.getByLabel("Store Cyberpunk 2077 was bought from", {
     exact: true,
   });
   const contrast = await completion.evaluate((select) => {
@@ -80,6 +82,7 @@ test("public pages load through the real API without browser or tRPC errors", as
       };
     });
   });
+  await page.waitForLoadState("networkidle");
   await page.screenshot({
     path: testInfo.outputPath("library-contrast.png"),
     fullPage: true,
@@ -88,9 +91,10 @@ test("public pages load through the real API without browser or tRPC errors", as
     expect(item.ratio, JSON.stringify(contrast)).toBeGreaterThan(7);
   await page.getByTestId("nav-wishlist").click();
   await expect(page.getByRole("article")).toHaveCount(2);
-  await expect(page.getByText("Loading…", { exact: true })).toHaveCount(0, {
-    timeout: 15000,
-  });
+  await expect(page.getByText("Checking prices…", { exact: true })).toHaveCount(
+    0,
+    { timeout: 15000 },
+  );
   await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(0);
   await page.getByTestId("nav-updates").click();
   await expect(
@@ -101,12 +105,15 @@ test("public pages load through the real API without browser or tRPC errors", as
     "Cyberpunk 2077",
     { timeout: 15000 },
   );
-  await expect(page.getByText(/^Historical low: \$[\d,.]+ · USD$/)).toBeVisible(
-    { timeout: 15000 },
-  );
   await expect(
-    page.getByRole("link", { name: "View on Steam ↗", exact: true }),
+    page.getByRole("heading", { name: "Prices across stores" }),
+  ).toBeVisible({ timeout: 15000 });
+  await expect(
+    page.getByRole("link", { name: "Steam store page", exact: true }),
   ).toHaveAttribute("href", "https://store.steampowered.com/app/1091500/");
+  // Screenshots inject caret styles; take them after hydration settles so
+  // React doesn't report the injected style as a hydration mismatch.
+  await page.waitForLoadState("networkidle");
   await page.screenshot({
     path: testInfo.outputPath("game-hub.png"),
     fullPage: true,

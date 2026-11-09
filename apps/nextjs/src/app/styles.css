@@ -31,18 +31,22 @@
   --radius: 0.25rem;
   --signal: #24543e;
   --price-ink: #925126;
+  --field: #ffffff;
+  --field-border: #868d79;
+  --control-border: #868d79;
+  --warn: #8a4b00;
 }
 :root.dark {
   --background: #151a1d;
   --foreground: #e9efef;
   --card: #1c2327;
   --card-foreground: #e9efef;
-  --popover: #22271e;
-  --popover-foreground: #e9ecdf;
+  --popover: #20282c;
+  --popover-foreground: #e9efef;
   --muted: #293237;
   --muted-foreground: #aab8bb;
-  --border: #3a484e;
-  --input: #353d2e;
+  --border: #3f4d53;
+  --input: #5d6e75;
   --primary: #bad49e;
   --primary-foreground: #172310;
   --secondary: #252b20;
@@ -52,6 +56,10 @@
   --ring: #bad49e;
   --signal: #9ad5bd;
   --price-ink: #dcb183;
+  --field: #11161a;
+  --field-border: #6b7d84;
+  --control-border: #6b7d84;
+  --warn: #f0b862;
 }
 
 @utility container {
@@ -69,8 +77,11 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-padding-top: 80px;
+  }
   body {
-    letter-spacing: -0.015em;
+    letter-spacing: -0.011em;
   }
   ::selection {
     background: var(--primary);
@@ -78,111 +89,369 @@
   }
   input,
   select {
-    @apply border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-400 focus:border-emerald-500;
+    background: var(--field);
+    color: var(--foreground);
+  }
+  :root.dark input,
+  :root.dark select {
     color-scheme: dark;
   }
   option {
-    @apply bg-zinc-900 text-zinc-100;
+    background: var(--field);
+    color: var(--foreground);
   }
   button,
   a,
   input,
-  select {
+  select,
+  summary {
     -webkit-tap-highlight-color: transparent;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
   }
 }
 
+/* ---------- Layout & navigation ---------- */
 @layer components {
   .page-shell {
-    @apply mx-auto flex w-full max-w-7xl flex-col gap-9 px-5 pt-10 pb-16 sm:px-8 sm:pt-12;
+    @apply mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 pt-8 pb-16 sm:px-8 sm:pt-10;
   }
   .site-nav {
-    @apply bg-background sticky top-0 z-20 border-b;
+    @apply bg-background sticky top-0 z-30 border-b;
   }
   .nav-shell {
-    @apply mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-8 px-5 sm:px-8;
-    min-height: 88px;
+    @apply mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-8;
   }
   .brand {
-    @apply flex shrink-0 items-center gap-3;
-  }
-  .brand-name {
-    @apply block text-4xl font-bold;
-    letter-spacing: -0.055em;
-  }
-  .brand-caption {
-    @apply text-muted-foreground mt-0.5 block font-mono text-[8px] leading-none tracking-[0.14em] uppercase;
+    @apply flex shrink-0 items-center gap-2.5;
   }
   .brand-emblem {
     color: var(--signal);
-    @apply flex h-9 w-7 items-center justify-center text-3xl;
+    @apply flex;
+  }
+  .brand-name {
+    @apply text-xl font-bold;
+    letter-spacing: -0.04em;
   }
   .nav-links {
-    @apply flex min-w-0 items-center gap-1 self-stretch;
+    @apply flex min-w-0 items-center gap-0.5 self-stretch;
   }
   .nav-link {
-    @apply text-muted-foreground relative inline-flex items-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors;
+    @apply text-muted-foreground relative inline-flex items-center gap-2 px-3 text-sm font-medium whitespace-nowrap transition-colors;
   }
   .nav-link svg {
-    @apply opacity-60;
-    width: 14px;
-    height: 14px;
+    @apply hidden opacity-70;
   }
   .nav-link:hover {
     @apply text-foreground;
   }
   .nav-link[aria-current="page"] {
-    color: var(--signal);
+    @apply text-foreground;
   }
   .nav-link[aria-current="page"]::after {
     content: "";
     position: absolute;
     height: 2px;
-    bottom: 0;
+    bottom: -1px;
     left: 12px;
     right: 12px;
     background: var(--signal);
   }
   .nav-count {
-    @apply bg-muted text-foreground min-w-4 rounded-sm px-1 py-0.5 text-center font-mono text-xs tabular-nums;
+    @apply bg-muted text-muted-foreground min-w-5 rounded-full px-1.5 py-px text-center text-[11px] font-semibold tabular-nums;
+  }
+  .nav-link[aria-current="page"] .nav-count {
+    @apply text-foreground;
   }
   .nav-controls {
-    @apply flex shrink-0 items-center gap-4;
+    @apply ml-auto flex shrink-0 items-center gap-2;
+  }
+  .nav-user {
+    @apply text-muted-foreground hidden text-sm lg:inline;
   }
   .companion-badge {
-    @apply text-muted-foreground flex items-center gap-1.5 text-[11px] tracking-tight;
+    @apply text-muted-foreground hidden text-xs lg:inline;
   }
-  .companion-badge > span {
-    color: var(--signal);
-    font-size: 8px;
+  .skip-link {
+    @apply bg-primary text-primary-foreground fixed top-2 left-2 z-50 -translate-y-24 rounded-sm px-4 py-2 text-sm font-semibold;
   }
+  .skip-link:focus {
+    @apply translate-y-0;
+  }
+  .site-footer {
+    @apply text-muted-foreground mx-auto flex max-w-7xl flex-wrap justify-between gap-3 border-t px-4 py-6 text-xs sm:px-8;
+  }
+
+  /* ---------- Headings ---------- */
   .page-heading {
-    @apply grid items-end gap-x-12 gap-y-4 border-b pb-7 md:grid-cols-[1fr_auto];
-  }
-  .page-heading .eyebrow {
-    @apply col-span-full;
+    @apply flex flex-wrap items-end justify-between gap-x-10 gap-y-4;
   }
   .page-heading h1 {
-    font-size: clamp(2rem, 4vw, 2.8rem);
+    font-size: clamp(1.9rem, 3.4vw, 2.5rem);
     font-weight: 700;
-    letter-spacing: -0.055em;
-    line-height: 1.04;
+    letter-spacing: -0.045em;
+    line-height: 1.05;
   }
   .page-description {
-    @apply text-muted-foreground max-w-sm text-sm leading-relaxed;
+    @apply text-muted-foreground max-w-2xl text-base leading-relaxed;
+  }
+  .page-actions {
+    @apply flex flex-wrap items-center gap-3;
   }
   .eyebrow {
     color: var(--signal);
-    @apply text-xs leading-relaxed font-semibold tracking-[0.08em] uppercase;
+    @apply text-xs font-semibold tracking-[0.08em] uppercase;
   }
+  .section-heading {
+    @apply flex flex-wrap items-end justify-between gap-3 border-b pb-3;
+  }
+  .section-heading h2 {
+    @apply text-lg font-semibold tracking-tight;
+  }
+  .back-link {
+    @apply text-muted-foreground hover:text-foreground -mb-4 self-start text-sm font-medium;
+  }
+
+  /* ---------- Buttons & links ---------- */
+  .action {
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent px-4 py-2 text-sm font-semibold whitespace-nowrap transition-[filter,background-color] disabled:cursor-not-allowed disabled:opacity-50;
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+  .action:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  .action.secondary {
+    @apply text-foreground bg-transparent;
+    border-color: var(--control-border);
+  }
+  .action.secondary:hover:not(:disabled) {
+    @apply bg-muted;
+    filter: none;
+  }
+  .action.compact {
+    @apply min-h-9 px-3 py-1.5;
+  }
+  .text-link {
+    color: var(--signal);
+    @apply inline-flex min-h-6 cursor-pointer items-center text-sm font-medium underline-offset-4 hover:underline disabled:opacity-50;
+  }
+  .quiet-button {
+    @apply text-muted-foreground hover:text-foreground inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm font-medium disabled:opacity-50;
+  }
+  .remove-link:hover {
+    @apply text-red-700 dark:text-red-300;
+  }
+  .collection-chip {
+    @apply bg-muted text-foreground inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium;
+  }
+  .collection-chip span {
+    color: var(--signal);
+  }
+
+  /* ---------- Filters, tabs, chips ---------- */
+  .chip-scroller {
+    @apply -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0;
+    scrollbar-width: none;
+  }
+  .filter-pill {
+    @apply text-muted-foreground hover:text-foreground inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50;
+    border-color: var(--control-border);
+  }
+  .filter-pill[aria-pressed="true"] {
+    background: var(--foreground);
+    border-color: var(--foreground);
+    color: var(--background);
+  }
+  .tab-bar {
+    @apply flex gap-1 border-b;
+  }
+  .tab {
+    @apply text-muted-foreground hover:text-foreground relative inline-flex min-h-10 cursor-pointer items-center gap-2 px-3 text-sm font-medium;
+  }
+  .tab[aria-selected="true"] {
+    @apply text-foreground;
+  }
+  .tab[aria-selected="true"]::after {
+    content: "";
+    @apply absolute right-2 -bottom-px left-2 h-0.5;
+    background: var(--signal);
+  }
+  .tab-count {
+    @apply bg-muted rounded-full px-1.5 text-[11px] font-semibold tabular-nums;
+  }
+  .filter-pill[aria-pressed="true"] .tab-count {
+    background: color-mix(in srgb, var(--background) 22%, transparent);
+  }
+  .segmented {
+    @apply inline-flex rounded-md border p-0.5;
+    border-color: var(--control-border);
+  }
+  .segmented button {
+    @apply text-muted-foreground min-h-9 cursor-pointer rounded px-3 text-sm font-medium;
+  }
+  .segmented button[aria-pressed="true"] {
+    @apply bg-muted text-foreground;
+  }
+  .check-label {
+    @apply flex min-h-9 cursor-pointer items-center gap-2 text-sm;
+  }
+  .check-label input,
+  .popover-picker input[type="checkbox"] {
+    @apply h-4 w-4 shrink-0;
+    accent-color: var(--signal);
+  }
+  .inline-select {
+    @apply text-muted-foreground flex items-center gap-2 text-sm;
+  }
+  .inline-select .form-control {
+    @apply text-foreground min-h-9 py-1.5;
+  }
+  .filter-help,
+  .field-hint {
+    @apply text-muted-foreground text-sm leading-relaxed;
+  }
+  .field-hint {
+    @apply mt-1.5 block text-xs;
+  }
+  .summary-line {
+    @apply -mt-4 text-base font-medium;
+  }
+  .result-count {
+    @apply text-muted-foreground mt-1 text-sm;
+  }
+  .source-notice {
+    @apply rounded-md border px-4 py-3 text-sm;
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+    color: var(--warn);
+  }
+  .price-source-note {
+    @apply text-sm;
+    color: var(--warn);
+  }
+  .sample-note {
+    @apply text-muted-foreground -mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm;
+  }
+  .sample-tag {
+    @apply rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase;
+    color: var(--warn);
+    border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  }
+
+  /* ---------- Forms ---------- */
+  .form-control {
+    @apply min-h-10 rounded-md border px-3 py-2 text-sm disabled:opacity-50;
+    background: var(--field);
+    border-color: var(--field-border);
+    color: var(--foreground);
+  }
+  .form-control::placeholder {
+    color: var(--muted-foreground);
+  }
+  .form-control:focus {
+    border-color: var(--ring);
+  }
+  .field-label {
+    @apply block space-y-1.5 text-sm font-medium;
+  }
+  .field-label > span:first-child,
+  .field-label > label {
+    @apply text-muted-foreground block text-xs font-medium;
+  }
+  .money-input {
+    @apply relative;
+  }
+  .money-input > span {
+    @apply text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm;
+  }
+  .money-input .form-control {
+    @apply pl-6 tabular-nums;
+  }
+  .field-error {
+    @apply mt-1.5 block text-sm text-red-700 dark:text-red-300;
+  }
+  .save-feedback {
+    color: var(--signal);
+    @apply min-h-5 text-xs;
+  }
+  .save-state {
+    @apply text-muted-foreground text-xs;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  summary:focus-visible,
+  label:has(> input.sr-only:focus-visible) {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* ---------- Cards & surfaces ---------- */
   .panel {
-    @apply bg-card rounded-sm border p-5 sm:p-6;
+    @apply bg-card rounded-lg border p-5 sm:p-6;
   }
+  .game-card {
+    @apply bg-card flex min-w-0 flex-col overflow-hidden rounded-lg border transition-colors;
+  }
+  .game-card:hover {
+    border-color: var(--control-border);
+  }
+  .game-art {
+    @apply aspect-[460/215] w-full bg-black/40 object-cover;
+  }
+  .artwork-placeholder {
+    @apply text-muted-foreground bg-muted flex items-center justify-center p-4 text-center text-sm font-medium;
+  }
+  .card-grid {
+    @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3;
+  }
+  .card-body {
+    @apply flex flex-1 flex-col gap-4 p-4 sm:p-5;
+  }
+  .card-title {
+    @apply text-lg leading-snug font-semibold tracking-tight;
+  }
+  .card-title a:hover,
+  .deal-title a:hover,
+  .watch-row h3 a:hover {
+    @apply underline underline-offset-4;
+  }
+  .card-fields {
+    @apply grid grid-cols-2 gap-3;
+  }
+  .card-actions {
+    @apply mt-auto flex flex-wrap items-center gap-x-4 gap-y-2;
+  }
+  .card-links {
+    @apply flex items-center justify-between gap-4 border-t pt-3;
+  }
+  .card-body .save-feedback:empty {
+    @apply -mt-4;
+  }
+  .badge {
+    @apply bg-muted text-muted-foreground inline-flex items-center rounded px-2 py-0.5 text-xs font-medium;
+  }
+  .badge[data-category="patch_note"] {
+    color: var(--signal);
+  }
+  .empty-state {
+    @apply text-muted-foreground rounded-lg border border-dashed px-6 py-10 text-center text-sm leading-relaxed;
+  }
+  .empty-state > p {
+    @apply mx-auto max-w-md;
+  }
+
+  /* ---------- Metrics & banners ---------- */
   .metrics-rail {
-    @apply grid grid-cols-2 border-y lg:grid-cols-4;
+    @apply bg-card grid grid-cols-2 overflow-hidden rounded-lg border lg:grid-cols-4;
   }
   .metric-card {
-    @apply min-w-0 border-r px-5 py-5;
+    @apply flex min-w-0 flex-col border-r px-5 py-4;
   }
   .metric-card:nth-child(2n) {
     @apply max-lg:border-r-0;
@@ -194,241 +463,91 @@
     @apply max-lg:border-b;
   }
   .metric-card dt {
-    @apply text-muted-foreground text-xs font-medium tracking-wide uppercase;
+    @apply text-muted-foreground text-xs font-medium;
   }
   .metric-card dd {
-    @apply mt-2 text-3xl font-medium tracking-[-0.055em] tabular-nums sm:text-4xl;
+    @apply mt-1 text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl;
   }
-  .metric-note {
-    @apply text-muted-foreground mt-2 block font-mono text-[9px];
+  .metric-card dd a:hover {
+    color: var(--signal);
+  }
+  .metric-card dd.metric-note,
+  .metric-card dd.metric-note a {
+    @apply text-muted-foreground mt-1 text-xs font-normal tracking-normal sm:text-xs;
   }
   .guest-banner {
-    @apply flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-l-2 py-1 pl-4;
-    border-left-color: var(--signal);
+    @apply bg-card flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-lg border px-5 py-4;
+    border-left: 3px solid var(--signal);
   }
   .guest-banner strong {
-    @apply text-sm font-medium;
+    @apply text-sm font-semibold;
   }
   .guest-banner p {
     @apply text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed;
   }
-  .guest-banner .action {
-    @apply px-0 py-1 text-sm;
-    background: transparent;
-    border: 0;
-    color: var(--signal);
+
+  /* ---------- Dashboard ---------- */
+  .queue-grid {
+    @apply grid gap-3;
   }
-  .section-heading {
-    @apply flex flex-wrap items-center justify-between gap-3 border-b pb-3;
+  .queue-card {
+    @apply bg-card grid min-w-0 grid-cols-[128px_minmax(0,1fr)] items-center overflow-hidden rounded-lg border;
   }
-  .section-heading h2 {
-    @apply text-xl font-semibold tracking-tight;
+  .queue-card .game-art {
+    @apply m-3 mr-0 rounded;
+    width: calc(100% - 12px);
   }
-  .section-heading .text-link {
-    @apply text-sm;
+  .queue-card-body {
+    @apply flex min-w-0 flex-wrap items-center justify-between gap-3 p-3 pl-4;
   }
-  .section-index {
-    @apply text-muted-foreground mr-3 font-mono text-[10px] font-normal;
+  .queue-title {
+    @apply truncate text-sm leading-snug font-semibold;
   }
-  .game-card {
-    @apply bg-card min-w-0 overflow-hidden rounded-sm border transition-colors;
+  .queue-title a:hover {
+    @apply underline underline-offset-4;
   }
-  .game-card:hover {
-    border-color: var(--muted-foreground);
-  }
-  .game-card h2,
-  .game-card h3 {
-    @apply tracking-tight;
-  }
-  .game-art {
-    @apply aspect-[460/215] w-full bg-zinc-900 object-contain;
-  }
-  .game-hero {
-    @apply flex flex-col items-start gap-8 border-b pb-8 md:flex-row md:items-center;
-  }
-  .game-hero > img {
-    border-radius: 2px;
-  }
-  .game-hero h1 {
-    @apply tracking-[-0.055em];
-  }
-  .action {
-    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-sm border border-transparent px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-50;
-    background: var(--primary);
-    color: var(--primary-foreground);
-  }
-  .action:hover {
-    filter: brightness(1.08);
-  }
-  .action.secondary {
-    @apply border-border text-foreground bg-transparent;
-  }
-  .action.secondary:hover {
-    @apply bg-muted;
-  }
-  .text-link {
-    color: var(--signal);
-    @apply text-sm font-medium underline-offset-4 hover:underline;
-  }
-  .filter-bar {
-    @apply flex flex-wrap gap-2;
-  }
-  .filter-pill {
-    @apply text-muted-foreground hover:text-foreground cursor-pointer rounded-sm border border-transparent px-3 py-2 text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-50;
-  }
-  .filter-pill:hover {
-    @apply bg-muted;
-  }
-  .filter-pill[aria-pressed="true"],
-  .filter-pill[aria-selected="true"] {
-    @apply bg-muted text-foreground border-border;
-    box-shadow: inset 0 -2px 0 var(--signal);
-  }
-  /* Avoid text-input, which collides with Tailwind's theme color utility. */
-  .form-control {
-    @apply rounded-sm border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-400 focus:border-emerald-500 disabled:opacity-50;
-  }
-  .field-label {
-    @apply mb-2 block text-sm font-medium;
-  }
-  .badge {
-    @apply bg-muted text-muted-foreground inline-block rounded-sm px-2 py-1 text-xs font-medium;
-  }
-  .savings {
-    @apply absolute top-3 right-3 rounded-sm px-2 py-1 font-mono text-[11px] font-medium;
-    background: var(--primary);
-    color: var(--primary-foreground);
-  }
-  .empty-state {
-    @apply text-muted-foreground border-y px-6 py-10 text-center text-sm;
-  }
-  .feature-layout {
-    @apply grid items-start gap-5 lg:grid-cols-[1.2fr_1fr];
-  }
-  .feature-game {
-    @apply bg-card overflow-hidden rounded-sm border;
-  }
-  .feature-game > .game-art {
-    @apply h-auto w-full;
-  }
-  .feature-copy {
-    @apply space-y-2 p-5 sm:p-6;
-  }
-  .feature-copy h3 {
-    @apply text-2xl font-semibold tracking-tight;
-  }
-  .hub-art {
-    width: min(100%, 460px);
-    height: auto;
-    aspect-ratio: 460 / 215;
-    object-fit: contain;
-    flex-shrink: 0;
-  }
-  .artwork-placeholder {
-    @apply text-muted-foreground flex items-center justify-center p-5 text-center text-base;
-  }
-  .collection-queue {
-    @apply flex min-w-0 flex-col border;
-    background: var(--card);
-  }
-  .queue-heading {
-    @apply flex items-center justify-between border-b px-5 py-4;
-  }
-  .queue-heading h3 {
-    @apply text-base font-semibold;
-  }
-  .queue-item {
-    @apply grid grid-cols-[24px_108px_1fr] items-center gap-3 border-b px-5 py-5;
-  }
-  .queue-item .game-art {
-    @apply rounded-sm;
-  }
-  .queue-item h4 {
-    @apply text-base leading-snug font-semibold;
-  }
-  .queue-item .text-link {
-    @apply text-sm;
-  }
-  .queue-number {
-    @apply text-muted-foreground font-mono text-[10px];
-  }
-  .queue-footer {
-    @apply text-muted-foreground mt-auto px-5 py-4 text-sm leading-relaxed;
-  }
-  .journal-columns {
-    @apply grid items-start gap-9 lg:grid-cols-[1.2fr_1fr] lg:gap-12;
-  }
-  .deal-list {
-    @apply divide-y;
-  }
-  .deal-row {
-    @apply grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-4 py-4;
-  }
-  .deal-row .game-art {
-    @apply rounded-sm;
-  }
-  .deal-row h3 {
-    @apply mb-1.5 text-base leading-snug font-semibold;
-  }
-  .deal-row .text-link {
-    @apply text-sm;
-  }
-  .deal-row-price {
-    @apply flex flex-col items-end gap-1 text-lg tabular-nums;
-    color: var(--price-ink);
-  }
-  .deal-row-price s {
+  .queue-status {
     @apply text-muted-foreground text-xs;
   }
-  .discount-label {
-    @apply mt-1 text-xs;
-    color: var(--signal);
+  .journal-columns {
+    @apply grid items-start gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12;
   }
-  .news-list {
+  .watch-list {
     @apply divide-y;
   }
-  .news-entry {
-    @apply block py-5;
+  .watch-row {
+    @apply grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-4 py-4;
   }
-  .news-index {
-    display: none;
+  .watch-row .game-art {
+    @apply rounded;
   }
-  .news-entry h3 {
-    @apply text-base leading-snug font-semibold;
-    max-width: 70ch;
-    text-wrap: pretty;
+  .watch-row h3 {
+    @apply text-sm leading-snug font-semibold;
   }
-  .news-entry p {
-    @apply text-muted-foreground text-sm leading-relaxed;
-    max-width: 78ch;
+  .watch-row-meta {
+    @apply text-muted-foreground text-xs;
   }
-  .news-list-compact .news-entry p {
-    @apply line-clamp-2 text-sm;
+  .watch-row-price {
+    @apply flex flex-col items-end text-right;
   }
-  .news-entry time {
-    @apply text-muted-foreground ml-auto text-xs;
+  .watch-row-price a:hover strong {
+    @apply underline underline-offset-4;
   }
-  .news-entry .text-link {
-    @apply text-sm;
-  }
-  .deal-price {
+  .watch-row-price strong {
     color: var(--price-ink);
-    @apply font-mono text-xl font-medium tracking-tight;
+    @apply text-lg font-semibold tabular-nums;
   }
-  .track-actions {
-    @apply border-t pt-3;
-  }
-  .track-actions .action {
-    @apply min-h-10 px-3 py-2 text-sm;
+  .watch-row-price span {
+    @apply text-muted-foreground text-xs;
   }
   .watch-state {
-    @apply inline-flex items-center gap-2 text-sm;
+    @apply inline-flex items-center gap-2 text-xs font-medium;
     color: var(--muted-foreground);
   }
   .watch-state::before {
     content: "";
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     background: currentColor;
     border-radius: 50%;
   }
@@ -436,141 +555,260 @@
   .watch-state[data-alert-state="ALL_TIME_LOW"] {
     color: var(--signal);
   }
-  .site-footer {
-    @apply text-muted-foreground mx-auto flex max-w-7xl flex-wrap justify-between gap-3 border-t px-5 py-6 text-xs sm:px-8;
+  .watch-state[data-stale] {
+    color: var(--warn);
   }
-  a:focus-visible,
-  button:focus-visible,
-  input:focus-visible,
-  select:focus-visible {
-    @apply outline-2 outline-offset-4 outline-emerald-500;
+  .new-badge {
+    @apply rounded px-1.5 py-0.5 text-[11px] font-semibold;
+    background: var(--signal);
+    color: var(--background);
   }
-}
+  .nav-count.nav-alert {
+    background: var(--signal);
+    color: var(--background);
+  }
+  .nav-dot {
+    @apply inline-block h-2 w-2 rounded-full;
+    background: var(--signal);
+  }
+  .offline-banner {
+    @apply mx-auto max-w-7xl px-4 py-2 text-sm sm:px-8;
+    color: var(--warn);
+  }
+  .purchase-line {
+    @apply text-muted-foreground flex items-center justify-between gap-3 text-sm;
+  }
+  .status-picker {
+    @apply flex w-full;
+  }
+  .status-picker button {
+    @apply flex-1 px-2 text-xs sm:text-sm;
+  }
+  .status-picker button[aria-pressed="true"][data-status="playing"],
+  .status-picker button[aria-pressed="true"][data-status="completed"] {
+    color: var(--signal);
+  }
+  .gap-line-note {
+    @apply text-muted-foreground font-normal;
+  }
+  .table-game {
+    @apply flex items-center gap-3;
+  }
+  .table-game .game-art {
+    @apply w-20 shrink-0 rounded;
+  }
+  .table-game a:hover {
+    @apply underline underline-offset-4;
+  }
+  .table-paid .form-control {
+    width: 7.5rem;
+  }
+  .sort-header {
+    @apply hover:text-foreground inline-flex cursor-pointer items-center font-medium;
+  }
 
-@media (max-width: 1100px) {
-  .nav-shell {
-    gap: 0 24px;
-    padding-top: 16px;
-  }
-  .nav-links {
-    order: 3;
-    width: 100%;
-    margin-top: 12px;
-    overflow-x: auto;
-  }
-  .nav-controls {
-    margin-left: auto;
-  }
-}
-@media (max-width: 600px) {
-  .nav-shell {
-    padding-top: 12px;
-  }
-  .nav-links {
-    gap: 0;
-    justify-content: space-between;
-  }
-  .nav-link {
-    gap: 5px;
-    padding: 12px 6px;
-    font-size: 12px;
-  }
-  .nav-link svg {
-    display: none;
-  }
-  .nav-link[aria-current="page"]::after {
-    left: 6px;
-    right: 6px;
-  }
-  .companion-badge {
-    display: none;
-  }
-  .nav-count {
-    font-size: 10px;
-    min-width: 14px;
-  }
-  .page-shell {
-    gap: 28px;
-  }
-  .metric-card {
-    padding: 16px;
-  }
-  .deal-row {
-    grid-template-columns: 92px minmax(0, 1fr) auto;
-    gap: 12px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-  }
-}
-
-@layer components {
-  .deal-store {
-    @apply text-muted-foreground mb-2 text-sm;
-  }
-  .deal-row .deal-store {
-    @apply mb-1 text-xs;
-  }
-  .deal-row .deal-buy {
-    @apply ml-4;
-  }
+  /* ---------- Deals ---------- */
   .deal-toolbar {
-    @apply space-y-6;
+    @apply space-y-4;
   }
   .deal-search {
-    @apply max-w-3xl;
+    @apply flex max-w-2xl gap-2;
   }
-  .deal-filter-grid {
-    @apply grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-4;
+  .filter-row {
+    @apply flex flex-wrap items-center justify-between gap-3;
   }
-  .store-picker {
-    @apply relative self-start rounded-sm border;
-    margin-top: 24px;
+  .popover-picker {
+    @apply relative;
   }
-  .store-picker summary {
-    @apply flex min-h-11 cursor-pointer items-center justify-between gap-3 px-3 text-sm;
+  .popover-picker summary {
+    @apply text-foreground flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-full border px-3.5 text-sm font-medium;
+    border-color: var(--control-border);
   }
-  .store-picker summary span {
+  .popover-picker summary::-webkit-details-marker {
+    display: none;
+  }
+  .popover-picker summary::after {
+    content: "▾";
     @apply text-muted-foreground text-xs;
   }
+  .picker-value {
+    @apply bg-muted rounded-full px-1.5 text-xs;
+  }
+  .popover-picker fieldset {
+    @apply bg-popover absolute top-full right-0 z-20 mt-2 grid max-h-[70vh] w-72 max-w-[calc(100vw-2rem)] gap-3 overflow-y-auto rounded-lg border p-4 shadow-xl;
+  }
   .store-picker fieldset {
-    @apply bg-card absolute top-full left-0 z-10 mt-2 grid max-h-96 w-72 max-w-[85vw] gap-3 overflow-y-auto rounded-sm border p-4 shadow-lg;
+    @apply right-auto left-0 sm:right-0 sm:left-auto;
   }
-  .store-picker fieldset label {
-    @apply flex cursor-pointer items-center gap-3 text-sm;
+  .popover-picker fieldset > label:not(.field-label) {
+    @apply flex min-h-8 cursor-pointer items-center gap-3 text-sm;
   }
-  .check-label {
-    @apply flex cursor-pointer items-center gap-2 text-sm;
+  .deal-grid {
+    @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3;
   }
-  .check-label input,
-  .store-picker input {
-    @apply h-4 w-4 shrink-0 accent-emerald-500;
+  .deal-art {
+    @apply relative;
   }
-  .filter-help {
+  .deal-content {
+    @apply flex flex-1 flex-col gap-3 p-4 sm:p-5;
+  }
+  .deal-title {
+    @apply text-base leading-snug font-semibold tracking-tight;
+  }
+  .deal-store {
+    @apply text-muted-foreground text-sm;
+  }
+  .price-line {
+    @apply flex flex-wrap items-baseline gap-x-2.5 gap-y-1;
+  }
+  .price-line s {
+    @apply text-muted-foreground text-sm;
+  }
+  .deal-price {
+    color: var(--price-ink);
+    @apply text-xl font-semibold tracking-tight tabular-nums;
+  }
+  .deal-price.muted {
+    @apply text-foreground;
+  }
+  .discount-label {
+    @apply rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums;
+    background: color-mix(in srgb, var(--signal) 18%, transparent);
+    color: var(--signal);
+  }
+  .deal-buy {
+    @apply mt-auto w-full;
+  }
+  .track-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .track-actions .action {
+    @apply flex-1;
+  }
+  .load-more {
+    @apply flex justify-center pt-2;
+  }
+  /* Actions pin to the card bottom so Buy buttons align across a row. */
+  .deal-actions {
+    @apply mt-auto flex flex-col gap-2 pt-1;
+  }
+  .deal-actions > .deal-untracked {
+    @apply flex min-h-9 items-center;
+  }
+  .deal-untracked {
+    @apply text-muted-foreground text-xs;
+  }
+  .wishlist-strip {
+    @apply bg-card space-y-3 rounded-lg border p-4 sm:p-5;
+  }
+  .wishlist-strip.empty {
+    @apply text-muted-foreground flex flex-wrap items-center justify-between gap-3 space-y-0 text-sm;
+  }
+  .wishlist-strip h2 {
+    @apply text-base font-semibold;
+  }
+  .wishlist-strip ul {
+    @apply grid gap-3 md:grid-cols-3;
+  }
+  .wishlist-strip li {
+    @apply grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3;
+  }
+  .wishlist-strip .game-art {
+    @apply rounded;
+  }
+  .strip-title {
+    @apply block truncate text-sm font-semibold hover:underline;
+  }
+  .strip-meta {
+    @apply text-muted-foreground text-xs;
+  }
+  .strip-price {
+    @apply flex flex-col items-end text-base font-semibold tabular-nums hover:underline;
+    color: var(--price-ink);
+  }
+  .strip-price span {
+    @apply text-muted-foreground text-xs font-normal;
+  }
+
+  /* ---------- News ---------- */
+  .news-list {
+    @apply divide-y;
+  }
+  .news-entry {
+    @apply block space-y-2 py-5;
+  }
+  .news-meta {
+    @apply text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs;
+  }
+  .news-game {
+    @apply text-foreground text-xs font-semibold hover:underline;
+  }
+  .news-entry h3 {
+    @apply text-base leading-snug font-semibold;
+    max-width: 70ch;
+  }
+  .news-entry h3 a:hover {
+    color: var(--signal);
+  }
+  .news-entry p {
     @apply text-muted-foreground text-sm leading-relaxed;
+    max-width: 78ch;
   }
-  .pagination {
-    @apply flex items-center justify-between gap-3 border-t pt-5 text-sm;
+  .news-list-compact .news-entry {
+    @apply py-4;
   }
-  .collection-search {
-    @apply grid gap-4 sm:grid-cols-[minmax(0,1fr)_240px];
+  .news-list-compact .news-entry p {
+    @apply line-clamp-2;
+  }
+
+  /* ---------- Game page ---------- */
+  .game-hero {
+    @apply flex flex-col items-start gap-8 md:flex-row md:items-center;
+  }
+  .hub-art {
+    @apply w-full shrink-0 rounded-lg md:max-w-[44%];
+    aspect-ratio: 460 / 215;
+    object-fit: cover;
+  }
+  .hero-title {
+    @apply text-3xl font-bold sm:text-4xl;
+    letter-spacing: -0.045em;
+  }
+  .hero-meta {
+    @apply text-muted-foreground text-xs;
+  }
+  .hub-grid {
+    @apply grid items-start gap-5 md:grid-cols-2;
+  }
+  .hub-price {
+    color: var(--price-ink);
+    @apply text-3xl font-semibold tracking-tight tabular-nums;
+  }
+  .store-prices {
+    @apply divide-y border-t;
+  }
+  .store-prices li {
+    @apply flex min-h-11 items-center justify-between gap-3 text-sm;
+  }
+  .store-prices a {
+    @apply font-medium hover:underline;
+    color: var(--signal);
+  }
+  .store-price {
+    @apply flex items-baseline gap-2 tabular-nums;
+  }
+  .store-price s {
+    @apply text-muted-foreground text-xs;
   }
   .backlog-editor {
     @apply space-y-5;
-  }
-  .save-state {
-    @apply text-muted-foreground text-xs;
   }
   .membership-picker {
     @apply grid grid-cols-2 gap-3;
   }
   .membership-option {
-    @apply flex min-w-0 cursor-pointer flex-col gap-1 rounded-sm border p-4 text-left disabled:opacity-50;
+    @apply flex min-w-0 cursor-pointer flex-col gap-1 rounded-md border p-4 text-left disabled:opacity-50;
+    border-color: var(--control-border);
   }
   .membership-option strong {
     @apply text-sm;
@@ -589,81 +827,419 @@
   .editor-footer {
     @apply flex items-center justify-between gap-4 border-t pt-4;
   }
-  .field-error {
-    @apply mt-2 block text-sm text-red-700 dark:text-red-300;
+
+  /* ---------- Library & wishlist ---------- */
+  .collection-toolbar {
+    @apply flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between;
   }
-  .save-feedback {
-    color: var(--signal);
-    @apply text-sm;
+  .collection-search {
+    @apply grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:items-center;
   }
-  .remove-link {
-    @apply text-muted-foreground text-sm hover:text-red-600 dark:hover:text-red-300;
+  .collection-search input {
+    @apply sm:w-72;
   }
+  .collection-search .segmented {
+    @apply col-span-full justify-self-start;
+  }
+  .price-pair {
+    @apply grid grid-cols-2 gap-4;
+  }
+  .price-pair dt {
+    @apply text-muted-foreground text-xs font-medium;
+  }
+  .price-pair dd {
+    @apply mt-0.5;
+  }
+  .price-pair-note {
+    @apply text-muted-foreground text-xs;
+  }
+  .gap-line {
+    @apply -mt-1 text-sm font-medium;
+  }
+  .table-scroll {
+    @apply overflow-x-auto rounded-lg border;
+  }
+  .ledger-table {
+    @apply bg-card w-full min-w-[640px] text-sm;
+  }
+  .ledger-table th,
+  .ledger-table td {
+    @apply border-b px-4 py-3 text-left align-middle;
+  }
+  .ledger-table thead th {
+    @apply text-muted-foreground text-xs font-medium;
+  }
+  .ledger-table tbody tr:last-child > * {
+    @apply border-b-0;
+  }
+  .ledger-table tbody th {
+    @apply font-semibold;
+  }
+  .ledger-table .field-label > label {
+    @apply sr-only;
+  }
+  .ledger-table .form-control {
+    @apply w-auto;
+  }
+  .backup-panel {
+    @apply flex flex-wrap items-center justify-between gap-4 border-t pt-8;
+  }
+  .backup-panel h2 {
+    @apply text-base font-semibold;
+  }
+
+  /* ---------- Add game dialog ---------- */
+  .add-game-dialog {
+    @apply bg-popover text-popover-foreground m-auto w-[min(640px,calc(100vw-2rem))] rounded-xl border p-0 shadow-2xl;
+    max-height: min(720px, calc(100dvh - 2rem));
+  }
+  .add-game-dialog::backdrop {
+    background: rgb(0 0 0 / 0.55);
+  }
+  .add-game-panel {
+    @apply flex flex-col gap-4 p-5 sm:p-6;
+  }
+  .add-game-results {
+    @apply min-h-24;
+  }
+  .search-results {
+    @apply divide-y;
+  }
+  .search-result {
+    @apply grid grid-cols-[88px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[96px_minmax(0,1fr)_auto];
+  }
+  .search-result-art {
+    @apply bg-muted block aspect-[231/87] w-full rounded object-cover;
+  }
+  .search-result-title {
+    @apply truncate text-sm font-semibold;
+  }
+  .search-result-meta {
+    @apply text-muted-foreground text-xs;
+  }
+  .search-result-meta .text-link {
+    @apply min-h-0 text-xs;
+  }
+  .search-result-actions {
+    @apply col-span-full flex justify-end gap-2 sm:col-span-1;
+  }
+
   .undo-toast {
-    @apply bg-popover text-popover-foreground fixed right-5 bottom-20 left-5 z-30 mx-auto flex max-w-xl flex-wrap items-center justify-between gap-4 rounded-sm border p-4 text-sm shadow-lg;
+    @apply bg-popover text-popover-foreground fixed right-4 bottom-5 left-4 z-40 mx-auto flex max-w-xl flex-wrap items-center justify-between gap-4 rounded-lg border p-4 text-sm shadow-lg;
   }
-}
-@media (min-width: 768px) {
-  .hub-art {
-    max-width: 45%;
+
+  /* Collection, pricing and news details */
+  .date-group {
+    @apply text-muted-foreground border-b pb-2 text-xs font-semibold tracking-wide uppercase;
   }
-}
-@media (max-width: 600px) {
-  .brand-name {
-    font-size: 32px;
+  .own-prompt {
+    @apply grid w-full grid-cols-2 gap-3 pt-1;
   }
-  .deal-row {
-    grid-template-columns: 92px minmax(0, 1fr);
+  .saved-price {
+    @apply rounded px-1.5 py-0.5 text-xs font-medium;
+    color: var(--warn);
+    border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
   }
-  .deal-row-price {
-    grid-column: 2;
-    flex-direction: row;
-    align-items: baseline;
-    gap: 10px;
+  .store-baseline {
+    @apply bg-muted/60 -mx-2 rounded px-2;
   }
-  .deal-row .deal-buy {
-    margin-left: 0;
-    display: block;
-    margin-top: 8px;
+  .baseline-tag {
+    @apply text-muted-foreground ml-1 text-xs font-normal;
   }
-  .queue-item {
-    grid-template-columns: 18px 96px minmax(0, 1fr);
-    padding-inline: 16px;
+  .store-saving {
+    @apply text-xs font-semibold;
+    color: var(--signal);
   }
-  .queue-item h4 {
-    font-size: 14px;
+  .summary-row {
+    @apply -mt-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1;
   }
-  .membership-option {
-    padding: 12px;
+  .summary-row .summary-line {
+    @apply mt-0;
+  }
+  .checked-at {
+    @apply text-muted-foreground text-sm;
+  }
+  .deal-untracked .text-link {
+    @apply min-h-0 text-xs;
+  }
+  /* Owned games: collection controls before shopping. */
+  .hub-grid.owned > .backlog-editor {
+    order: -1;
+  }
+  .steam-line {
+    @apply text-muted-foreground -mt-1 text-xs;
+  }
+  .steam-line strong {
+    color: var(--signal);
+  }
+  .price-link {
+    @apply -my-1 block rounded py-1;
+  }
+  .price-link:hover .deal-price {
+    @apply underline underline-offset-4;
+  }
+  .own-prompt-title {
+    @apply text-muted-foreground col-span-full text-xs;
+  }
+  .card-heading {
+    @apply flex items-start justify-between gap-2;
+  }
+  .sample-label {
+    @apply text-muted-foreground bg-muted rounded px-1.5 py-0.5 align-middle text-[11px] font-medium;
+  }
+  .moved-panel:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  .moved-panel {
+    @apply bg-card space-y-3 rounded-lg border p-4;
+    border-left: 3px solid var(--signal);
+  }
+  .price-link-cue {
+    @apply hidden text-xs font-medium;
+    color: var(--signal);
+  }
+  .meta-part + .meta-part::before {
+    content: " · ";
+  }
+  .ledger-table .money-input {
+    width: 7.5rem;
+  }
+  .track-toggle-button {
+    display: none;
+  }
+  /* Table cells whose value is also the edit control. */
+  .cell-edit {
+    @apply hover:bg-muted -mx-2 inline-flex min-h-9 cursor-pointer items-center gap-1 rounded px-2 text-left text-sm font-medium underline-offset-4 hover:underline;
+    color: var(--signal);
   }
 }
 
-@layer components {
-  .result-controls {
-    @apply flex flex-wrap items-center gap-2 text-sm;
+/* ---------- Responsive ---------- */
+@media (max-width: 899px) {
+  .nav-link {
+    @apply px-2;
   }
-  .result-controls label {
-    @apply flex items-center gap-2;
+  .nav-add .add-label {
+    display: none;
   }
-  .result-controls .form-control {
-    @apply py-1.5;
+}
+@media (max-width: 639px) {
+  /* Bottom tab bar on phones (also used by the installed PWA). */
+  .nav-links {
+    @apply bg-background/95 fixed inset-x-0 bottom-0 z-30 grid h-auto grid-cols-5 border-t backdrop-blur;
+    padding-bottom: env(safe-area-inset-bottom);
   }
+  .nav-link {
+    @apply flex-col justify-center gap-0.5 px-0 py-2 text-[11px];
+    min-height: 56px;
+  }
+  .nav-link svg {
+    @apply block;
+  }
+  .nav-link[aria-current="page"] {
+    color: var(--signal);
+  }
+  .nav-link[aria-current="page"]::after {
+    top: -1px;
+    bottom: auto;
+    left: 25%;
+    right: 25%;
+  }
+  .nav-count {
+    @apply absolute top-1.5 left-1/2 ml-2 min-w-4 px-1 text-[10px];
+  }
+  .nav-controls .action.secondary {
+    @apply px-3;
+  }
+  .nav-add .action {
+    @apply min-h-9 px-3;
+  }
+  .nav-dot {
+    @apply absolute top-2 left-1/2 ml-2;
+  }
+  .view-toggle {
+    display: none;
+  }
+  /* Hint that chip rows scroll sideways. */
+  .chip-scroller {
+    mask-image: linear-gradient(to right, #000 85%, transparent);
+  }
+  /* The add-game dialog becomes a top sheet so the keyboard can't cover results. */
+  .add-game-dialog {
+    @apply mt-0 mb-auto w-full max-w-none rounded-t-none border-x-0 border-t-0;
+    max-height: 100dvh;
+    height: 100dvh;
+  }
+  .add-game-panel {
+    @apply h-full;
+  }
+  .add-game-results {
+    @apply flex-1 overflow-y-auto;
+  }
+  body {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+  .undo-toast {
+    bottom: calc(68px + env(safe-area-inset-bottom));
+  }
+  .page-shell {
+    gap: 32px;
+  }
+  .metric-card {
+    @apply px-4;
+  }
+  /* Deals become compact rows on phones. */
   .deal-grid {
-    @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3;
+    @apply gap-0 divide-y rounded-lg border;
   }
-  .deal-grid-list {
-    @apply grid-cols-1 sm:grid-cols-1 xl:grid-cols-1;
+  .deal-card {
+    @apply grid grid-cols-[104px_minmax(0,1fr)] gap-3 rounded-none border-0 p-3;
   }
-  .deal-grid-list .deal-card {
-    @apply grid items-center sm:grid-cols-[240px_minmax(0,1fr)];
+  .deal-card .game-art {
+    @apply rounded;
   }
-  .deal-grid-list .deal-content {
-    @apply grid items-start gap-x-6 gap-y-3 sm:grid-cols-2;
+  .deal-card .deal-content {
+    @apply gap-2 p-0;
   }
-  .deal-grid-list .deal-content > * {
-    @apply m-0;
+  .deal-card .deal-price {
+    @apply text-base;
   }
-  .deal-grid-list .track-actions {
-    @apply col-span-full;
+  .deal-card .deal-buy {
+    @apply min-h-9 py-1.5;
+  }
+  .deal-card .track-actions .action {
+    @apply min-h-8 py-1 text-xs;
+  }
+  .deal-card .deal-actions {
+    @apply flex-col;
+  }
+  .watch-row {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .queue-card {
+    @apply grid-cols-[96px_minmax(0,1fr)];
+  }
+  .wishlist-strip li {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+  }
+  .nav-add .add-label {
+    display: none;
+  }
+  .card-grid {
+    @apply gap-4;
+  }
+  /* Collection cards: small art beside the title, details full width. */
+  .library-card,
+  .watch-card {
+    @apply grid grid-cols-[104px_minmax(0,1fr)] gap-x-0 gap-y-3 pb-3;
+  }
+  .library-card > .game-art,
+  .watch-card > .game-art {
+    @apply mt-3 ml-3 rounded;
+    width: calc(100% - 12px);
+  }
+  .library-card .card-body > .status-picker {
+    @apply mx-3 p-0.5;
+    width: calc(100% - 24px);
+  }
+  .library-card .card-body,
+  .watch-card .card-body {
+    display: contents;
+  }
+  .library-card .card-body > *,
+  .watch-card .card-body > * {
+    @apply col-span-full px-3;
+  }
+  .library-card .card-body > :first-child,
+  .watch-card .card-body > :first-child {
+    @apply col-span-1 self-center pt-3;
+  }
+  .library-card .card-title,
+  .watch-card .card-title {
+    @apply text-base;
+  }
+  .card-body .save-feedback:empty {
+    display: none;
+  }
+  .hub-grid {
+    @apply gap-4;
+  }
+  .site-footer {
+    @apply pb-4;
+  }
+
+  /* Collection, pricing and news details on phones */
+  /* Deals: price + buy and tracking share one tight block per row. */
+  .deal-card .deal-actions {
+    @apply gap-1.5;
+  }
+  .deal-card .track-actions .action {
+    @apply min-h-8 px-2;
+  }
+  .own-prompt {
+    @apply grid-cols-1;
+  }
+  .guest-banner {
+    @apply px-4 py-3;
+  }
+  .guest-banner p {
+    @apply mt-0.5;
+  }
+  .metric-card {
+    @apply py-3;
+  }
+  .metric-card dd:not(.metric-note) {
+    @apply text-2xl;
+  }
+  .page-heading .page-description {
+    @apply text-sm;
+  }
+  /* The price itself is the buy link on phones; drop the duplicate button. */
+  .deal-card .deal-buy {
+    display: none;
+  }
+  .deal-card .deal-untracked {
+    @apply text-[11px] leading-snug;
+  }
+  .price-link-cue {
+    @apply block;
+  }
+  .meta-part {
+    @apply block;
+  }
+  .meta-part + .meta-part::before {
+    content: "";
+  }
+  /* Compact guest notice so the first price row is above the fold. */
+  .guest-banner p {
+    display: none;
+  }
+  .guest-banner {
+    @apply gap-y-2;
+  }
+  .metric-card dd.metric-note:not(.essential) {
+    display: none;
+  }
+  .track-toggle-button {
+    @apply inline-flex min-h-8 px-0 text-xs;
+  }
+  .track-toggle:not([data-open]) .track-toggle-body {
+    display: none;
+  }
+}
+/* No desktop Steam client to launch on touch-first devices. */
+@media (hover: none) and (pointer: coarse) {
+  .launch-link {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

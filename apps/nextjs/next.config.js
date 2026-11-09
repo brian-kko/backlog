@@ -16,6 +16,9 @@ const config = {
     "@acme/validators",
   ],
 
+  /** Versions the service worker cache per build. */
+  env: { NEXT_PUBLIC_BUILD_ID: String(Date.now()) },
+
   /** We already do linting and typechecking as separate tasks in CI */
   typescript: { ignoreBuildErrors: true },
 };

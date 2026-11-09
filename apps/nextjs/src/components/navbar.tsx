@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { ThemeToggle } from "@acme/ui/theme";
+import { toast } from "@acme/ui/toast";
+
 import { authClient } from "~/auth/client";
+import { useCollectionFeed } from "~/app/_components/backlog-feed";
+import { AddGameButton } from "./add-game";
 import { useBacklog } from "./backlog-provider";
+import { followedGames } from "./collection";
+import { useNewsSeen } from "./news-seen";
+import { useWishlistPrices } from "./price-ui";
 
 const links = [
   {
@@ -44,6 +52,32 @@ const subscribeDesktop = () => () => undefined;
 const desktopSnapshot = () => Boolean(window.__TAURI__);
 const serverDesktopSnapshot = () => false;
 
+export function BrandMark() {
+  return (
+    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+      <rect x="3" y="5" width="26" height="6" rx="1.5" fill="currentColor" />
+      <rect
+        x="3"
+        y="13"
+        width="20"
+        height="6"
+        rx="1.5"
+        fill="currentColor"
+        opacity=".7"
+      />
+      <rect
+        x="3"
+        y="21"
+        width="13"
+        height="6"
+        rx="1.5"
+        fill="currentColor"
+        opacity=".45"
+      />
+    </svg>
+  );
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const session = authClient.useSession();
@@ -53,68 +87,101 @@ export function Navbar() {
     desktopSnapshot,
     serverDesktopSnapshot,
   );
-  const [authError, setAuthError] = useState("");
+  const active = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const { alerts } = useWishlistPrices(items);
+  const seen = useNewsSeen();
+  const feed = useCollectionFeed(
+    followedGames(items)
+      .slice(0, 24)
+      .map((item) => item.steamAppId),
+  );
+  const unread =
+    seen > 0 &&
+    !active("/updates") &&
+    Boolean(
+      feed.data?.items.some((item) => item.publishedAt.getTime() > seen),
+    );
 
   return (
     <header className="site-nav">
       <div className="nav-shell">
         <Link href="/" aria-label="Backlog home" className="brand">
-          <span className="brand-emblem" aria-hidden="true">
-            ♦
-          </span>{" "}
-          <span>
-            <span className="brand-name">Backlog</span>
+          <span className="brand-emblem">
+            <BrandMark />
           </span>
+          <span className="brand-name">Backlog</span>
         </Link>
         <nav aria-label="Main navigation" className="nav-links">
-          {links.map(({ label, href, id, path }) => (
-            <Link
-              key={id}
-              href={href}
-              data-testid={`nav-${id}`}
-              aria-current={pathname === href ? "page" : undefined}
-              className="nav-link"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+          {links.map(({ label, href, id, path }) => {
+            const count =
+              id === "library" || id === "wishlist"
+                ? items.filter((item) =>
+                    id === "library" ? item.isOwned : !item.isOwned,
+                  ).length
+                : null;
+            return (
+              <Link
+                key={id}
+                href={href}
+                data-testid={`nav-${id}`}
+                aria-current={active(href) ? "page" : undefined}
+                className="nav-link"
               >
-                <path d={path} />
-              </svg>
-              {label}
-              {(id === "library" || id === "wishlist") && (
-                <span
-                  className="nav-count"
-                  aria-label={`${id === "library" ? "Owned" : "Wishlisted"} games`}
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
                 >
-                  {
-                    items.filter((item) =>
-                      id === "library" ? item.isOwned : !item.isOwned,
-                    ).length
-                  }
-                </span>
-              )}
-            </Link>
-          ))}
+                  <path d={path} />
+                </svg>
+                <span>{label}</span>
+                {id === "wishlist" && alerts.length > 0 ? (
+                  <span className="nav-count nav-alert">
+                    {alerts.length}
+                    <span className="sr-only">
+                      {alerts.length === 1 ? " price alert" : " price alerts"}
+                    </span>
+                  </span>
+                ) : count !== null ? (
+                  <span className="nav-count">
+                    {count}
+                    <span className="sr-only">
+                      {id === "library" ? " owned games" : " wishlisted games"}
+                    </span>
+                  </span>
+                ) : null}
+                {id === "updates" && unread && (
+                  <span className="nav-dot">
+                    <span className="sr-only">New posts</span>
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
         <div className="nav-controls">
-          <span
-            className="companion-badge"
-            title="The desktop companion unlocks local .vdf auto-detection, standalone .exe launching, and live playtime tracking."
-          >
-            <span aria-hidden="true">●</span>{" "}
-            {desktop ? "Desktop Connected" : "PC Companion: Web URI Mode"}
-          </span>
+          {desktop && (
+            <span
+              className="companion-badge"
+              title="Launching through the Backlog desktop app"
+            >
+              Desktop Connected
+            </span>
+          )}
+          <div className="nav-add">
+            <AddGameButton />
+          </div>
+          <ThemeToggle />
           {!isGuest && session.data ? (
             <div className="flex items-center gap-3">
-              <span className="text-sm">{session.data.user.name}</span>
+              <span className="nav-user">{session.data.user.name}</span>
               <button
                 className="action secondary"
                 onClick={() => void authClient.signOut()}
@@ -126,23 +193,24 @@ export function Navbar() {
             <button
               className="action secondary"
               onClick={async () => {
+                const fail = () =>
+                  toast.error("Sign in is unavailable right now. Try again.");
                 try {
                   const result = await authClient.signIn.social({
                     provider: "discord",
                     callbackURL: "/",
                   });
-                  if (result.error)
-                    setAuthError("Sign in is unavailable. Please try again.");
+                  if (result.error) fail();
                 } catch {
-                  setAuthError("Sign in is unavailable. Please try again.");
+                  fail();
                 }
               }}
             >
-              Sign in
+              <span className="sm:hidden">Sign in</span>
+              <span className="hidden sm:inline">Sign in with Discord</span>
             </button>
           )}
         </div>
-        {authError && <p role="alert">{authError}</p>}
       </div>
     </header>
   );
