@@ -21,6 +21,7 @@
     "@acme/auth": "workspace:*",
     "@acme/db": "workspace:*",
     "@acme/validators": "workspace:*",
+    "@anthropic-ai/sdk": "^1.6.0",
     "@trpc/server": "catalog:",
     "superjson": "2.2.3",
     "zod": "catalog:"

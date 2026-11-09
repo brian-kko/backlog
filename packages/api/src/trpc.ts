@@ -29,6 +29,8 @@ import { db } from "@acme/db/client";
 export const createTRPCContext = async (opts: {
   headers: Headers;
   auth: Auth;
+  /** Optional features the host app enables (e.g. from its env). */
+  features?: { patchAi?: boolean };
 }) => {
   const authApi = opts.auth.api;
   const session = await authApi.getSession({
@@ -38,6 +40,7 @@ export const createTRPCContext = async (opts: {
     authApi,
     session,
     db,
+    features: { patchAi: opts.features?.patchAi ?? false },
   };
 };
 /**

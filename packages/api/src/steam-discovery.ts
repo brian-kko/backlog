@@ -68,6 +68,26 @@ const newsSchema = z.object({
   appnews: z.object({ newsitems: z.array(z.unknown()).default([]) }),
 });
 
+/**
+ * One Steam news post with its full BBCode body, for the patch-notes reader.
+ * Uses the same cached feed request as `fetchSteamFeed`.
+ */
+export async function fetchSteamPost(steamAppId: number, gid: string) {
+  const data = newsSchema.safeParse(
+    await fetchJson(
+      `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steamAppId}&count=30&maxlength=0&format=json&l=english`,
+    ),
+  );
+  if (!data.success) return { available: false as const, post: null };
+  const match = data.data.appnews.newsitems
+    .map((item) => newsItemSchema.safeParse(item))
+    .find((item) => item.success && item.data.gid === gid);
+  return {
+    available: true as const,
+    post: match?.success ? match.data : null,
+  };
+}
+
 export async function fetchSteamFeed(steamAppId: number) {
   const data = newsSchema.safeParse(
     await fetchJson(

@@ -17,6 +17,8 @@ export const env = createEnv({
    */
   server: {
     POSTGRES_URL: z.url(),
+    /** Enables the premium-preview AI patch summaries. Server-only. */
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
   },
 
   /**

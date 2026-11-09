@@ -8,6 +8,7 @@ import type { AppRouter } from "@acme/api";
 import { appRouter, createTRPCContext } from "@acme/api";
 
 import { auth } from "~/auth/server";
+import { env } from "~/env";
 import { createQueryClient } from "./query-client";
 
 /**
@@ -21,6 +22,7 @@ const createContext = cache(async () => {
   return createTRPCContext({
     headers: heads,
     auth,
+    features: { patchAi: Boolean(env.ANTHROPIC_API_KEY) },
   });
 });
 
