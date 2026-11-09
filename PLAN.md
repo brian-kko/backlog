@@ -1,132 +1,93 @@
-# Backlog — Master Project Plan & Detailed Page Specification
+# Backlog — Product Plan & Roadmap
 
-> **Project**: Backlog — Cross-Platform Game Price, Patch Note, Live Event, Library Spending & Universal Launcher Ecosystem
-> **Architecture**: `create-t3-turbo` Monorepo (`pnpm` + Turborepo)
-> **Tech Stack**: TypeScript, Next.js 15/16 (App Router), React Native (Expo SDK 52 + NativeWind v4), Tauri v2 (Future Rust PC Companion), Tailwind CSS, tRPC v11, Drizzle ORM, PostgreSQL 16 (Docker local / Neon Serverless prod), Better Auth, Vitest, Playwright, GitHub Actions CI/CD.
-
----
-
-## 1. Detailed Multi-Page Architecture & Feature Specification (`apps/nextjs`)
-
-### Global Component: Persistent Top Navbar (`apps/nextjs/src/components/navbar.tsx`)
-
-- **Left**: Brand logo (`Backlog`) linking to `/` (`data-testid="nav-home"`).
-- **Center Navigation Links**:
-  1. `Dashboard` (`/`, `data-testid="nav-home"`)
-  2. `Deals` (`/deals`, `data-testid="nav-deals"`)
-  3. `Library` (`/library`, `data-testid="nav-library"`)
-  4. `Wishlist` (`/wishlist`, `data-testid="nav-wishlist"`)
-  5. `Updates` (`/updates`, `data-testid="nav-updates"`)
-- **Right Controls**:
-  - **PC Companion Status Badge**: Shows `"PC Companion: Web URI Mode"` (or `"Desktop Connected"` if `window.__TAURI__` is detected) explaining that the desktop app unlocks local `.vdf` auto-detection, standalone `.exe` launching, and live playtime tracking.
-  - **Auth Button**: Shows `"Sign in"` when logged out or User Profile / `"Sync Steam"` when logged in.
+> **Project**: Backlog — a PC game backlog, price watcher and patch-note digest that works across stores.
+> **Architecture**: `create-t3-turbo` monorepo (`pnpm` + Turborepo).
+> **Stack**: TypeScript, Next.js App Router (installable PWA), Tailwind CSS v4, tRPC v11, Drizzle ORM, PostgreSQL 16 (Docker locally, Neon in production), Better Auth, Vitest, Playwright, GitHub Actions. Tauri v2 desktop companion later.
 
 ---
 
-### Page 1: Dashboard Home (`apps/nextjs/src/app/page.tsx` — Route: `/`)
+## 0. Why Backlog instead of just Steam?
 
-**Purpose**: High-level executive command center that never feels overcrowded.
+Steam already has a library, a launcher, per-game news and a wishlist that emails you about Steam sales. Backlog only earns a place next to it by doing what Steam structurally won't:
 
-- **Section 1 — Guest / Sync Banner**:
-  - If logged out: Clean callout banner explaining Guest Mode with quick CTA to explore live sales or sign in to sync Steam.
-- **Section 2 — 4 KPI Summary Cards**:
-  - `Total Spent ($)`: Sum of `amountPaid` across owned games.
-  - `Owned Library`: Count of owned games (`isOwned: true`).
-  - `Wishlist Alerts`: Count of tracked unowned games (`isOwned: false`).
-  - `Estimated Value`: Total current value of tracked games.
-- **Section 3 — Jump Back In (Quick Launch Row)**:
-  - Displays 3–4 highlighted games (user's owned games or featured defaults like _Cyberpunk 2077_, _Elden Ring_, _Helldivers 2_) with a 1-click **`Launch in Steam`** button (`steam://rungameid/<appId>`) and a **`Details`** link to `/game/[appId]`.
-- **Section 4 — Split Preview Grid (2 Columns)**:
-  - **Left Column (`Top Live Deals`)**: Top 4 live deals from `api.backlog.searchDeals` with a `"View All Deals ->"` link to `/deals`.
-  - **Right Column (`Latest Game Updates`)**: Latest 4 patch notes/events from `api.backlog.getSteamFeed` with a `"View All Updates ->"` link to `/updates`.
+| Backlog does                                                                                    | Steam doesn't                                                                |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Compares 14 PC stores and always shows the saving against Steam ("$7.30 less than Steam").      | Only shows Steam's own price.                                                |
+| Lets you set the price you'd pay and flags games at that target or their lowest ever price.     | Only notifies on Steam discounts, with no target price.                      |
+| Tracks progress (Unplayed / Playing / Completed) and what you paid, per store.                  | Shows playtime, but no backlog status or spending ledger across stores.      |
+| Answers "how much have I spent, and how much is paid for but never played?"                     | Spending is buried in account history, Steam purchases only.                 |
+| One official patch-note and event digest for *your* games, without store promotions or merch.   | News is per game or mixed into the activity feed alongside promotions.       |
+| (Roadmap) Games from GOG, Epic, Humble keys and other launchers in the same library.            | Steam games only.                                                            |
 
----
+**Design rules that follow from this**
 
-### Page 2: Store & Deal Explorer (`apps/nextjs/src/app/deals/page.tsx` — Route: `/deals`)
-
-**Purpose**: Full-featured public deal discovery engine that loads live sales immediately without requiring a search query first.
-
-- **Section 1 — Search & Filter Bar**:
-  - Search input (`data-testid="deal-search-input"`) + Search button.
-  - Quick filter pills: `All Deals`, `Under $15`, `50%+ Off`, `Steam Redeemable`.
-- **Section 2 — Live Deals Grid**:
-  - On initial load, fetches 24 offers across stores from CheapShark, with 12/24/60 page-size selection and a 12-game catalog fallback. Store, price, and Steam activation filters stack; sort, view, and filter state persist in the URL. Discount and hide-owned filters refine the current page.
-  - Each Deal Card displays:
-    - Game thumbnail (`thumb`) and title.
-    - Current best price (`$29.99`), normal price strikethrough (`$59.99`), and green discount percentage badge (`-50%`).
-    - **Action Buttons**:
-      - `Inspect Game` (links to `/game/[steamAppId]`).
-      - `+ Wishlist` (saves/tracks target price).
-      - `Mark Owned` (records game in library).
+- Every price surface states where the number came from (live comparison, Steam only, or saved) and how it compares with Steam.
+- Nothing is invented on the user's behalf: no assumed purchase prices, no invented targets, and assumptions (like "Steam (assumed)" launcher) are shown and editable.
+- Launching is a convenience, not the product: it's shown only for owned games that run in Steam, and hidden on touch devices.
+- Guests get the full product with sample data they can clear or keep; signing in moves their games to an account without overwriting anything.
 
 ---
 
-### Page 3: Library, Spending Ledger & Launcher (`apps/nextjs/src/app/library/page.tsx` — Route: `/library`)
+## 1. Pages (`apps/nextjs`)
 
-**Purpose**: Personal collection manager, spending tracker, backup utility, and game launcher.
+### Global
 
-- **Section 1 — Library Toolbar & Backup Controls**:
-  - Filter tabs: `All Games`, `Backlog (Unplayed)`, `Playing`, `Completed`.
-  - Backup buttons: **`Export Backlog JSON`** (`data-testid="export-json-btn"`, triggers download of `BacklogExportSchema` JSON) and **`Import JSON`**.
-- **Section 2 — Owned Games Grid / Ledger**:
-  - If user has owned games in DB, renders them; if in Guest Mode with 0 DB items, renders a realistic starter demo library (e.g., _Cyberpunk 2077_, _Elden Ring_, _Baldur's Gate 3_) clearly labeled `"Starter Demo Library (Sign in to sync your Steam account)"` so guests and Playwright tests can immediately test launching and JSON export.
-  - Each Library Card shows:
-    - Title, App ID, Completion Status badge, and `Amount Paid ($)`.
-    - **`Launch Game`** button calling `launchGame(steamAppId)` (`href="steam://rungameid/<steamAppId>"`).
-    - **`Game Hub`** button linking to `/game/[steamAppId]`.
+- **Navbar** (`src/components/navbar.tsx`): wordmark, `Dashboard` / `Deals` / `Library` / `Wishlist` / `Updates` (`data-testid="nav-*"`), library and wishlist counts (the wishlist badge switches to the price-alert count when alerts exist), an unread dot on Updates, **Add game**, theme menu, **Sign in with Discord**. "Desktop Connected" appears only inside the Tauri companion. Phones get a bottom tab bar.
+- **Add game dialog** (`src/components/add-game.tsx`): one shared dialog that searches any Steam game (`backlog.searchGames`). Adding asks follow-ups in place: a target price for wishlist games; paid amount, "Bought from" and "Plays on" for owned games.
+- **Guest mode**: sample games are tagged per item, with "Keep" / "Keep them" / "Clear sample games". After sign-in, a prompt moves browser games to the account (`backlog.importGuestItems`, existing account games are left unchanged).
+- **PWA**: manifest, icons, versioned service worker that precaches the app shell, offline banner, install button (or iOS instructions).
 
----
+### `/` Dashboard
 
-### Page 4: Wishlist & Price Watch (`apps/nextjs/src/app/wishlist/page.tsx` — Route: `/wishlist`)
+Metrics (Playing now, Unplayed with amount paid, Price alerts, Total spent), **Price watch** (wishlist games ranked by alerts, with target gap and Steam saving), **Play next** (playing first, then unplayed, with Play / Mark as playing), **What changed** (latest patch or event per followed game, "New" since the last read).
 
-**Purpose**: Dedicated price-target tracker and alert configurator.
+### `/deals`
 
-- **Section 1 — Alert Summary Header**:
-  - Shows how many wishlisted games currently meet their target price (`TARGET_MET` or `ALL_TIME_LOW` via `evaluateDealAlert`).
-- **Section 2 — Wishlist Watch Cards**:
-  - Displays wishlisted games (or guest demo watchlist items if logged out) with:
-    - `Current Best Price ($)` vs. `Your Target Price ($)` vs. `Historical Low ($)`.
-    - Smart status badge computed by `evaluateDealAlert` (`🔥 All-Time Low`, `✅ Target Met`, or `⏳ Waiting for Drop`).
-    - Toggle switches for `Notify on Patch Notes` and `Notify on Live Events`.
-    - Links to `/game/[steamAppId]` and store deal page.
+Cross-store offers from CheapShark. Quick presets (Under $15, 50%+ off, Activates on Steam), store picker, More filters (maximum price, minimum discount, hide games I already own: on by default). Results group one card per game with "+N stores", show a "Steam $X · save $Y" line, and load more in batches (12/24/60) so filters apply across everything loaded. "Worth buying from your wishlist" strip above results. Outages and saved offers are labelled with their snapshot date. Search input: `data-testid="deal-search-input"`.
 
----
+### `/library`
 
-### Page 5: Updates & Live Events Hub (`apps/nextjs/src/app/updates/page.tsx` — Route: `/updates`)
+Status filter chips with counts (All, Playing, Unplayed, Completed; also `?status=`), search and sort, Cards or a sortable Table (remembered). Cards: one-tap status, "Paid $X at Store · launcher" with Edit (amount, Bought from, Plays on), Launch for Steam games, View game, Remove with Undo. **Spending & progress**: total spent with per-store breakdown, paid-for-never-played, completed x of y, average paid. **Backup & restore** (`data-testid="export-json-btn"`, Import JSON).
 
-**Purpose**: Clean, distraction-free reader for BBCode-stripped Steam Patch Notes and Live In-Game Events.
+### `/wishlist`
 
-- **Section 1 — Game Selector Bar**:
-  - Quick-select game pills (`Cyberpunk 2077 [1091500]`, `Elden Ring [1245620]`, `Helldivers 2 [553850]`, `Baldur's Gate 3 [1086940]`, `Counter-Strike 2 [730]`) + custom Steam AppID input so any game can be inspected immediately.
-- **Section 2 — Category Tabs**:
-  - `Patch Notes` tab button (`data-testid="tab-patches"`) showing update count.
-  - `Live Events & Announcements` tab button (`data-testid="tab-events"`) showing event count.
-- **Section 3 — Clean Feed Cards**:
-  - Displays each news item's title, relative/formatted publish date, cleaned summary text (stripped of `[h1]`, `[b]`, `[url]`, `[img]` tags via `classifyAndCleanSteamNews`), category badge, and `"Read Full Post on Steam ->"` external link.
+Summary ("N games worth buying now", games that couldn't be checked), "Prices checked … · Check prices now". Cards: alert state (Lowest ever / Target met / Waiting for a drop / Price unavailable), best price with source and store count, lowest ever (or "Lowest recorded" for saved data), target gap and Steam saving, target with Edit, **Buy at <store>**, I own this, View game, Remove.
+
+### `/updates`
+
+"All my games" (up to 24 prioritized games: playing, unplayed, wishlisted, completed) or one game (`?game=`). Tabs `data-testid="tab-patches"` / `"tab-events"`, date groups with older posts folded, "New" markers with "Mark all as read", community posts optional per game. Promotions, merch and sequel cross-posts are filtered out.
+
+### `/game/[appId]`
+
+Back link, hero (title and description de-shouted), **Launch in Steam** (`data-testid="launch-game-btn"`) for owned Steam games, otherwise **Buy for $X at Store** for games you don't own. Prices across stores with Steam pinned as the baseline. Collection editor (library or wishlist, status, paid, bought from, plays on, target price). Owned games put the editor first and collapse the comparison. Patch notes and events.
 
 ---
 
-### Page 6: Dynamic Game Hub (`apps/nextjs/src/app/game/[appId]/page.tsx` — Route: `/game/[appId]`)
+## 2. Milestones
 
-**Purpose**: Single-game drill-down page combining price data, launching, backlog tracking, and news.
+- [x] **M0**: monorepo, Docker Postgres, Drizzle, Vitest, Playwright, CI.
+- [x] **M1**: `backlogRouter` and validators.
+- [x] **M2 / M2.5**: multi-page app, live deals, Steam news, `steam://` launcher, usability pass ([review](docs/usability-review.md)).
+- [x] **M2.6: Product and UX council pass** ([summary](docs/ux-council-2026-11.md)). Both reviewers reached 9.5 after 10 rounds: astra 6.7 → 9.5, Opus 6.4 → 9.5. Removed the Expo app, `apps/tanstack-start`, template Post code, the companion badge, fake notification toggles, invented targets and redundant filters. Added any-game search, the merged news digest, Steam-baseline pricing everywhere, price confidence states, Bought from / Plays on, spending insight, per-item samples with guest-to-account transfer, and the PWA.
+- [ ] **M3: Accounts and import**
+  - Steam OpenID linking plus `GetOwnedGames` import (owned games and playtime). Public-profile import by SteamID or vanity URL also works for guests.
+  - "Cost per hour" once playtime exists.
+  - Google sign-in alongside Discord.
+- [ ] **M4: Alerts that reach you**
+  - Cron price poller (`/api/cron/sync-backlog`, protected by `CRON_SECRET`) storing price snapshots, which gives Backlog its own price history and dated "lowest ever".
+  - Delivery by web push (PWA), email digest and an optional Discord webhook. Per-game notification preferences come back here, now that they would actually work.
+  - Weekly "since your last visit" digest of patches and price drops.
+- [ ] **M5: Beyond Steam**
+  - Library entries without a Steam AppID (GOG, Epic, itch.io, console or manual); schema change from `steamAppId`-keyed items to an internal game ID plus optional store IDs.
+  - IsThereAnyDeal (`ITAD_API_KEY`) for wider store coverage, regional prices and better history.
+  - Collection-wide news batching beyond 24 games.
+- [ ] **M6: Desktop companion (Tauri v2, `apps/desktop`)**: detect installed games (Steam `.vdf`, GOG, Epic), launch non-Steam games, track playtime locally.
 
-- **Section 1 — Game Hero Header**:
-  - Displays Game Title, Steam AppID badge, and Steam header image (`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`).
-  - Primary Action: **`Launch in Steam`** button (`data-testid="launch-game-btn"`, `steam://rungameid/${appId}`).
-- **Section 2 — Best Price & Backlog Status Box**:
-  - Shows current cheapest deal from `api.backlog.getGameDetails` (or `searchDeals`) and buttons to add/update in Library or Wishlist.
-- **Section 3 — Game-Specific Patch Notes & Events**:
-  - Renders the live `patchNotes` and `events` specifically for `params.appId` via `api.backlog.getSteamFeed`.
+**Cut:** Expo mobile app (replaced by the installable PWA).
 
 ---
 
-## 2. Milestone Execution Checklist
+## 3. Data notes
 
-- [x] **Milestone 0**: Monorepo initialization, Docker Postgres, Drizzle schema, Vitest, Playwright, CI workflow.
-- [x] **Milestone 1**: Initial `backlogRouter` and validators.
-- [x] **Milestone 2**: Initial single-page dashboard prototype.
-- [x] **Milestone 2.5**: Multi-page Navbar Architecture (`/`, `/deals`, `/library`, `/wishlist`, `/updates`, `/game/[appId]`), Live Featured Deals on default load, broadened Steam news classification with fallback, and `steam://` Game Launcher utility.
-- [x] **Milestone 2.5 usability pass**: Readability and artwork framing, store-aware stacked deal filters, paging and views, collection search/sorting, reliable Game Hub editing, removal with Undo, official-news controls, and lighter price queries. See [usability review](docs/usability-review.md).
-- [ ] **Milestone 3**: Google/Discord OAuth + Steam OpenID 2.0 account linking & `GetOwnedGames` sync.
-- [ ] **Milestone 4**: Automated 4-hour cron poller (`/api/cron/sync-backlog`) & Discord Webhook alerts.
-- [ ] **Milestone 5**: Expo mobile companion (`apps/expo`) & Tauri v2 desktop companion (`apps/desktop`).
+- `user_backlog.purchase_store` is the seller (13 known stores or `other`); `user_backlog.platform` is the launcher (`steam`, `gog`, `epic`, `ubisoft`, `other`). An unset platform is inferred from the seller (key sellers mean Steam) and shown as "(assumed)". Migration: `packages/db/migrations/0002_backlog_purchase_store.sql`.
+- `games` and `game_feed_items` are reserved for the M4 poller cache.
