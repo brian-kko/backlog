@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import {
   boolean,
   integer,
@@ -9,8 +8,6 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
 
 export const games = pgTable("games", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -58,29 +55,31 @@ export const userBacklog = pgTable(
     })
       .default("backlog")
       .notNull(),
+    // Seller (where it was bought) and platform (where it runs) are separate:
+    // most key sellers sell Steam keys.
+    purchaseStore: text("purchase_store", {
+      enum: [
+        "steam",
+        "gog",
+        "epic",
+        "humble",
+        "fanatical",
+        "greenmangaming",
+        "gamebillet",
+        "gamesplanet",
+        "wingamestore",
+        "indiegala",
+        "gamersgate",
+        "ubisoft",
+        "other",
+      ],
+    }),
+    platform: text("platform", {
+      enum: ["steam", "gog", "epic", "ubisoft", "other"],
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [uniqueIndex("user_backlog_game_idx").on(t.userId, t.steamAppId)],
 );
-
-// Keep starter Post table temporarily so default UI screens compile cleanly
-export const Post = pgTable("post", (t) => ({
-  id: t.uuid().notNull().primaryKey().defaultRandom(),
-  title: t.varchar({ length: 256 }).notNull(),
-  content: t.text().notNull(),
-  createdAt: t.timestamp().defaultNow().notNull(),
-  updatedAt: t
-    .timestamp({ mode: "date", withTimezone: true })
-    .$onUpdateFn(() => sql`now()`),
-}));
-
-export const CreatePostSchema = createInsertSchema(Post, {
-  title: z.string().max(256),
-  content: z.string().max(256),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
 
 export * from "./auth-schema";

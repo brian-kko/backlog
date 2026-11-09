@@ -7,7 +7,10 @@ import {
   DealItemSchema,
   evaluateDealAlert,
   SearchDealsInputSchema,
+  isAboutSequel,
+  isPromotionalNews,
   SteamFeedInputSchema,
+  truncateAtWord,
   UpsertBacklogItemSchema,
 } from "../backlog-parser";
 
@@ -19,7 +22,7 @@ describe("Backlog - Steam Feed & Deal Engine", () => {
         "[h1]Notes[/h1] [*] Fixed crash on startup [url=https://steam.com]Details[/url]",
     });
     expect(res.category).toBe("patch_note");
-    expect(res.cleanSummary).toBe("Notes Fixed crash on startup Details");
+    expect(res.cleanSummary).toBe("Notes: Fixed crash on startup Details");
   });
 
   it("suppresses deal alerts for games already owned in the user's backlog", () => {
@@ -266,56 +269,82 @@ describe("SteamFeedInputSchema", () => {
   });
 });
 
-describe("Steam news classification across all fields", () => {
+describe("Steam news classification from tags, labels and titles", () => {
   it.each([
-    "patch",
-    "hotfix",
-    "update",
-    "changelog",
-    "balance",
-    "bug",
-    "fix",
-    "version",
-    "notes",
-    "v2",
+    "Patch 1.2",
+    "Hotfix for crashes",
+    "Update 2.5 is out now!",
+    "Changelog",
+    "Bug fixes",
+    "Fixed matchmaking",
+    "Balance changes",
     "v2.31",
-  ])("recognizes %s in titles and cleaned summaries", (keyword) => {
+    "Version 1.0.4",
+  ])("recognizes the patch title %s", (title) => {
     expect(
-      classifyAndCleanSteamNews({ title: keyword, contents: "Read more" })
-        .category,
+      classifyAndCleanSteamNews({ title, contents: "Read more" }).category,
     ).toBe("patch_note");
+  });
+
+  it("ignores patch keywords that only appear in the body", () => {
     expect(
       classifyAndCleanSteamNews({
         title: "From the developers",
-        contents: `[b]${keyword}[/b] details inside.`,
+        contents: "[b]update[/b] on our plans, bug reports and the next version.",
+      }).category,
+    ).toBe("general");
+  });
+
+  it("treats launches as events unless the title names a patch", () => {
+    expect(
+      classifyAndCleanSteamNews({
+        title: "Hades II v1.0 Is Now Available!",
+        contents: "",
+      }).category,
+    ).toBe("event");
+    expect(
+      classifyAndCleanSteamNews({
+        title: "Update 1.1 is out now",
+        contents: "",
       }).category,
     ).toBe("patch_note");
   });
 
-  it.each([
-    "event",
-    "double xp",
-    "free weekend",
-    "season",
-    "tournament",
-    "drops",
-    "raid",
-    "festival",
-    "limited time",
-    "anniversary",
-    "DLC",
-    "expansion",
-  ])("recognizes %s in titles and summaries", (keyword) => {
+  it("does not treat server maintenance as patch notes", () => {
     expect(
-      classifyAndCleanSteamNews({ title: keyword, contents: "Join us" })
-        .category,
+      classifyAndCleanSteamNews({
+        title: "Galactic Network Maintenance",
+        contents: "Servers will be down while we update.",
+      }).category,
+    ).toBe("general");
+  });
+
+  it.each([
+    "Community event",
+    "Double XP weekend",
+    "Free weekend",
+    "Season 4 begins",
+    "Tournament finals",
+    "Twitch drops",
+    "Raid night",
+    "Winter festival",
+    "Limited-time mode",
+    "It's the Five-Year Anniversary!",
+    "New DLC",
+    "Expansion announced",
+  ])("recognizes the event title %s", (title) => {
+    expect(
+      classifyAndCleanSteamNews({ title, contents: "Join us" }).category,
     ).toBe("event");
+  });
+
+  it("ignores event keywords that only appear in the body", () => {
     expect(
       classifyAndCleanSteamNews({
         title: "Join us",
-        contents: `[h1]${keyword}[/h1] begins today.`,
+        contents: "[h1]season[/h1] plans and an anniversary soon.",
       }).category,
-    ).toBe("event");
+    ).toBe("general");
   });
 
   it("uses tags and feed labels, with patch classification taking precedence", () => {
@@ -349,10 +378,89 @@ describe("Steam news classification across all fields", () => {
     ).toBe("event");
     expect(
       classifyAndCleanSteamNews({
-        title: "Festival",
-        contents: "Patch details",
+        title: "Festival hotfix",
+        contents: "",
       }).category,
     ).toBe("patch_note");
+  });
+
+  it("flags merchandise and storefront promotions", () => {
+    for (const title of [
+      "Alexander, Warrior Jar Artisan Keycap has arrived!",
+      "STARSCOURGE RADAHN FIGUARTS available for pre-order",
+      "Soundtrack now on vinyl",
+      "Save 50% off this weekend",
+    ])
+      expect(isPromotionalNews({ title })).toBe(true);
+    expect(isPromotionalNews({ title: "Patch 1.2" })).toBe(false);
+    expect(isPromotionalNews({ title: "News", tags: ["sale"] })).toBe(true);
+  });
+
+  it("separates list items instead of running words together", () => {
+    expect(
+      cleanSteamText(
+        "[h2]Fixes[/h2][list][*]Crash fixes[*]Fixed audio[/list]*** INCOMING ***",
+      ),
+    ).toBe("Fixes: Crash fixes · Fixed audio. INCOMING");
+  });
+
+  it("joins comma-ended lines and short headings naturally", () => {
+    expect(
+      cleanSteamText(
+        "Attention Helldivers,\nCaptain Morris here.\n🔧 Fixes\nFixed a crash when joining.",
+      ),
+    ).toBe(
+      "Attention Helldivers, Captain Morris here. 🔧 Fixes: Fixed a crash when joining.",
+    );
+  });
+
+  it("keeps only the more specific of two consecutive headings", () => {
+    expect(
+      cleanSteamText(
+        "[h2]🔧 Fixes[/h2][h3]Crash Fixes[/h3][list][*]Fixed a crash that would occur on exit[/list]",
+      ),
+    ).toBe("Crash Fixes: Fixed a crash that would occur on exit");
+    expect(
+      cleanSteamText(
+        "Stratagems\nAMW-20 APEX\nProblem we want to solve:\nDemolition strength was too low.",
+      ),
+    ).toBe("AMW-20 APEX: Problem we want to solve: Demolition strength was too low.");
+  });
+
+  it("recognizes sequel posts cross-posted to the original game", () => {
+    expect(isAboutSequel("Hades II v1.0 Is Now Available!", "Hades")).toBe(
+      true,
+    );
+    expect(isAboutSequel("Hades: It's the Five-Year Anniversary!", "Hades")).toBe(
+      false,
+    );
+    expect(isAboutSequel("Baldur's Gate 3 Patch 8", "Baldur's Gate 3")).toBe(
+      false,
+    );
+    expect(isAboutSequel("Patch notes", "Hades")).toBe(false);
+  });
+
+  it("keeps punctuation attached when inline markup is removed", () => {
+    expect(
+      cleanSteamText(
+        "Thank you for playing [b]ELDEN RING[/b]. This patch adds the [i]Tarnished Pack DLC[/i], scheduled for [url=https://x.test]Steam Deck[/url], plus fixes!",
+      ),
+    ).toBe(
+      "Thank you for playing ELDEN RING. This patch adds the Tarnished Pack DLC, scheduled for Steam Deck, plus fixes!",
+    );
+  });
+
+  it("reads realistic patch bodies as sentences and bullet points", () => {
+    expect(
+      cleanSteamText(
+        "[h2]Problem we want to solve:[/h2][list][*]Demolition strength was too low[*]Terminals crashed[/list][p]Thanks, Helldivers![/p]",
+      ),
+    ).toBe(
+      "Problem we want to solve: Demolition strength was too low · Terminals crashed. Thanks, Helldivers!",
+    );
+    expect(cleanSteamText("Line one\nLine two\n\nLine three.")).toBe(
+      "Line one. Line two. Line three.",
+    );
   });
 
   it("preserves general announcements and strips BBCode, HTML and embedded images", () => {
@@ -363,7 +471,7 @@ describe("Steam news classification across all fields", () => {
     });
     expect(result).toEqual({
       category: "general",
-      cleanSummary: "Hello world Read more Welcome",
+      cleanSummary: "Hello: world Read more. Welcome",
     });
     expect(
       classifyAndCleanSteamNews({
@@ -371,6 +479,16 @@ describe("Steam news classification across all fields", () => {
         contents: "a".repeat(400),
       }).cleanSummary,
     ).toHaveLength(280);
+  });
+
+  it("truncates summaries at a word boundary with an ellipsis", () => {
+    expect(truncateAtWord("short text", 280)).toBe("short text");
+    const long = "word ".repeat(100).trim();
+    const result = truncateAtWord(long, 280);
+    expect(result.length).toBeLessThanOrEqual(280);
+    expect(result.endsWith("word…")).toBe(true);
+    expect(truncateAtWord("Hello there, friend", 15)).toBe("Hello there…");
+    expect(truncateAtWord("x".repeat(20), 10)).toBe("xxxxxxxxx…");
   });
 });
 
