@@ -8,33 +8,36 @@
 @custom-variant light (&:where(.light, .light *));
 @custom-variant auto (&:where(.auto, .auto *));
 
-/* Local product palette: paper and ink by day, a quiet reading room at night. */
+/* A personal PC gaming journal: olive-tinted ink and paper, game art for
+   colour, and one lime accent that always means "worth your money".
+   Prices are plain text; only verified savings and met targets get the accent. */
 :root,
 :root.light {
-  --background: #f4f5f2;
-  --foreground: #202d29;
+  --background: #f4f3ed;
+  --foreground: #20241c;
   --card: #ffffff;
-  --card-foreground: #202d29;
-  --popover: #faf9f4;
-  --popover-foreground: #262b24;
-  --muted: #e8e9df;
-  --muted-foreground: #666d60;
-  --border: #d6d9cc;
-  --input: #d6d9cc;
-  --primary: #24543e;
+  --card-foreground: #20241c;
+  --popover: #ffffff;
+  --popover-foreground: #20241c;
+  --muted: #eaece3;
+  --muted-foreground: #596150;
+  --subtle: #68715f;
+  --border: #dcdfd3;
+  --input: #7b856f;
+  --primary: #3c5e16;
   --primary-foreground: #ffffff;
-  --secondary: #e8e9df;
-  --secondary-foreground: #424b3b;
-  --accent: #e3e8d8;
-  --accent-foreground: #24543e;
-  --ring: #428366;
-  --radius: 0.25rem;
-  --signal: #24543e;
-  --price-ink: #925126;
+  --secondary: #eaece3;
+  --secondary-foreground: #20241c;
+  --accent: #eaece3;
+  --accent-foreground: #20241c;
+  --ring: #426619;
+  --radius: 0.5rem;
+  --signal: #426619;
+  --price-ink: #20241c;
   --field: #ffffff;
-  --field-border: #868d79;
-  --control-border: #868d79;
-  --warn: #8a4b00;
+  --field-border: #7b856f;
+  --control-border: #7b856f;
+  --warn: #805000;
   /* Patch change kinds: validated categorical palette (bar order:
      new, nerf, buff, adjusted, fix; system appears only on tiles). */
   --kind-new: #2a78d6;
@@ -45,35 +48,51 @@
   --kind-fix: #e87ba4;
 }
 :root.dark {
-  --background: #151a1d;
-  --foreground: #e9efef;
-  --card: #1c2327;
-  --card-foreground: #e9efef;
-  --popover: #20282c;
-  --popover-foreground: #e9efef;
-  --muted: #293237;
-  --muted-foreground: #aab8bb;
-  --border: #3f4d53;
-  --input: #5d6e75;
-  --primary: #bad49e;
-  --primary-foreground: #172310;
-  --secondary: #252b20;
-  --secondary-foreground: #c7d0bc;
-  --accent: #2d3826;
-  --accent-foreground: #d3e8bc;
-  --ring: #bad49e;
-  --signal: #9ad5bd;
-  --price-ink: #dcb183;
-  --field: #11161a;
-  --field-border: #6b7d84;
-  --control-border: #6b7d84;
-  --warn: #f0b862;
+  --background: #121411;
+  --foreground: #f2f4eb;
+  --card: #1a1d18;
+  --card-foreground: #f2f4eb;
+  --popover: #20241d;
+  --popover-foreground: #f2f4eb;
+  --muted: #252a22;
+  --muted-foreground: #b6bcad;
+  --subtle: #8f9885;
+  --border: #2c3227;
+  --input: #77816c;
+  --primary: #c8ed78;
+  --primary-foreground: #141a0c;
+  --secondary: #252a22;
+  --secondary-foreground: #f2f4eb;
+  --accent: #252a22;
+  --accent-foreground: #f2f4eb;
+  --ring: #c8ed78;
+  --signal: #c8ed78;
+  --price-ink: #f2f4eb;
+  --field: #141612;
+  --field-border: #77816c;
+  --control-border: #77816c;
+  --warn: #e7b96a;
   --kind-new: #3987e5;
   --kind-nerf: #e66767;
   --kind-buff: #199e70;
   --kind-adjusted: #c98500;
   --kind-system: #9085e9;
   --kind-fix: #d55181;
+}
+
+@theme inline {
+  --font-sans: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-display:
+    var(--font-barlow-condensed), var(--font-barlow), ui-sans-serif, sans-serif;
+  --color-subtle: var(--subtle);
+}
+/* Barlow runs small, so the small text steps are one pixel larger. */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.4375rem;
 }
 
 @utility container {
@@ -92,10 +111,7 @@
     @apply border-border;
   }
   html {
-    scroll-padding-top: 80px;
-  }
-  body {
-    letter-spacing: -0.011em;
+    scroll-padding-top: 76px;
   }
   ::selection {
     background: var(--primary);
@@ -132,13 +148,15 @@
 /* ---------- Layout & navigation ---------- */
 @layer components {
   .page-shell {
-    @apply mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 pt-8 pb-16 sm:px-8 sm:pt-10;
+    @apply mx-auto flex w-full max-w-[1216px] flex-col gap-7 px-4 pt-7 pb-16 sm:px-6 sm:pt-9;
   }
   .site-nav {
-    @apply bg-background sticky top-0 z-30 border-b;
+    @apply bg-background sticky top-0 z-30;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s ease-out;
   }
   .nav-shell {
-    @apply mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-8;
+    @apply mx-auto flex h-[60px] max-w-[1216px] items-center gap-7 px-4 sm:px-6;
   }
   .brand {
     @apply flex shrink-0 items-center gap-2.5;
@@ -148,11 +166,11 @@
     @apply flex;
   }
   .brand-name {
-    @apply text-xl font-bold;
-    letter-spacing: -0.04em;
+    font-family: var(--font-display);
+    @apply text-[23px] leading-none font-bold tracking-[0.05em] uppercase;
   }
   .nav-links {
-    @apply flex min-w-0 items-center gap-0.5 self-stretch;
+    @apply relative flex min-w-0 items-center gap-0.5 self-stretch;
   }
   .nav-link {
     @apply text-muted-foreground relative inline-flex items-center gap-2 px-3 text-sm font-medium whitespace-nowrap transition-colors;
@@ -167,16 +185,10 @@
     @apply text-foreground;
   }
   .nav-link[aria-current="page"]::after {
-    content: "";
-    position: absolute;
-    height: 2px;
-    bottom: -1px;
-    left: 12px;
-    right: 12px;
-    background: var(--signal);
+    content: none;
   }
   .nav-count {
-    @apply bg-muted text-muted-foreground min-w-5 rounded-full px-1.5 py-px text-center text-[11px] font-semibold tabular-nums;
+    @apply bg-muted text-muted-foreground min-w-5 rounded-full px-1.5 py-px text-center font-mono text-[11px] font-medium tabular-nums;
   }
   .nav-link[aria-current="page"] .nav-count {
     @apply text-foreground;
@@ -197,7 +209,7 @@
     @apply translate-y-0;
   }
   .site-footer {
-    @apply text-muted-foreground mx-auto flex max-w-7xl flex-wrap justify-between gap-3 border-t px-4 py-6 text-xs sm:px-8;
+    @apply text-muted-foreground mx-auto flex max-w-[1216px] flex-wrap justify-between gap-3 border-t px-4 py-6 text-xs sm:px-6;
   }
 
   /* ---------- Headings ---------- */
@@ -205,10 +217,10 @@
     @apply flex flex-wrap items-end justify-between gap-x-10 gap-y-4;
   }
   .page-heading h1 {
-    font-size: clamp(1.9rem, 3.4vw, 2.5rem);
-    font-weight: 700;
-    letter-spacing: -0.045em;
-    line-height: 1.05;
+    font-size: clamp(1.875rem, 3vw, 2.25rem);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
   }
   .page-description {
     @apply text-muted-foreground max-w-2xl text-base leading-relaxed;
@@ -217,14 +229,16 @@
     @apply flex flex-wrap items-center gap-3;
   }
   .eyebrow {
-    color: var(--signal);
-    @apply text-xs font-semibold tracking-[0.08em] uppercase;
+    font-family: var(--font-display);
+    color: var(--subtle);
+    @apply text-sm font-semibold tracking-[0.14em] uppercase;
   }
   .section-heading {
-    @apply flex flex-wrap items-end justify-between gap-3 border-b pb-3;
+    @apply flex flex-wrap items-baseline justify-between gap-3;
   }
   .section-heading h2 {
-    @apply text-lg font-semibold tracking-tight;
+    font-family: var(--font-display);
+    @apply text-[19px] leading-none font-semibold tracking-[0.09em] uppercase;
   }
   .back-link {
     @apply text-muted-foreground hover:text-foreground -mb-4 self-start text-sm font-medium;
@@ -232,9 +246,14 @@
 
   /* ---------- Buttons & links ---------- */
   .action {
-    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent px-4 py-2 text-sm font-semibold whitespace-nowrap transition-[filter,background-color] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent px-4 py-2 text-sm font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50;
     background: var(--primary);
     color: var(--primary-foreground);
+    transition:
+      background-color 0.12s ease-out,
+      border-color 0.12s ease-out,
+      filter 0.12s ease-out,
+      transform 0.08s ease-out;
   }
   .action:hover:not(:disabled) {
     filter: brightness(1.08);
@@ -251,8 +270,16 @@
     @apply min-h-9 px-3 py-1.5;
   }
   .text-link {
-    color: var(--signal);
-    @apply inline-flex min-h-6 cursor-pointer items-center text-sm font-medium underline-offset-4 hover:underline disabled:opacity-50;
+    color: var(--foreground);
+    @apply inline-flex min-h-6 cursor-pointer items-center text-sm font-medium underline disabled:opacity-50;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+    text-decoration-color: color-mix(
+      in srgb,
+      var(--foreground) 32%,
+      transparent
+    );
+    transition: text-decoration-color 0.12s ease-out;
   }
   .quiet-button {
     @apply text-muted-foreground hover:text-foreground inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm font-medium disabled:opacity-50;
@@ -273,7 +300,7 @@
     scrollbar-width: none;
   }
   .filter-pill {
-    @apply text-muted-foreground hover:text-foreground inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50;
+    @apply text-muted-foreground hover:text-foreground bg-card inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50;
     border-color: var(--control-border);
   }
   .filter-pill[aria-pressed="true"] {
@@ -282,21 +309,21 @@
     color: var(--background);
   }
   .tab-bar {
-    @apply flex gap-1 border-b;
+    @apply flex gap-6 border-b;
   }
   .tab {
-    @apply text-muted-foreground hover:text-foreground relative inline-flex min-h-10 cursor-pointer items-center gap-2 px-3 text-sm font-medium;
+    @apply text-muted-foreground hover:text-foreground relative inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm font-medium transition-colors;
   }
   .tab[aria-selected="true"] {
     @apply text-foreground;
   }
   .tab[aria-selected="true"]::after {
     content: "";
-    @apply absolute right-2 -bottom-px left-2 h-0.5;
+    @apply absolute right-0 -bottom-px left-0 h-0.5;
     background: var(--signal);
   }
   .tab-count {
-    @apply bg-muted rounded-full px-1.5 text-[11px] font-semibold tabular-nums;
+    @apply bg-muted rounded-full px-1.5 font-mono text-[11px] font-medium tabular-nums;
   }
   .filter-pill[aria-pressed="true"] .tab-count {
     background: color-mix(in srgb, var(--background) 22%, transparent);
@@ -413,7 +440,7 @@
     @apply bg-card flex min-w-0 flex-col overflow-hidden rounded-lg border transition-colors;
   }
   .game-card:hover {
-    border-color: var(--control-border);
+    border-color: color-mix(in srgb, var(--foreground) 30%, transparent);
   }
   .game-art {
     @apply aspect-[460/215] w-full bg-black/40 object-cover;
@@ -425,10 +452,10 @@
     @apply grid gap-5 sm:grid-cols-2 xl:grid-cols-3;
   }
   .card-body {
-    @apply flex flex-1 flex-col gap-4 p-4 sm:p-5;
+    @apply flex flex-1 flex-col gap-3 p-4;
   }
   .card-title {
-    @apply text-lg leading-snug font-semibold tracking-tight;
+    @apply text-lg leading-6 font-semibold;
   }
   .card-title a:hover,
   .deal-title a:hover,
@@ -454,18 +481,22 @@
     color: var(--signal);
   }
   .empty-state {
-    @apply text-muted-foreground rounded-lg border border-dashed px-6 py-10 text-center text-sm leading-relaxed;
+    @apply text-muted-foreground bg-muted/50 rounded-lg px-6 py-10 text-center text-sm leading-relaxed;
   }
   .empty-state > p {
     @apply mx-auto max-w-md;
   }
+  /* A quiet one-line empty row, for sections that aren't the page's focus. */
+  .empty-inline {
+    @apply text-muted-foreground flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-y py-2 text-sm;
+  }
 
   /* ---------- Metrics & banners ---------- */
   .metrics-rail {
-    @apply bg-card grid grid-cols-2 overflow-hidden rounded-lg border lg:grid-cols-4;
+    @apply grid grid-cols-2 border-y lg:grid-cols-4;
   }
   .metric-card {
-    @apply flex min-w-0 flex-col border-r px-5 py-4;
+    @apply flex min-w-0 flex-col border-r px-5 py-4 first:pl-0;
   }
   .metric-card:nth-child(2n) {
     @apply max-lg:border-r-0;
@@ -477,21 +508,26 @@
     @apply max-lg:border-b;
   }
   .metric-card dt {
-    @apply text-muted-foreground text-xs font-medium;
+    font-family: var(--font-display);
+    color: var(--subtle);
+    @apply text-sm font-semibold tracking-[0.1em] uppercase;
   }
   .metric-card dd {
-    @apply mt-1 text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl;
+    @apply mt-1.5 font-mono text-2xl font-medium tabular-nums sm:text-[28px] sm:leading-8;
   }
   .metric-card dd a:hover {
     color: var(--signal);
   }
   .metric-card dd.metric-note,
   .metric-card dd.metric-note a {
-    @apply text-muted-foreground mt-1 text-xs font-normal tracking-normal sm:text-xs;
+    @apply text-muted-foreground mt-1 font-sans text-xs font-normal sm:text-xs sm:leading-[1.125rem];
   }
   .guest-banner {
     @apply bg-card flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-lg border px-5 py-4;
-    border-left: 3px solid var(--signal);
+  }
+  .guest-banner .guest-tagline {
+    font-family: var(--font-display);
+    @apply text-foreground mt-0 text-[22px] leading-6 font-semibold tracking-[0.02em] uppercase;
   }
   .guest-banner strong {
     @apply text-sm font-semibold;
@@ -499,20 +535,50 @@
   .guest-banner p {
     @apply text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed;
   }
+  .guest-actions {
+    @apply flex flex-wrap items-center gap-4;
+  }
 
   /* ---------- Dashboard ---------- */
-  .queue-grid {
-    @apply grid gap-3;
+  .dash-grid {
+    @apply grid items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12;
   }
-  .queue-card {
-    @apply bg-card grid min-w-0 grid-cols-[128px_minmax(0,1fr)] items-center overflow-hidden rounded-lg border;
+  /* Play next: a shelf of vertical library covers. */
+  .cover-shelf {
+    @apply grid gap-4;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
   }
-  .queue-card .game-art {
-    @apply m-3 mr-0 rounded;
-    width: calc(100% - 12px);
+  .cover-card {
+    @apply flex min-w-0 flex-col gap-2.5;
   }
-  .queue-card-body {
-    @apply flex min-w-0 flex-wrap items-center justify-between gap-3 p-3 pl-4;
+  .cover-frame {
+    @apply bg-muted relative overflow-hidden rounded-md;
+    aspect-ratio: 2 / 3;
+    box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+  .cover-art {
+    @apply h-full w-full object-cover;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .cover-art.is-header {
+    @apply object-contain;
+  }
+  .cover-card[data-status="playing"] .cover-frame::after {
+    content: "Playing";
+    font-family: var(--font-display);
+    @apply absolute top-2 left-2 rounded-sm px-1.5 py-0.5 text-xs font-bold tracking-[0.08em] uppercase;
+    background: var(--signal);
+    color: var(--primary-foreground);
+  }
+  .cover-body {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+  .cover-actions {
+    @apply mt-1 flex flex-wrap gap-2;
+  }
+  .cover-actions .action {
+    @apply min-h-9 w-full px-3;
   }
   .queue-title {
     @apply truncate text-sm leading-snug font-semibold;
@@ -549,7 +615,7 @@
   }
   .watch-row-price strong {
     color: var(--price-ink);
-    @apply text-lg font-semibold tabular-nums;
+    @apply font-mono text-base font-medium tabular-nums;
   }
   .watch-row-price span {
     @apply text-muted-foreground text-xs;
@@ -573,13 +639,13 @@
     color: var(--warn);
   }
   .new-badge {
-    @apply rounded px-1.5 py-0.5 text-[11px] font-semibold;
+    @apply rounded-sm px-1.5 py-0.5 text-[11px] font-semibold;
     background: var(--signal);
-    color: var(--background);
+    color: var(--primary-foreground);
   }
   .nav-count.nav-alert {
     background: var(--signal);
-    color: var(--background);
+    color: var(--primary-foreground);
   }
   .nav-dot {
     @apply inline-block h-2 w-2 rounded-full;
@@ -596,7 +662,7 @@
     @apply flex w-full;
   }
   .status-picker button {
-    @apply flex-1 px-2 text-xs sm:text-sm;
+    @apply min-h-9 flex-1 px-2 text-xs sm:text-sm;
   }
   .status-picker button[aria-pressed="true"][data-status="playing"],
   .status-picker button[aria-pressed="true"][data-status="completed"] {
@@ -667,7 +733,7 @@
     @apply flex flex-1 flex-col gap-3 p-4 sm:p-5;
   }
   .deal-title {
-    @apply text-base leading-snug font-semibold tracking-tight;
+    @apply text-base leading-snug font-semibold;
   }
   .deal-store {
     @apply text-muted-foreground text-sm;
@@ -680,14 +746,14 @@
   }
   .deal-price {
     color: var(--price-ink);
-    @apply text-xl font-semibold tracking-tight tabular-nums;
+    @apply font-mono text-lg font-medium tabular-nums;
   }
   .deal-price.muted {
     @apply text-foreground;
   }
   .discount-label {
-    @apply rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums;
-    background: color-mix(in srgb, var(--signal) 18%, transparent);
+    @apply rounded-sm px-1.5 py-0.5 font-mono text-xs font-medium tabular-nums;
+    background: color-mix(in srgb, var(--signal) 16%, transparent);
     color: var(--signal);
   }
   .deal-buy {
@@ -719,7 +785,8 @@
     @apply text-muted-foreground flex flex-wrap items-center justify-between gap-3 space-y-0 text-sm;
   }
   .wishlist-strip h2 {
-    @apply text-base font-semibold;
+    font-family: var(--font-display);
+    @apply text-[17px] leading-none font-semibold tracking-[0.1em] uppercase;
   }
   .wishlist-strip ul {
     @apply grid gap-3 md:grid-cols-3;
@@ -737,11 +804,11 @@
     @apply text-muted-foreground text-xs;
   }
   .strip-price {
-    @apply flex flex-col items-end text-base font-semibold tabular-nums hover:underline;
+    @apply flex flex-col items-end font-mono text-base font-medium tabular-nums hover:underline;
     color: var(--price-ink);
   }
   .strip-price span {
-    @apply text-muted-foreground text-xs font-normal;
+    @apply text-muted-foreground font-sans text-xs font-normal;
   }
 
   /* ---------- News ---------- */
@@ -750,6 +817,18 @@
   }
   .news-entry {
     @apply block space-y-2 py-5;
+  }
+  .news-entry.has-art {
+    @apply grid grid-cols-[96px_minmax(0,1fr)] items-start space-y-0 gap-x-4;
+  }
+  .news-art .game-art {
+    @apply rounded;
+  }
+  .news-list-compact .news-entry.has-art {
+    @apply grid-cols-[88px_minmax(0,1fr)];
+  }
+  .news-body {
+    @apply min-w-0 space-y-2;
   }
   .news-meta {
     @apply text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs;
@@ -785,8 +864,8 @@
     object-fit: cover;
   }
   .hero-title {
-    @apply text-3xl font-bold sm:text-4xl;
-    letter-spacing: -0.045em;
+    @apply text-3xl font-semibold sm:text-4xl;
+    letter-spacing: -0.02em;
   }
   .hero-meta {
     @apply text-muted-foreground text-xs;
@@ -796,7 +875,7 @@
   }
   .hub-price {
     color: var(--price-ink);
-    @apply text-3xl font-semibold tracking-tight tabular-nums;
+    @apply font-mono text-3xl font-medium tabular-nums;
   }
   .store-prices {
     @apply divide-y border-t;
@@ -806,10 +885,10 @@
   }
   .store-prices a {
     @apply font-medium hover:underline;
-    color: var(--signal);
+    color: var(--foreground);
   }
   .store-price {
-    @apply flex items-baseline gap-2 tabular-nums;
+    @apply flex items-baseline gap-2.5 font-mono text-sm tabular-nums;
   }
   .store-price s {
     @apply text-muted-foreground text-xs;
@@ -865,7 +944,19 @@
     @apply mt-0.5;
   }
   .price-pair-note {
-    @apply text-muted-foreground text-xs;
+    @apply text-muted-foreground min-h-9 text-xs;
+  }
+  .price-trio {
+    @apply grid-cols-3 gap-3;
+  }
+  .watch-card .price-pair-note {
+    @apply -mt-1 min-h-5;
+  }
+  .prices-checked {
+    @apply text-muted-foreground mt-2 text-xs;
+  }
+  .target-edit {
+    @apply -ml-0.5 min-h-7 px-0.5 text-xs underline underline-offset-4;
   }
   .gap-line {
     @apply -mt-1 text-sm font-medium;
@@ -899,7 +990,8 @@
     @apply flex flex-wrap items-center justify-between gap-4 border-t pt-8;
   }
   .backup-panel h2 {
-    @apply text-base font-semibold;
+    font-family: var(--font-display);
+    @apply text-[17px] leading-none font-semibold tracking-[0.1em] uppercase;
   }
 
   /* ---------- Add game dialog ---------- */
@@ -944,7 +1036,9 @@
 
   /* Collection, pricing and news details */
   .date-group {
-    @apply text-muted-foreground border-b pb-2 text-xs font-semibold tracking-wide uppercase;
+    font-family: var(--font-display);
+    color: var(--subtle);
+    @apply border-b pb-2 text-sm font-semibold tracking-[0.12em] uppercase;
   }
   .own-prompt {
     @apply grid w-full grid-cols-2 gap-3 pt-1;
@@ -1007,11 +1101,10 @@
   }
   .moved-panel {
     @apply bg-card space-y-3 rounded-lg border p-4;
-    border-left: 3px solid var(--signal);
   }
   .price-link-cue {
     @apply hidden text-xs font-medium;
-    color: var(--signal);
+    color: var(--muted-foreground);
   }
   .meta-part + .meta-part::before {
     content: " · ";
@@ -1024,12 +1117,17 @@
   }
   /* Table cells whose value is also the edit control. */
   .cell-edit {
-    @apply hover:bg-muted -mx-2 inline-flex min-h-9 cursor-pointer items-center gap-1 rounded px-2 text-left text-sm font-medium underline-offset-4 hover:underline;
-    color: var(--signal);
+    @apply hover:bg-muted -mx-2 inline-flex min-h-9 cursor-pointer items-center gap-1 rounded px-2 text-left text-sm font-medium underline decoration-dotted;
+    color: var(--foreground);
+    text-underline-offset: 4px;
+    text-decoration-color: var(--subtle);
   }
 
-  .news-read {
-    @apply mr-5;
+  .news-links {
+    @apply flex flex-wrap gap-x-5 gap-y-2;
+  }
+  .news-links:empty {
+    display: none;
   }
   /* ---------- Patch notes reader ---------- */
   [data-kind="new"],
@@ -1084,20 +1182,22 @@
     color: #eef3f3;
   }
   .patch-game {
-    @apply text-xs font-semibold tracking-[0.12em] uppercase;
-    color: #b9c7c9;
+    font-family: var(--font-display);
+    @apply text-sm font-semibold tracking-[0.16em] uppercase;
+    color: #c3cbb8;
   }
   .patch-hero h1 {
     @apply flex flex-wrap items-baseline gap-x-4 gap-y-1;
   }
   .patch-version {
-    font-size: clamp(2.75rem, 7vw, 4.5rem);
-    @apply leading-none font-bold tabular-nums;
-    letter-spacing: -0.04em;
+    font-family: var(--font-display);
+    font-size: clamp(3.5rem, 9vw, 6rem);
+    @apply leading-[0.85] font-bold tabular-nums;
   }
   .patch-label {
-    @apply text-sm font-semibold tracking-[0.2em] uppercase;
-    color: #9ad5bd;
+    font-family: var(--font-display);
+    @apply text-base font-semibold tracking-[0.22em] uppercase;
+    color: #c8ed78;
   }
   .patch-title {
     @apply text-lg font-medium;
@@ -1107,8 +1207,8 @@
     color: #b9c7c9;
   }
   .patch-meta a {
-    color: #9ad5bd;
-    @apply font-medium hover:underline;
+    color: #f2f4eb;
+    @apply font-medium underline underline-offset-4;
   }
   .patch-glance {
     @apply bg-card space-y-6 rounded-xl border p-5 sm:p-6;
@@ -1153,7 +1253,8 @@
     @apply space-y-3;
   }
   .glance-heading {
-    @apply flex items-center gap-2.5 border-b pb-2 text-sm font-bold tracking-[0.14em] uppercase;
+    font-family: var(--font-display);
+    @apply flex items-center gap-2.5 border-b pb-2 text-[17px] leading-none font-semibold tracking-[0.14em] uppercase;
   }
   .glance-icon {
     @apply text-base leading-none;
@@ -1163,23 +1264,21 @@
     @apply bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs tracking-normal tabular-nums;
   }
   .glance-tiles {
-    @apply grid gap-3;
-    grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+    @apply flex flex-wrap gap-2;
   }
   .glance-tile {
-    @apply flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-lg p-1 text-center;
+    @apply bg-background inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border py-1.5 pr-1.5 pl-3 text-left text-sm font-medium transition-colors;
+    border-left: 3px solid var(--kind);
   }
-  .glance-mark {
-    @apply flex h-14 w-14 items-center justify-center rounded-lg text-base font-bold tracking-wide transition-transform;
-    border: 2px solid var(--kind);
-    background: color-mix(in srgb, var(--kind) 16%, var(--card));
-    box-shadow: inset 0 0 0 3px var(--card);
+  .glance-tile:hover {
+    border-color: color-mix(in srgb, var(--kind) 70%, var(--border));
+    background: color-mix(in srgb, var(--kind) 8%, var(--background));
   }
-  .glance-tile:hover .glance-mark {
-    transform: translateY(-2px);
+  .glance-changes {
+    @apply bg-muted text-muted-foreground rounded-sm px-1.5 font-mono text-xs tabular-nums;
   }
   .glance-name {
-    @apply line-clamp-2 text-[11px] leading-tight font-semibold tracking-wide uppercase;
+    @apply leading-tight;
   }
   .glance-more {
     @apply text-muted-foreground flex items-center justify-center text-xs;
@@ -1195,7 +1294,6 @@
   }
   .ai-summary {
     @apply bg-card space-y-3 rounded-lg border p-5 sm:p-6;
-    border-color: color-mix(in srgb, var(--kind-system) 45%, var(--border));
   }
   .ai-summary-head {
     @apply flex flex-wrap items-center justify-between gap-2;
@@ -1207,9 +1305,9 @@
     @apply text-sm leading-relaxed;
   }
   .premium-badge {
-    @apply rounded-full px-2.5 py-0.5 text-xs font-semibold;
-    background: color-mix(in srgb, var(--kind-system) 16%, transparent);
-    color: var(--foreground);
+    @apply rounded-sm px-2 py-0.5 text-xs font-semibold;
+    background: color-mix(in srgb, var(--signal) 16%, transparent);
+    color: var(--signal);
   }
   .patch-notes {
     @apply space-y-10;
@@ -1221,11 +1319,11 @@
     @apply space-y-4;
   }
   .patch-section > h2 {
-    @apply border-b pb-2 text-xl font-bold tracking-tight;
+    font-family: var(--font-display);
+    @apply border-b pb-2 text-xl font-semibold tracking-[0.08em] uppercase;
   }
   .patch-subject {
     @apply bg-card scroll-mt-24 space-y-3 rounded-lg border p-4 outline-none sm:p-5;
-    border-left: 3px solid var(--kind);
   }
   .patch-subject:focus-visible {
     outline: 2px solid var(--ring);
@@ -1259,6 +1357,154 @@
   .change-kind > span[aria-hidden] {
     color: var(--kind);
   }
+
+  /* Wishlist price track: now vs target vs lowest ever, to scale. */
+  .price-track {
+    @apply space-y-2;
+  }
+  .price-track-rail {
+    @apply bg-muted relative h-1.5 rounded-full;
+  }
+  .price-track-zone {
+    @apply absolute inset-y-0 left-0 rounded-full;
+    background: color-mix(in srgb, var(--signal) 30%, transparent);
+  }
+  .price-track-mark {
+    @apply absolute top-1/2;
+    transform: translate(-50%, -50%);
+  }
+  .price-track-mark[data-mark="now"] {
+    @apply h-3.5 w-3.5 rounded-full;
+    background: var(--foreground);
+    box-shadow: 0 0 0 2px var(--card);
+  }
+  .price-track[data-met] .price-track-mark[data-mark="now"] {
+    background: var(--signal);
+  }
+  .price-track-mark[data-mark="target"] {
+    @apply h-4 w-0.5 rounded-full;
+    background: var(--signal);
+  }
+  .price-track-mark[data-mark="low"] {
+    @apply h-2.5 w-2.5 rotate-45 rounded-[1px];
+    transform: translate(-50%, -50%) rotate(45deg);
+    border: 2px solid var(--subtle);
+    background: var(--card);
+  }
+  .price-track-legend {
+    @apply text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs;
+  }
+  .price-track-legend > span {
+    @apply inline-flex items-center gap-1.5;
+  }
+  .price-track-legend strong {
+    @apply text-foreground font-mono font-medium;
+  }
+  .price-track-key {
+    @apply inline-block h-2 w-2 rounded-full;
+    background: var(--foreground);
+  }
+  [data-mark="target"] > .price-track-key {
+    @apply h-2.5 w-0.5 rounded-full;
+    background: var(--signal);
+  }
+  [data-mark="low"] > .price-track-key {
+    @apply rounded-[1px];
+    transform: rotate(45deg);
+    border: 1.5px solid var(--subtle);
+    background: transparent;
+  }
+
+  /* Deals: comparison ledger rows (best offer, then Steam baseline). */
+  .deal-ledger {
+    @apply bg-muted/60 -mx-1 space-y-1.5 rounded-md px-3 py-2.5;
+  }
+  .ledger-label {
+    font-family: var(--font-display);
+    color: var(--subtle);
+    @apply inline-block w-12 shrink-0 text-xs font-semibold tracking-[0.1em] uppercase;
+  }
+  .deal-ledger .price-link {
+    @apply my-0 flex flex-wrap items-baseline py-0;
+  }
+  .deal-ledger .price-line {
+    @apply inline-flex;
+  }
+  .deal-ledger .steam-line {
+    @apply mt-0 flex flex-wrap items-baseline gap-x-2 text-sm;
+  }
+  .ledger-value {
+    @apply text-foreground font-mono text-sm font-medium tabular-nums;
+  }
+  /* Library: games you're playing carry an accent edge. */
+  .library-card[data-status="playing"] {
+    box-shadow: inset 0 2px 0 var(--signal);
+  }
+  /* Patch overview: say what each number counts. */
+  .glance-caption {
+    @apply text-muted-foreground text-sm;
+  }
+  /* Comfortable touch targets on coarse pointers. */
+  @media (pointer: coarse) {
+    .filter-pill,
+    .segmented button,
+    .action.compact,
+    .glance-tile,
+    .quiet-button,
+    .popover-picker summary {
+      min-height: 44px;
+    }
+  }
+
+  /* ---------- Motion & interaction ----------
+     Transform/opacity only (cheap in software rendering); all of it is
+     neutralised by the reduced-motion block at the end of this file. */
+  .site-nav[data-scrolled] {
+    border-bottom-color: var(--border);
+  }
+  .nav-links::after {
+    content: "";
+    @apply pointer-events-none absolute bottom-0 left-0 h-0.5 rounded-full;
+    width: var(--ind-w, 0);
+    transform: translateX(var(--ind-x, 0));
+    background: var(--signal);
+    transition:
+      transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      width 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-links[data-indicator="off"]::after {
+    opacity: 0;
+  }
+  .kbd {
+    @apply ml-1 hidden rounded-sm border px-1.5 font-mono text-[11px] leading-5 font-medium lg:inline-block;
+    border-color: color-mix(in srgb, currentColor 35%, transparent);
+    opacity: 0.8;
+  }
+  .action:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .text-link:hover {
+    text-decoration-color: currentColor;
+  }
+  .motion-ok [data-reveal] {
+    transition:
+      opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .motion-ok [data-reveal]:not([data-reveal-in]) {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .game-art {
+      transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .game-card:hover .game-art,
+    .cover-card:hover .cover-art,
+    .watch-row:hover .game-art {
+      transform: scale(1.025);
+    }
+  }
 }
 
 /* ---------- Responsive ---------- */
@@ -1271,6 +1517,11 @@
   }
 }
 @media (max-width: 639px) {
+  .nav-links::after {
+    top: 0;
+    bottom: auto;
+  }
+
   /* Bottom tab bar on phones (also used by the installed PWA). */
   .nav-links {
     @apply bg-background/95 fixed inset-x-0 bottom-0 z-30 grid h-auto grid-cols-5 border-t backdrop-blur;
@@ -1285,12 +1536,6 @@
   }
   .nav-link[aria-current="page"] {
     color: var(--signal);
-  }
-  .nav-link[aria-current="page"]::after {
-    top: -1px;
-    bottom: auto;
-    left: 25%;
-    right: 25%;
   }
   .nav-count {
     @apply absolute top-1.5 left-1/2 ml-2 min-w-4 px-1 text-[10px];
@@ -1339,20 +1584,24 @@
   .deal-grid {
     @apply gap-0 divide-y rounded-lg border;
   }
+  /* Art + title header, then a full-width ledger and buy action. */
   .deal-card {
-    @apply grid grid-cols-[104px_minmax(0,1fr)] gap-3 rounded-none border-0 p-3;
+    @apply grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 rounded-none border-0 p-3 py-4;
+  }
+  .deal-card .deal-content {
+    display: contents;
+  }
+  .deal-card .deal-content > :not(:first-child) {
+    @apply col-span-full;
   }
   .deal-card .game-art {
     @apply rounded;
   }
-  .deal-card .deal-content {
-    @apply gap-2 p-0;
-  }
   .deal-card .deal-price {
-    @apply text-base;
+    @apply text-lg leading-6;
   }
   .deal-card .deal-buy {
-    @apply min-h-9 py-1.5;
+    @apply min-h-11 py-2;
   }
   .deal-card .track-actions .action {
     @apply min-h-8 py-1 text-xs;
@@ -1364,8 +1613,12 @@
     grid-template-columns: 72px minmax(0, 1fr) auto;
     gap: 12px;
   }
-  .queue-card {
-    @apply grid-cols-[96px_minmax(0,1fr)];
+  .cover-shelf {
+    @apply -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2;
+    scrollbar-width: none;
+  }
+  .cover-card {
+    @apply w-[42%] shrink-0 snap-start;
   }
   .wishlist-strip li {
     grid-template-columns: 64px minmax(0, 1fr) auto;
@@ -1442,15 +1695,12 @@
   .page-heading .page-description {
     @apply text-sm;
   }
-  /* The price itself is the buy link on phones; drop the duplicate button. */
-  .deal-card .deal-buy {
+  /* The buy button names the store, so the price link's cue would repeat it. */
+  .deal-card .price-link-cue {
     display: none;
   }
   .deal-card .deal-untracked {
-    @apply text-[11px] leading-snug;
-  }
-  .price-link-cue {
-    @apply block;
+    @apply text-xs leading-snug;
   }
   .meta-part {
     @apply block;
@@ -1465,6 +1715,28 @@
   .guest-banner {
     @apply gap-y-2;
   }
+  .guest-actions {
+    @apply flex-nowrap gap-3;
+  }
+  .guest-actions .action {
+    @apply ml-auto min-h-11 px-3;
+  }
+  /* News: art beside the meta line only; headline and excerpt run full width. */
+  .news-entry.has-art {
+    @apply grid-cols-[96px_minmax(0,1fr)] items-center gap-y-2 py-6;
+  }
+  .news-entry.has-art .news-body {
+    display: contents;
+  }
+  .news-entry.has-art .news-body > :not(.news-meta) {
+    @apply col-span-full;
+  }
+  .news-entry.has-art .news-meta {
+    @apply flex-col items-start gap-y-0.5;
+  }
+  .news-entry p {
+    @apply line-clamp-3;
+  }
   .metric-card dd.metric-note:not(.essential) {
     display: none;
   }
@@ -1478,12 +1750,6 @@
   /* Patch reader on phones */
   .patch-hero {
     @apply min-h-52;
-  }
-  .glance-tiles {
-    grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
-  }
-  .glance-mark {
-    @apply h-12 w-12 text-sm;
   }
   .patch-changes li {
     @apply grid-cols-1 gap-1;

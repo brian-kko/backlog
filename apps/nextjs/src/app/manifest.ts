@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Track what you own and play, watch prices across stores, and follow patch notes for your games.",
     start_url: "/",
     display: "standalone",
-    background_color: "#151a1d",
-    theme_color: "#151a1d",
+    background_color: "#121411",
+    theme_color: "#121411",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },

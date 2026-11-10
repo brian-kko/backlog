@@ -9,7 +9,14 @@ import type { BacklogItem } from "~/components/backlog-provider";
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { canLaunch, followedGames } from "~/components/collection";
-import { GameArt, LaunchLink, money, PageHeading } from "~/components/game-ui";
+import {
+  CoverArt,
+  GameArt,
+  LaunchLink,
+  money,
+  PageHeading,
+  plural,
+} from "~/components/game-ui";
 import { GuestBanner } from "~/components/guest-banner";
 import { useNewsSeen } from "~/components/news-seen";
 import {
@@ -141,9 +148,15 @@ function WhatChanged() {
   const owned = new Set(
     games.filter((game) => game.isOwned).map((game) => game.steamAppId),
   );
-  const posts = ownPosts(feed.data.items, titles)
-    // Recent only: patches for games you own, events for any of your games.
-    .filter((item) => item.publishedAt.getTime() > since)
+  const recent = ownPosts(feed.data.items, titles).filter(
+    (item) => item.publishedAt.getTime() > since,
+  );
+  // Wishlist patches stay on Updates; count them so "nothing new" is honest.
+  const wishlistPatches = recent.filter(
+    (item) => !owned.has(item.steamAppId) && item.category === "patch_note",
+  ).length;
+  const posts = recent
+    // Patches for games you own, events for any of your games.
     .filter((item) =>
       owned.has(item.steamAppId)
         ? item.category !== "general"
@@ -175,11 +188,15 @@ function WhatChanged() {
           )}
         </>
       ) : (
-        <p className="empty-state">
-          Nothing new in the last 30 days.{" "}
-          <Link className="text-link" href="/updates">
-            All updates
-          </Link>
+        <p className="empty-inline">
+          {owned.size
+            ? "No patches for games you own in the last 30 days."
+            : "Nothing new from your games in the last 30 days."}
+          {wishlistPatches > 0 && (
+            <Link className="text-link" href="/updates">
+              {plural(wishlistPatches, "patch note")} for wishlist games
+            </Link>
+          )}
         </p>
       )}
     </div>
@@ -197,18 +214,21 @@ function QueueCard({ game }: { game: BacklogItem }) {
   const [error, setError] = useState(false);
   const playing = game.completionStatus === "playing";
   return (
-    <article className="queue-card">
-      <GameArt appId={game.steamAppId} title={game.title} />
-      <div className="queue-card-body">
-        <div className="min-w-0">
-          <h3 className="queue-title">
-            <Link href={`/game/${game.steamAppId}`}>{game.title}</Link>
-          </h3>
-          <p className="queue-status">
-            {statusLabel[game.completionStatus ?? "backlog"]}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <article
+      className="queue-card cover-card"
+      data-status={game.completionStatus ?? "backlog"}
+    >
+      <Link href={`/game/${game.steamAppId}`} tabIndex={-1} aria-hidden="true">
+        <CoverArt appId={game.steamAppId} title={game.title} />
+      </Link>
+      <div className="cover-body">
+        <h3 className="queue-title">
+          <Link href={`/game/${game.steamAppId}`}>{game.title}</Link>
+        </h3>
+        <p className="queue-status">
+          {statusLabel[game.completionStatus ?? "backlog"]}
+        </p>
+        <div className="cover-actions">
           {playing && canLaunch(game) ? (
             <LaunchLink steamAppId={game.steamAppId} title={game.title}>
               Play
@@ -244,7 +264,7 @@ function PlayNext() {
   const { items, isLoading } = useBacklog();
   const queue = followedGames(items.filter((item) => item.isOwned))
     .filter((item) => item.completionStatus !== "completed")
-    .slice(0, 4);
+    .slice(0, 6);
   if (isLoading) return <p role="status">Loading your library…</p>;
   if (!queue.length)
     return (
@@ -256,7 +276,7 @@ function PlayNext() {
       </div>
     );
   return (
-    <div className="queue-grid">
+    <div className="cover-shelf">
       {queue.map((game) => (
         <QueueCard key={game.steamAppId} game={game} />
       ))}
@@ -268,46 +288,44 @@ export default function HomePage() {
   return (
     <main className="page-shell">
       <PageHeading title="Dashboard">
-        What’s worth buying, what changed in your games, and what to play
-        next, with prices from {Object.keys(storeNames).length} stores, not
-        just Steam.
+        What’s worth buying, what changed in your games, and what to play next,
+        with prices from {Object.keys(storeNames).length} stores, not just
+        Steam.
       </PageHeading>
       <GuestBanner />
-      <BacklogSummary />
-      <div className="journal-columns">
-        <div className="space-y-10">
-          <section className="space-y-4">
-            <div className="section-heading">
-              <h2>Price watch</h2>
-              <Link className="text-link" href="/wishlist">
-                Wishlist
-              </Link>
-            </div>
-            <PriceWatch />
-            <Link className="text-link" href="/deals">
-              Browse deals across stores
-            </Link>
-          </section>
-          <section className="space-y-4">
-            <div className="section-heading">
-              <h2>Play next</h2>
-              <Link className="text-link" href="/library">
-                Library
-              </Link>
-            </div>
-            <PlayNext />
-          </section>
-        </div>
-        <section className="space-y-4">
+      <div className="dash-grid">
+        <section className="space-y-4" data-reveal>
           <div className="section-heading">
-            <h2>What changed</h2>
-            <Link className="text-link" href="/updates">
-              All updates
+            <h2>Price watch</h2>
+            <Link className="text-link" href="/wishlist">
+              Wishlist
             </Link>
           </div>
-          <WhatChanged />
+          <PriceWatch />
+          <Link className="text-link" href="/deals">
+            Browse deals across stores
+          </Link>
+        </section>
+        <section className="space-y-4" data-reveal>
+          <div className="section-heading">
+            <h2>Play next</h2>
+            <Link className="text-link" href="/library">
+              Library
+            </Link>
+          </div>
+          <PlayNext />
         </section>
       </div>
+      <section className="space-y-4" data-reveal>
+        <div className="section-heading">
+          <h2>What changed</h2>
+          <Link className="text-link" href="/updates">
+            All updates
+          </Link>
+        </div>
+        <WhatChanged />
+      </section>
+      <BacklogSummary />
     </main>
   );
 }

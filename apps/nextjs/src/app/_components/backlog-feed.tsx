@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
+import { cn } from "@acme/ui";
 import { isAboutSequel } from "@acme/validators";
 
+import { GameArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
 
 type Feed = RouterOutputs["backlog"]["getSteamFeed"];
@@ -35,52 +37,74 @@ export function NewsCards({
   return (
     <div className={compact ? "news-list news-list-compact" : "news-list"}>
       {items.map((item) => (
-        <article key={item.id} className="news-entry">
-          <div className="news-meta">
-            {titles && (
-              <Link className="news-game" href={`/game/${item.steamAppId}`}>
-                {titles.get(item.steamAppId) ?? `Steam app ${item.steamAppId}`}
-              </Link>
-            )}
-            <span className="badge" data-category={item.category}>
-              {categoryLabel(item.category)}
-            </span>
-            {item.official === false && (
-              <span className="badge">Community</span>
-            )}
-            {newSince > 0 && item.publishedAt.getTime() > newSince && (
-              <span className="new-badge">New</span>
-            )}
-            <time dateTime={item.publishedAt.toISOString()}>
-              {item.publishedAt.toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-                timeZone: "UTC",
-              })}
-            </time>
-          </div>
-          <h3>{item.title}</h3>
-          {item.cleanSummary && <p>{item.cleanSummary}</p>}
-          {item.category === "patch_note" && /^\d+$/.test(item.id) && (
+        <article
+          key={item.id}
+          className={cn("news-entry", titles && "has-art")}
+        >
+          {titles && (
             <Link
-              className="text-link news-read"
-              href={`/patch/${item.steamAppId}/${item.id}`}
+              href={`/game/${item.steamAppId}`}
+              className="news-art"
+              tabIndex={-1}
+              aria-hidden="true"
             >
-              Read patch notes<span className="sr-only">: {item.title}</span>
+              <GameArt
+                appId={item.steamAppId}
+                title={titles.get(item.steamAppId) ?? ""}
+              />
             </Link>
           )}
-          {/^https?:\/\//i.test(item.url) && (
-            <a
-              className="text-link"
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Read on Steam<span className="sr-only">: {item.title}</span>{" "}
-              <span aria-hidden="true">↗</span>
-            </a>
-          )}
+          <div className="news-body">
+            <div className="news-meta">
+              {titles && (
+                <Link className="news-game" href={`/game/${item.steamAppId}`}>
+                  {titles.get(item.steamAppId) ??
+                    `Steam app ${item.steamAppId}`}
+                </Link>
+              )}
+              <span className="badge" data-category={item.category}>
+                {categoryLabel(item.category)}
+              </span>
+              {item.official === false && (
+                <span className="badge">Community</span>
+              )}
+              {newSince > 0 && item.publishedAt.getTime() > newSince && (
+                <span className="new-badge">New</span>
+              )}
+              <time dateTime={item.publishedAt.toISOString()}>
+                {item.publishedAt.toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  timeZone: "UTC",
+                })}
+              </time>
+            </div>
+            <h3>{item.title}</h3>
+            {item.cleanSummary && <p>{item.cleanSummary}</p>}
+            <div className="news-links">
+              {item.category === "patch_note" && /^\d+$/.test(item.id) && (
+                <Link
+                  className="text-link news-read"
+                  href={`/patch/${item.steamAppId}/${item.id}`}
+                >
+                  Read patch notes
+                  <span className="sr-only">: {item.title}</span>
+                </Link>
+              )}
+              {/^https?:\/\//i.test(item.url) && (
+                <a
+                  className="text-link"
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Read on Steam<span className="sr-only">: {item.title}</span>{" "}
+                  <span aria-hidden="true">↗</span>
+                </a>
+              )}
+            </div>
+          </div>
         </article>
       ))}
     </div>
@@ -317,10 +341,7 @@ export function useCollectionFeed(steamAppIds: number[], limit = 60) {
 }
 
 /** Drops posts about a sequel that Steam cross-posted to the original game. */
-export function ownPosts(
-  items: NewsItem[],
-  titles: Map<number, string>,
-) {
+export function ownPosts(items: NewsItem[], titles: Map<number, string>) {
   return items.filter((item) => {
     const title = titles.get(item.steamAppId);
     return !title || !isAboutSequel(item.title, title);
@@ -341,7 +362,8 @@ export function FeedGaps({
   const names = unavailable.map((id) => titles.get(id) ?? `app ${id}`);
   return (
     <p className="source-notice" role="note">
-      Steam news for {names.length > 2 ? `${names.length} games` : names.join(" and ")}{" "}
+      Steam news for{" "}
+      {names.length > 2 ? `${names.length} games` : names.join(" and ")}{" "}
       couldn’t be loaded.{" "}
       <button className="text-link" onClick={retry}>
         Try again

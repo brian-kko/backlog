@@ -202,7 +202,9 @@ function updateGuest(
 function ownGuestItems() {
   const snapshot = getGuestSnapshot();
   if (!snapshot.hasSaved) return [];
-  return snapshot.items.filter((item) => !snapshot.samples.has(item.steamAppId));
+  return snapshot.items.filter(
+    (item) => !snapshot.samples.has(item.steamAppId),
+  );
 }
 
 function clearGuest() {
@@ -315,7 +317,8 @@ export function BacklogProvider({ children }: { children: React.ReactNode }) {
               // edit sets them, so they never become real spending data.
               if (options?.claim !== false && samples.delete(item.steamAppId)) {
                 merged = { ...merged };
-                if (!Object.hasOwn(item, "amountPaid")) delete merged.amountPaid;
+                if (!Object.hasOwn(item, "amountPaid"))
+                  delete merged.amountPaid;
                 if (!Object.hasOwn(item, "targetPrice"))
                   delete merged.targetPrice;
               }
@@ -473,7 +476,11 @@ export function BacklogProvider({ children }: { children: React.ReactNode }) {
             updateGuest(
               current.map((item) => {
                 if (!samples.has(item.steamAppId)) return item;
-                const { amountPaid: _paid, targetPrice: _target, ...rest } = item;
+                const {
+                  amountPaid: _paid,
+                  targetPrice: _target,
+                  ...rest
+                } = item;
                 return rest;
               }),
               new Set(),
@@ -557,7 +564,11 @@ function GuestTransfer({
     items: BacklogItem[],
   ) => Promise<{ added: number; skipped: number }>;
 }) {
-  useSyncExternalStore(subscribeGuest, getGuestSnapshot, getServerGuestSnapshot);
+  useSyncExternalStore(
+    subscribeGuest,
+    getGuestSnapshot,
+    getServerGuestSnapshot,
+  );
   const items = ownGuestItems();
   const [state, setState] = useState<
     | { kind: "idle" | "busy" | "error" | "dismissed" }

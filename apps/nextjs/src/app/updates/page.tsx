@@ -62,8 +62,8 @@ export default function UpdatesPage() {
   return (
     <main className="page-shell">
       <PageHeading title="Updates">
-        Official patch notes and events from the games you own and watch, in
-        one feed. Store promotions are left out.
+        Official patch notes and events from the games you own and watch, in one
+        feed. Store promotions are left out.
       </PageHeading>
       {!isLoading && !games.length ? (
         <div className="empty-state space-y-4">
@@ -129,7 +129,7 @@ export default function UpdatesPage() {
             </div>
           )}
           {current ? (
-            <section className="space-y-4">
+            <section data-reveal className="space-y-4">
               <h2 className="text-xl font-semibold tracking-tight">
                 {current.title}
               </h2>
@@ -139,7 +139,7 @@ export default function UpdatesPage() {
               />
             </section>
           ) : (
-            <section className="space-y-4">
+            <section data-reveal className="space-y-4">
               {games.length > following.length && (
                 <p className="filter-help">
                   Following {following.length} of your games, prioritized as

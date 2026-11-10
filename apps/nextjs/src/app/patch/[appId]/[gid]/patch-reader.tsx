@@ -19,7 +19,12 @@ const groups: Record<
   { label: string; one: string; icon: string; description: string }
 > = {
   nerf: { label: "Nerfs", one: "Nerf", icon: "▼", description: "made weaker" },
-  buff: { label: "Buffs", one: "Buff", icon: "▲", description: "made stronger" },
+  buff: {
+    label: "Buffs",
+    one: "Buff",
+    icon: "▲",
+    description: "made stronger",
+  },
   adjusted: {
     label: "Adjusted",
     one: "Adjusted",
@@ -64,22 +69,11 @@ const barKinds = ["new", "nerf", "buff", "adjusted", "fix"] as const;
 const anchor = (sectionIndex: number, subjectIndex: number) =>
   `change-${sectionIndex}-${subjectIndex}`;
 
-function monogram(name: string) {
-  const words = name
-    .replace(/[^\p{L}\p{N}\s-]/gu, "")
-    .split(/[\s-]+/)
-    .filter(Boolean);
-  const letters =
-    words.length > 1
-      ? (words[0]?.[0] ?? "") + (words.at(-1)?.[0] ?? "")
-      : (words[0] ?? "?").slice(0, 2);
-  return letters.toUpperCase();
-}
-
 function ProportionBar({ counts }: { counts: PatchData["summary"]["counts"] }) {
   const values = barKinds.map((kind) => ({
     kind,
-    count: kind === "adjusted" ? counts.adjusted + counts.removed : counts[kind],
+    count:
+      kind === "adjusted" ? counts.adjusted + counts.removed : counts[kind],
   }));
   const total = values.reduce((sum, value) => sum + value.count, 0);
   if (!total) return null;
@@ -100,19 +94,38 @@ function ProportionBar({ counts }: { counts: PatchData["summary"]["counts"] }) {
       </div>
       <figcaption>
         <ul className="patch-legend">
-          {values.filter((value) => value.count).map((value) => (
-            <li key={value.kind}>
-              <span className="patch-swatch" data-kind={value.kind} aria-hidden="true">
-                {kinds[value.kind].icon}
-              </span>
-              <span className="patch-legend-count">{value.count}</span>{" "}
-              {legendWords[value.kind][value.count === 1 ? 0 : 1]}
-            </li>
-          ))}
+          {values
+            .filter((value) => value.count)
+            .map((value) => (
+              <li key={value.kind}>
+                <span
+                  className="patch-swatch"
+                  data-kind={value.kind}
+                  aria-hidden="true"
+                >
+                  {kinds[value.kind].icon}
+                </span>
+                <span className="patch-legend-count">{value.count}</span>{" "}
+                {legendWords[value.kind][value.count === 1 ? 0 : 1]}
+              </li>
+            ))}
         </ul>
       </figcaption>
     </figure>
   );
+}
+
+/**
+ * Counts like the overview caption: notes are context, not changes, so a
+ * subject's chip only says "notes" when that's all it has.
+ */
+function changeLabel(subject: Subject) {
+  const changes = subject.changes.filter(
+    (change) => change.kind !== "note",
+  ).length;
+  if (changes) return `${changes} ${changes === 1 ? "change" : "changes"}`;
+  const notes = subject.changes.length;
+  return `${notes} ${notes === 1 ? "note" : "notes"}`;
 }
 
 function Glance({
@@ -141,6 +154,7 @@ function Glance({
             const shown = members.slice(0, 12);
             return (
               <section
+                data-reveal
                 key={group}
                 className="glance-group"
                 data-group={group}
@@ -151,7 +165,9 @@ function Glance({
                     {groups[group].icon}
                   </span>
                   {groups[group].label}
-                  <span className="glance-count">{members.length}</span>
+                  <span className="glance-count">
+                    {members.length} {members.length === 1 ? "item" : "items"}
+                  </span>
                   <span className="sr-only">: {groups[group].description}</span>
                 </h3>
                 <ul className="glance-tiles">
@@ -162,10 +178,10 @@ function Glance({
                         className="glance-tile"
                         onClick={() => onOpen(tile.id)}
                       >
-                        <span className="glance-mark" aria-hidden="true">
-                          {monogram(tile.subject.name)}
-                        </span>
                         <span className="glance-name">{tile.subject.name}</span>
+                        <span className="glance-changes" aria-hidden="true">
+                          {changeLabel(tile.subject)}
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -206,7 +222,11 @@ function AiSummary({
     if (ai.data) onLoaded(ai.data);
   }, [ai.data]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <section className="ai-summary" aria-labelledby="ai-summary-title">
+    <section
+      data-reveal
+      className="ai-summary"
+      aria-labelledby="ai-summary-title"
+    >
       <div className="ai-summary-head">
         <h3 id="ai-summary-title">
           <span aria-hidden="true">✦ </span>AI summary
@@ -273,7 +293,11 @@ function FullNotes({
         </blockquote>
       )}
       {data.patch.sections.map((section, sectionIndex) => (
-        <section key={section.title + sectionIndex} className="patch-section">
+        <section
+          data-reveal
+          key={section.title + sectionIndex}
+          className="patch-section"
+        >
           <h2>{section.title}</h2>
           {section.subjects.map((subject, subjectIndex) => {
             const group = groupOf(subject);
@@ -308,10 +332,15 @@ function FullNotes({
                   {subject.changes.map((change, index) => (
                     <li key={index}>
                       {change.kind === "note" ? (
-                        <span className="change-kind-blank" aria-hidden="true" />
+                        <span
+                          className="change-kind-blank"
+                          aria-hidden="true"
+                        />
                       ) : (
                         <span className="change-kind" data-kind={change.kind}>
-                          <span aria-hidden="true">{kinds[change.kind].icon}</span>
+                          <span aria-hidden="true">
+                            {kinds[change.kind].icon}
+                          </span>
                           <span>{kinds[change.kind].label}</span>
                         </span>
                       )}
@@ -344,9 +373,21 @@ export function PatchReader({
   const [aiGroups, setAiGroups] = useState<Map<string, SubjectGroup> | null>(
     null,
   );
-  const game =
+  const knownTitle =
     items.find((item) => item.steamAppId === steamAppId)?.title ??
-    featuredGames.find((value) => value.steamAppId === steamAppId)?.title ??
+    featuredGames.find((value) => value.steamAppId === steamAppId)?.title;
+  // Games outside your collection (e.g. opened from a shared link) still
+  // get their real name, from the same lookup the game page uses.
+  const details = useQuery(
+    trpc.backlog.getGameDetails.queryOptions(
+      { steamAppId },
+      { enabled: !knownTitle, staleTime: 60 * 60 * 1000 },
+    ),
+  );
+  const game =
+    knownTitle ??
+    details.data?.metadata?.name ??
+    details.data?.prices?.title ??
     `Steam app ${steamAppId}`;
   const groupOf = (subject: Subject) =>
     aiGroups?.get(subject.name.toLowerCase()) ?? subject.group;
@@ -421,13 +462,36 @@ export function PatchReader({
         </div>
       </header>
 
-      <section className="patch-glance" aria-labelledby="glance-title">
+      <section
+        data-reveal
+        className="patch-glance"
+        aria-labelledby="glance-title"
+      >
         <div className="section-heading">
           <h2 id="glance-title">Patch at a glance</h2>
           {aiGroups && (
             <span className="premium-badge">Sorted by AI summary</span>
           )}
         </div>
+        {(() => {
+          const changes =
+            summary.counts.new +
+            summary.counts.buff +
+            summary.counts.nerf +
+            summary.counts.adjusted +
+            summary.counts.removed +
+            summary.counts.fix;
+          const items = data.patch.sections.reduce(
+            (sum, section) => sum + section.subjects.length,
+            0,
+          );
+          return changes ? (
+            <p className="glance-caption">
+              {changes} {changes === 1 ? "change" : "changes"} across {items}{" "}
+              {items === 1 ? "item" : "items"}
+            </p>
+          ) : null;
+        })()}
         <ProportionBar counts={summary.counts} />
         {summary.groups.length ? (
           <Glance data={data} groupOf={groupOf} onOpen={open} />
@@ -466,7 +530,11 @@ export function PatchReader({
       >
         {view === "summary" ? (
           <div className="summary-layout">
-            <section className="panel space-y-3" aria-labelledby="quick-read">
+            <section
+              data-reveal
+              className="panel space-y-3"
+              aria-labelledby="quick-read"
+            >
               <h3 id="quick-read" className="text-base font-semibold">
                 Quick read
               </h3>

@@ -1,14 +1,14 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@acme/ui/theme";
 import { toast } from "@acme/ui/toast";
 
-import { authClient } from "~/auth/client";
 import { useCollectionFeed } from "~/app/_components/backlog-feed";
+import { authClient } from "~/auth/client";
 import { AddGameButton } from "./add-game";
 import { useBacklog } from "./backlog-provider";
 import { followedGames } from "./collection";
@@ -99,12 +99,36 @@ export function Navbar() {
   const unread =
     seen > 0 &&
     !active("/updates") &&
-    Boolean(
-      feed.data?.items.some((item) => item.publishedAt.getTime() > seen),
-    );
+    Boolean(feed.data?.items.some((item) => item.publishedAt.getTime() > seen));
+
+  // One indicator slides between sections instead of each link drawing its own.
+  const nav = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const place = () => {
+      const element = nav.current;
+      if (!element) return;
+      const current = element.querySelector<HTMLElement>(
+        '[aria-current="page"]',
+      );
+      element.dataset.indicator = current ? "on" : "off";
+      if (!current) return;
+      element.style.setProperty("--ind-x", `${current.offsetLeft}px`);
+      element.style.setProperty("--ind-w", `${current.offsetWidth}px`);
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [pathname, items.length, alerts.length, unread]);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="site-nav">
+    <header className="site-nav" data-scrolled={scrolled || undefined}>
       <div className="nav-shell">
         <Link href="/" aria-label="Backlog home" className="brand">
           <span className="brand-emblem">
@@ -112,7 +136,7 @@ export function Navbar() {
           </span>
           <span className="brand-name">Backlog</span>
         </Link>
-        <nav aria-label="Main navigation" className="nav-links">
+        <nav ref={nav} aria-label="Main navigation" className="nav-links">
           {links.map(({ label, href, id, path }) => {
             const count =
               id === "library" || id === "wishlist"
@@ -176,7 +200,7 @@ export function Navbar() {
             </span>
           )}
           <div className="nav-add">
-            <AddGameButton />
+            <AddGameButton shortcut />
           </div>
           <ThemeToggle />
           {!isGuest && session.data ? (

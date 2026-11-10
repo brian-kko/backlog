@@ -12,9 +12,9 @@ import {
   GameSearchInputSchema,
   parsePatchNotes,
   PatchNotesInputSchema,
-  summarizePatch,
   SearchDealsInputSchema,
   SteamFeedInputSchema,
+  summarizePatch,
   UpsertBacklogItemSchema,
 } from "@acme/validators";
 
@@ -111,24 +111,20 @@ function fixturePrices(steamAppId: number) {
 }
 function searchFixtureDeals(input: z.infer<typeof SearchDealsInputSchema>) {
   if ((input?.page ?? 0) > 0) return [];
-          let result = deals.filter(
-            (deal) =>
-              !input?.query ||
-              deal.title.toLowerCase().includes(input.query.toLowerCase()),
-          );
-          if (input?.storeIds?.length)
-            result = result.filter((deal) =>
-              input.storeIds?.some((id) => id === deal.storeId),
-            );
-          if (input?.maxPrice !== undefined)
-            result = result.filter(
-              (deal) => deal.cheapestPrice <= input.maxPrice!,
-            );
-          if (input?.steamOnly)
-            result = result.filter((deal) => deal.steamRedeemable);
-          if (input?.onSale)
-            result = result.filter((deal) => deal.savingsPercent > 0);
-          return result;
+  let result = deals.filter(
+    (deal) =>
+      !input?.query ||
+      deal.title.toLowerCase().includes(input.query.toLowerCase()),
+  );
+  if (input?.storeIds?.length)
+    result = result.filter((deal) =>
+      input.storeIds?.some((id) => id === deal.storeId),
+    );
+  if (input?.maxPrice !== undefined)
+    result = result.filter((deal) => deal.cheapestPrice <= input.maxPrice!);
+  if (input?.steamOnly) result = result.filter((deal) => deal.steamRedeemable);
+  if (input?.onSale) result = result.filter((deal) => deal.savingsPercent > 0);
+  return result;
 }
 const patchPost = `[h3]Stratagems[/h3][p][i]AMW-20 APEX[/i][/p][p]Problem we want to solve:[/p][list][*]Demolition strength was too low[/*][/list][p]Changes:[/p][list][*]Decreased caliber from 60 to 20[/*][*]Increased demolition strength to 30[/*][/list][p][i]SG-22 BUSHWACKER[/i][/p][list][*]Increased damage from 405 to 486[/*][/list][h3]Fixes[/h3][list][*]Fixed a crash when joining a squad[/*][/list]`;
 const browserErrors = new WeakMap<Page, string[]>();
@@ -190,10 +186,15 @@ test.beforeEach(async ({ page }) => {
         .mutation(({ input }) => {
           const fresh = input.items.filter(
             (item) =>
-              !accountItems.some((value) => value.steamAppId === item.steamAppId),
+              !accountItems.some(
+                (value) => value.steamAppId === item.steamAppId,
+              ),
           );
           accountItems = [...accountItems, ...fresh];
-          return { added: fresh.length, skipped: input.items.length - fresh.length };
+          return {
+            added: fresh.length,
+            skipped: input.items.length - fresh.length,
+          };
         }),
       searchGames: t.procedure
         .input(GameSearchInputSchema)
@@ -248,14 +249,11 @@ test.beforeEach(async ({ page }) => {
             aiAvailable: true,
           };
         }),
-      getPatchAiSummary: t.procedure
-        .input(PatchNotesInputSchema)
-        .query(() => ({
-          overview:
-            "A small balance patch that makes two Stratagems hit harder.",
-          highlights: ["Bushwacker damage up to 486"],
-          subjects: [{ name: "AMW-20 APEX", group: "buff" as const }],
-        })),
+      getPatchAiSummary: t.procedure.input(PatchNotesInputSchema).query(() => ({
+        overview: "A small balance patch that makes two Stratagems hit harder.",
+        highlights: ["Bushwacker damage up to 486"],
+        subjects: [{ name: "AMW-20 APEX", group: "buff" as const }],
+      })),
       getSteamPrices: t.procedure
         .input(z.object({ steamAppIds: z.array(z.number()) }))
         .query(({ input }) =>
@@ -374,7 +372,9 @@ test("guest dashboard previews and persistent navigation cover all main routes",
     await expect(
       page.locator(".metric-card dt").getByText(metric, { exact: true }),
     ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Price watch" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Price watch" }),
+  ).toBeVisible();
   await expect(page.locator(".watch-row")).toHaveCount(2);
   await expect(
     page.locator(".watch-row").first().locator(".watch-row-meta"),
@@ -503,6 +503,10 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
   await expect(
     page.getByRole("link", { name: "Launch Cyberpunk 2077 in Steam" }),
   ).toHaveAttribute("href", "steam://rungameid/1091500");
+  // Card launch buttons are secondary (outlined), not the filled accent.
+  await expect(
+    page.getByRole("link", { name: "Launch Cyberpunk 2077 in Steam" }),
+  ).toHaveClass(/(^|\s)secondary(\s|$)/);
   await page
     .getByRole("group", { name: "Filter by status" })
     .getByRole("button", { name: /Completed/ })
@@ -536,9 +540,9 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(payload)),
   });
-  await expect(
-    page.locator(".backup-panel").getByRole("status"),
-  ).toHaveText("Backup restored.");
+  await expect(page.locator(".backup-panel").getByRole("status")).toHaveText(
+    "Backup restored.",
+  );
   await page
     .getByRole("group", { name: "Filter by status" })
     .getByRole("button", { name: /All/ })
@@ -555,6 +559,7 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
   // Table view is remembered and sortable.
   await page.getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.locator(".ledger-table")).toBeVisible();
+  await expect(page.locator(".card-grid")).toBeHidden();
   await page.getByRole("button", { name: /^Paid/ }).click();
   await expect(
     page.locator(".ledger-table tbody tr").first().getByRole("rowheader"),
@@ -711,7 +716,7 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
   await expect(page.getByText("1 game worth buying now.")).toBeVisible();
   // The nav shows the alert count, not the list size, while alerts exist.
   await expect(page.getByTestId("nav-wishlist")).toContainText("1 price alert");
-  await expect(watch.getByText("Your target: $25.00")).toBeVisible();
+  await expect(watch.locator('[data-field="target"]')).toContainText("$25.00");
   await page
     .getByRole("button", { name: "Edit target price for Helldivers 2" })
     .click();
@@ -729,7 +734,7 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
     "2 wishlisted games",
   );
   await page.reload();
-  await expect(watch.getByText("Your target: $5.00")).toBeVisible();
+  await expect(watch.locator('[data-field="target"]')).toContainText("$5.00");
   await expect(page.getByRole("switch")).toHaveCount(0);
 });
 
@@ -779,7 +784,9 @@ test("signed in library uses account data and exports the server backup", async 
   await expect(
     owned.getByLabel("Amount paid for Featured Game 1", { exact: true }),
   ).toHaveValue("");
-  await owned.getByRole("button", { name: /I paid \$9\.99 at Steam: use this/ }).click();
+  await owned
+    .getByRole("button", { name: /I paid \$9\.99 at Steam: use this/ })
+    .click();
   await expect(
     owned.getByLabel("Amount paid for Featured Game 1", { exact: true }),
   ).toHaveValue("9.99");
@@ -807,7 +814,9 @@ test("signed in library uses account data and exports the server backup", async 
     page.getByRole("button", { name: "In Library", exact: true }),
   ).toBeEnabled();
   await page.getByTestId("nav-wishlist").click();
-  await expect(page.getByText("Your target: $7.50")).toBeVisible();
+  await expect(page.locator('.watch-card [data-field="target"]')).toContainText(
+    "$7.50",
+  );
   await page
     .getByRole("button", { name: "Edit target price for Cyberpunk 2077" })
     .click();
@@ -821,9 +830,12 @@ test("signed in library uses account data and exports the server backup", async 
     "Target saved.",
   );
   await page.reload();
+  await expect(page.locator('.watch-card [data-field="target"]')).toContainText(
+    "None",
+  );
   await expect(
-    page.getByText("No target: flagged at its lowest ever price"),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Edit target price for Cyberpunk 2077" }),
+  ).toHaveText("Set target");
   await page.getByRole("link", { name: "View game", exact: true }).click();
   await page.getByRole("button", { name: "In Library", exact: true }).click();
   await expect(page.getByLabel("Amount paid", { exact: true })).toHaveValue(
@@ -855,7 +867,9 @@ test("signing in offers to move guest games without overwriting account games", 
   await expect(
     page.getByText("You have 1 game saved in this browser."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Add to account", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Add to account", exact: true })
+    .click();
   await expect(page.getByText("Added 1 game to your account.")).toBeVisible();
   await expect(page.getByTestId("library-card")).toHaveCount(2);
   await expect(
@@ -873,7 +887,9 @@ test("Game Hub ownership, completion and prices persist across pages with live n
   await expect(
     page.getByRole("link", { name: "Steam store page", exact: true }),
   ).toHaveAttribute("href", "https://store.steampowered.com/app/1091500/");
-  await expect(page.getByText("Lowest ever $14.99", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Lowest ever $14.99", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "← Library" })).toBeVisible();
   await expect(page.getByTestId("nav-library")).toContainText("3");
   await page.getByLabel("Amount paid", { exact: true }).fill("12.34");
@@ -905,9 +921,9 @@ test("Game Hub ownership, completion and prices persist across pages with live n
   ).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("nav-wishlist").click();
   const watch = page.getByRole("article").filter({ hasText: "Cyberpunk 2077" });
-  await expect(watch.getByText("Your target: $7.50")).toBeVisible();
+  await expect(watch.locator('[data-field="target"]')).toContainText("$7.50");
   await page.reload();
-  await expect(watch.getByText("Your target: $7.50")).toBeVisible();
+  await expect(watch.locator('[data-field="target"]')).toContainText("$7.50");
   await page.getByTestId("nav-home").click();
   await expect(
     page.locator(".metric-card").filter({ hasText: "Total spent" }),
@@ -978,7 +994,9 @@ test("deal filters survive refresh and more batches load on demand", async ({
   await expect(page.getByTestId("deal-card")).toHaveCount(12);
   await page.getByLabel("Offers per page", { exact: true }).selectOption("12");
   await expect(page.getByText("12 games from 12 offers")).toBeVisible();
-  await page.getByRole("button", { name: "Load more deals", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Load more deals", exact: true })
+    .click();
   // The fixture has no second batch, so nothing more is offered.
   await expect(
     page.getByRole("button", { name: "Load more deals", exact: true }),
@@ -1023,15 +1041,13 @@ for (const signedIn of [false, true]) {
         publicRequests.push(request.url());
     });
     await page.goto("/game/1091500");
-    await expect(
-      page.getByLabel("Amount paid", { exact: true }),
-    ).toHaveValue("29.99");
+    await expect(page.getByLabel("Amount paid", { exact: true })).toHaveValue(
+      "29.99",
+    );
     await expect(
       page.getByText("Lowest ever $14.99", { exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByLabel("Amount paid", { exact: true }),
-    ).toBeEnabled();
+    await expect(page.getByLabel("Amount paid", { exact: true })).toBeEnabled();
     const initialRequests = publicRequests.length;
     await page.getByLabel("Amount paid", { exact: true }).fill("18.25");
     // Clicking directly blurs the field and changes membership in the same gesture.
@@ -1046,9 +1062,9 @@ for (const signedIn of [false, true]) {
     ).toHaveCount(0);
     await page.getByLabel("Target price", { exact: true }).fill("7.50");
     await page.getByRole("button", { name: "In Library", exact: true }).click();
-    await expect(
-      page.getByLabel("Amount paid", { exact: true }),
-    ).toHaveValue("18.25");
+    await expect(page.getByLabel("Amount paid", { exact: true })).toHaveValue(
+      "18.25",
+    );
     await expect(page.locator(".save-state")).toContainText("Saved");
     expect(publicRequests).toHaveLength(initialRequests);
     await page.getByLabel("Amount paid", { exact: true }).fill("19.25");
@@ -1062,19 +1078,19 @@ for (const signedIn of [false, true]) {
       page.getByText("Removed Cyberpunk 2077.", { exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(
-      page.getByLabel("Amount paid", { exact: true }),
-    ).toHaveValue("19.25");
+    await expect(page.getByLabel("Amount paid", { exact: true })).toHaveValue(
+      "19.25",
+    );
     await page.reload();
-    await expect(
-      page.getByLabel("Amount paid", { exact: true }),
-    ).toHaveValue("19.25");
+    await expect(page.getByLabel("Amount paid", { exact: true })).toHaveValue(
+      "19.25",
+    );
     await page
       .getByRole("button", { name: "On Wishlist", exact: true })
       .click();
-    await expect(
-      page.getByLabel("Target price", { exact: true }),
-    ).toHaveValue("7.5");
+    await expect(page.getByLabel("Target price", { exact: true })).toHaveValue(
+      "7.5",
+    );
   });
 }
 
@@ -1123,9 +1139,13 @@ test("saved offers during a store outage are labelled and never promise savings"
   await expect(
     card.getByRole("link", { name: /^Saved price \$9\.99 at Steam/ }),
   ).toBeVisible();
-  await expect(card.getByRole("link", { name: /Check price at/ })).toBeVisible();
+  await expect(
+    card.getByRole("link", { name: /Check price at/ }),
+  ).toBeVisible();
   await expect(card.locator(".steam-line")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Load more deals" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Load more deals" }),
+  ).toHaveCount(0);
 });
 
 test("wishlist moves stay coherent while saves are slow or fail", async ({
@@ -1182,8 +1202,12 @@ test("wishlist moves stay coherent while saves are slow or fail", async ({
   await page.route("**/api/trpc/**upsertBacklogItem**", (route) =>
     route.fulfill({ status: 500, body: "{}" }),
   );
-  await panel.getByLabel("Amount paid for Cyberpunk 2077", { exact: true }).fill("5");
-  await panel.getByLabel("Amount paid for Cyberpunk 2077", { exact: true }).press("Tab");
+  await panel
+    .getByLabel("Amount paid for Cyberpunk 2077", { exact: true })
+    .fill("5");
+  await panel
+    .getByLabel("Amount paid for Cyberpunk 2077", { exact: true })
+    .press("Tab");
   await expect(
     panel.getByText("Couldn’t save the amount paid. Try changing it again."),
   ).toBeVisible();
@@ -1247,23 +1271,26 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
   const glance = page.getByRole("region", { name: "Patch at a glance" });
   await expect(glance.locator(".patch-legend")).toContainText("1 nerf");
   await expect(glance.locator(".patch-legend")).toContainText("2 buffs");
+  await expect(glance.getByRole("heading", { name: /Buffs/ })).toBeVisible();
   await expect(
-    glance.getByRole("heading", { name: /Buffs/ }),
+    page.getByText(/2 buffs, 1 nerf, and 1 fix across/),
   ).toBeVisible();
-  await expect(page.getByText(/2 buffs, 1 nerf, and 1 fix across/)).toBeVisible();
   // A tile jumps to that change in the full notes.
   await glance.getByRole("button", { name: "AMW-20 APEX" }).click();
-  await expect(page.getByRole("tab", { name: "Full patch notes" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(
+    page.getByRole("tab", { name: "Full patch notes" }),
+  ).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#change-0-0")).toBeFocused();
-  await expect(page.locator("#change-0-0")).toContainText("Decreased caliber from 60 to 20");
+  await expect(page.locator("#change-0-0")).toContainText(
+    "Decreased caliber from 60 to 20",
+  );
   // Premium preview: the AI summary is requested on demand.
   await page.getByRole("tab", { name: "Quick read" }).click();
   await page.getByRole("button", { name: "Summarize this patch" }).click();
   await expect(
-    page.getByText("A small balance patch that makes two Stratagems hit harder."),
+    page.getByText(
+      "A small balance patch that makes two Stratagems hit harder.",
+    ),
   ).toBeVisible();
   await expect(page.getByText("Sorted by AI summary")).toBeVisible();
 });

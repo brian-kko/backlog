@@ -390,6 +390,7 @@ describe("Steam news classification from tags, labels and titles", () => {
       "STARSCOURGE RADAHN FIGUARTS available for pre-order",
       "Soundtrack now on vinyl",
       "Save 50% off this weekend",
+      "New Elden Ring Mini Replicas Arrive: Malenia, Messmer & Wyld",
     ])
       expect(isPromotionalNews({ title })).toBe(true);
     expect(isPromotionalNews({ title: "Patch 1.2" })).toBe(false);
