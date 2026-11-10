@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
@@ -132,12 +133,15 @@ export function AlertBadge({
           : alert === "TARGET_MET"
             ? "Target met"
             : "Waiting for a drop";
-  const stale = state === "cached" && (alert === "ALL_TIME_LOW" || alert === "TARGET_MET");
+  const stale =
+    state === "cached" && (alert === "ALL_TIME_LOW" || alert === "TARGET_MET");
   return (
     <span
       className="watch-state"
       data-alert-state={
-        state === "checking" || state === "unavailable" ? "UNKNOWN" : (alert ?? "WAIT")
+        state === "checking" || state === "unavailable"
+          ? "UNKNOWN"
+          : (alert ?? "WAIT")
       }
       data-stale={stale || undefined}
     >
@@ -191,7 +195,10 @@ export function steamDelta(prices: Prices | null | undefined) {
 }
 
 /** Plain-language distance between the best price and the user's target. */
-export function targetGap(item: BacklogItem, prices: Prices | null | undefined) {
+export function targetGap(
+  item: BacklogItem,
+  prices: Prices | null | undefined,
+) {
   if (prices?.currentPrice == null) return null;
   if (item.targetPrice === undefined)
     return prices.historicalLow == null
@@ -208,4 +215,90 @@ export function lowLabel(prices: Prices | null | undefined) {
   return prices?.historicalLowSource === "catalog"
     ? `Lowest recorded (saved ${prices.historicalLowAsOf ?? "data"})`
     : "Lowest ever";
+}
+
+/**
+ * A truthful price track: current best price, the user's target, and the
+ * lowest ever (only from live history), placed on a real numeric scale.
+ * Renders nothing when there is no current price or nothing to compare.
+ */
+export function PriceTrack({
+  current,
+  target,
+  low,
+}: {
+  current: number | null | undefined;
+  target: number | undefined;
+  low: number | null | undefined;
+}) {
+  if (current == null || (target === undefined && low == null)) return null;
+  const marks = [
+    { key: "low", value: low ?? null, label: "Lowest ever" },
+    { key: "target", value: target ?? null, label: "Your target" },
+    { key: "now", value: current, label: "Now" },
+  ].filter(
+    (mark): mark is { key: string; value: number; label: string } =>
+      mark.value != null,
+  );
+  const values = marks.map((mark) => mark.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const position = (value: number) =>
+    max === min ? 50 : 6 + ((value - min) / span) * 88;
+  const met = target !== undefined && current <= target;
+  return (
+    <figure className="price-track" data-met={met || undefined}>
+      <div className="price-track-rail" aria-hidden="true">
+        {target !== undefined && (
+          <span
+            className="price-track-zone"
+            style={{ width: `${position(target)}%` }}
+          />
+        )}
+        {marks.map((mark) => (
+          <span
+            key={mark.key}
+            className="price-track-mark"
+            data-mark={mark.key}
+            style={{ left: `${position(mark.value)}%` }}
+          />
+        ))}
+      </div>
+      <figcaption className="price-track-legend">
+        {marks.map((mark) => (
+          <span key={mark.key} data-mark={mark.key}>
+            <span className="price-track-key" aria-hidden="true" />
+            {mark.label}
+            <span className="sr-only"> {money(mark.value)}</span>
+          </span>
+        ))}
+      </figcaption>
+    </figure>
+  );
+}
+
+/** "just now" / "5 min ago", refreshed each minute. */
+export function useRelativeTime(time: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const minutes = Math.max(0, Math.floor((now - time) / 60_000));
+  return minutes < 1
+    ? "just now"
+    : minutes < 60
+      ? `${minutes} min ago`
+      : new Date(time).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+}
+
+/** When prices were actually fetched, from the query's own timestamp. */
+export function PricesChecked({ at }: { at: number }) {
+  const when = useRelativeTime(at);
+  if (!at) return null;
+  return <p className="prices-checked">Prices checked {when} · USD</p>;
 }

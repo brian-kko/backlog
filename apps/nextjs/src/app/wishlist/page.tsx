@@ -27,8 +27,10 @@ import {
   lowLabel,
   offerSource,
   priceLabel,
+  PriceTrack,
   steamDelta,
   targetGap,
+  useRelativeTime,
   useWishlistPrices,
 } from "~/components/price-ui";
 
@@ -86,13 +88,43 @@ function WatchCard({
           </div>
           <AlertBadge state={state} alert={alert} />
         </div>
-        <dl className="price-pair">
+        {/* One row: what it costs now, what you'll pay, and the floor. */}
+        <dl className="price-pair price-trio">
           <div>
             <dt>{priceLabel(prices)}</dt>
             <dd className="deal-price">
               {pending ? "…" : offer ? money(offer.price) : "Unavailable"}
             </dd>
-            {offer && <dd className="price-pair-note">{offerSource(offer)}</dd>}
+          </div>
+          <div data-field="target">
+            <dt>Your target</dt>
+            <dd
+              className="deal-price muted"
+              title={
+                item.targetPrice === undefined
+                  ? "No target: flagged at its lowest ever price"
+                  : undefined
+              }
+            >
+              {item.targetPrice === undefined
+                ? "None"
+                : money(item.targetPrice)}
+            </dd>
+            <dd>
+              <button
+                type="button"
+                className="quiet-button target-edit"
+                aria-expanded={editing}
+                aria-label={`${editing ? "Close" : "Edit"} target price for ${item.title}`}
+                onClick={() => setEditing((value) => !value)}
+              >
+                {editing
+                  ? "Done"
+                  : item.targetPrice === undefined
+                    ? "Set target"
+                    : "Edit target"}
+              </button>
+            </dd>
           </div>
           <div>
             <dt>{lowLabel(prices)}</dt>
@@ -105,6 +137,18 @@ function WatchCard({
             </dd>
           </div>
         </dl>
+        <p className="price-pair-note">{offer ? offerSource(offer) : ""}</p>
+        {!pending && (
+          <PriceTrack
+            current={offer?.price}
+            target={item.targetPrice}
+            low={
+              prices?.historicalLowSource === "cheapshark"
+                ? prices.historicalLow
+                : null
+            }
+          />
+        )}
         {!pending && (
           <p className="gap-line">
             {targetGap(item, prices) ??
@@ -112,26 +156,6 @@ function WatchCard({
             {delta && <span className="gap-line-note"> · {delta}</span>}
           </p>
         )}
-        <div className="purchase-line">
-          <span>
-            {item.targetPrice === undefined
-              ? "No target: flagged at its lowest ever price"
-              : `Your target: ${money(item.targetPrice)}`}
-          </span>
-          <button
-            type="button"
-            className="quiet-button"
-            aria-expanded={editing}
-            aria-label={`${editing ? "Close" : "Edit"} target price for ${item.title}`}
-            onClick={() => setEditing((value) => !value)}
-          >
-            {editing
-              ? "Done"
-              : item.targetPrice === undefined
-                ? "Set target"
-                : "Edit"}
-          </button>
-        </div>
         {editing && (
           <PriceField
             label="Target price"
@@ -174,24 +198,6 @@ function WatchCard({
       </div>
     </article>
   );
-}
-
-/** "just now" / "5 min ago", refreshed each minute. */
-function useRelativeTime(time: number) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const minutes = Math.max(0, Math.floor((now - time) / 60_000));
-  return minutes < 1
-    ? "just now"
-    : minutes < 60
-      ? `${minutes} min ago`
-      : new Date(time).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-        });
 }
 
 export default function WishlistPage() {
@@ -474,7 +480,7 @@ export default function WishlistPage() {
         {isLoading ? (
           <p role="status">Loading your wishlist…</p>
         ) : visible.length ? (
-          <section aria-label="Price watches" className="card-grid">
+          <section data-reveal aria-label="Price watches" className="card-grid">
             {visible.map(({ item, prices, state, alert }) => (
               <WatchCard
                 key={item.steamAppId}

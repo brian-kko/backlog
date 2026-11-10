@@ -6,12 +6,13 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { SearchDealsInputSchema, storeNames } from "@acme/validators";
 
+import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { DealCards, groupDeals } from "~/components/deal-cards";
-import { AddGameButton } from "~/components/add-game";
 import { GameArt, money, PageHeading, plural } from "~/components/game-ui";
 import {
   bestOffer,
+  PricesChecked,
   steamDelta,
   targetGap,
   useWishlistPrices,
@@ -88,15 +89,17 @@ function WishlistOnSale() {
   if (!rows.length)
     return (
       <aside className="wishlist-strip empty">
-        <p>
-          Wishlist games to see their best price across stores here.
-        </p>
+        <p>Wishlist games to see their best price across stores here.</p>
         <AddGameButton secondary label="Add a game" />
       </aside>
     );
   if (!live.length) return null;
   return (
-    <section className="wishlist-strip" aria-labelledby="wishlist-strip-title">
+    <section
+      data-reveal
+      className="wishlist-strip"
+      aria-labelledby="wishlist-strip-title"
+    >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="wishlist-strip-title">Worth buying from your wishlist</h2>
         <Link className="text-link" href="/wishlist">
@@ -110,10 +113,7 @@ function WishlistOnSale() {
             <li key={item.steamAppId}>
               <GameArt appId={item.steamAppId} title={item.title} />
               <div className="min-w-0">
-                <Link
-                  className="strip-title"
-                  href={`/game/${item.steamAppId}`}
-                >
+                <Link className="strip-title" href={`/game/${item.steamAppId}`}>
                   {item.title}
                 </Link>
                 <p className="strip-meta">
@@ -149,7 +149,9 @@ export default function DealsPage() {
   // marked owned during this visit stays put until the filters change.
   const [hiddenOwned, setHiddenOwned] = useState<Set<number> | null>(null);
   const ownedNow = () =>
-    new Set(items.filter((item) => item.isOwned).map((item) => item.steamAppId));
+    new Set(
+      items.filter((item) => item.isOwned).map((item) => item.steamAppId),
+    );
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!isLoading && hiddenOwned === null) setHiddenOwned(ownedNow());
@@ -223,7 +225,9 @@ export default function DealsPage() {
           filters.storeIds.includes(deal.storeId ?? "")) &&
         (filters.maxPrice === undefined ||
           deal.cheapestPrice <= filters.maxPrice) &&
-        (!filters.steamOnly || deal.steamRedeemable === true || deal.storeId === "1") &&
+        (!filters.steamOnly ||
+          deal.steamRedeemable === true ||
+          deal.storeId === "1") &&
         deal.savingsPercent >= filters.minDiscount &&
         (!filters.hideOwned || !deal.steamAppId || !owned.has(deal.steamAppId)),
     )
@@ -266,7 +270,11 @@ export default function DealsPage() {
         Compare prices across {Object.keys(storeNames).length} PC stores, not
         just Steam. Prices in USD.
       </PageHeading>
-      <section aria-label="Search and filter deals" className="deal-toolbar">
+      <section
+        data-reveal
+        aria-label="Search and filter deals"
+        className="deal-toolbar"
+      >
         <form
           className="deal-search"
           role="search"
@@ -296,7 +304,11 @@ export default function DealsPage() {
           </button>
         </form>
         <div className="filter-row">
-          <div role="group" aria-label="Quick filters" className="chip-scroller">
+          <div
+            role="group"
+            aria-label="Quick filters"
+            className="chip-scroller"
+          >
             <button
               className="filter-pill"
               aria-pressed={!active}
@@ -468,7 +480,7 @@ export default function DealsPage() {
         </div>
       </section>
       <WishlistOnSale />
-      <section className="space-y-5" aria-busy={fetching}>
+      <section data-reveal className="space-y-5" aria-busy={fetching}>
         <div className="section-heading">
           <div>
             <h2>
@@ -481,6 +493,10 @@ export default function DealsPage() {
                     hidden ? ` · ${hidden} hidden by your filters` : ""
                   }`}
             </p>
+            {/* Saved snapshots carry their own date in the notice below. */}
+            {!deals.isPending && deals.live && first?.dataUpdatedAt ? (
+              <PricesChecked at={first.dataUpdatedAt} />
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <label className="inline-select">

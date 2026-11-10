@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import type { GameSearchResult } from "@acme/validators";
+import { cn } from "@acme/ui";
 
 import { useTRPC } from "~/trpc/react";
 import { useBacklog } from "./backlog-provider";
@@ -71,7 +72,9 @@ function ResultRow({
       <div className="min-w-0">
         <p className="search-result-title">{game.title}</p>
         <p className="search-result-meta">
-          {game.price == null ? "Steam price not listed" : `${money(game.price)} on Steam`}
+          {game.price == null
+            ? "Steam price not listed"
+            : `${money(game.price)} on Steam`}
           {" · "}
           <Link
             className="text-link"
@@ -173,8 +176,25 @@ export function AddGameProvider({ children }: { children: React.ReactNode }) {
   function show(initial = "") {
     setQuery(initial);
     setOpen(true);
-    dialog.current?.showModal();
+    if (!dialog.current?.open) dialog.current?.showModal();
   }
+  // "/" or Ctrl/⌘+K opens search from anywhere, unless the user is typing.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target?.isContentEditable === true ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "");
+      const combo = (event.metaKey || event.ctrlKey) && event.key === "k";
+      if (!combo && (event.key !== "/" || typing)) return;
+      event.preventDefault();
+      setQuery("");
+      setOpen(true);
+      if (!dialog.current?.open) dialog.current?.showModal();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   return (
     <AddGameContext.Provider value={show}>
       {children}
@@ -245,8 +265,8 @@ export function AddGameProvider({ children }: { children: React.ReactNode }) {
                 <>
                   {results.data.source === "catalog" && (
                     <p className="source-notice" role="note">
-                      Steam search is unavailable right now, so only a few
-                      saved games are shown.{" "}
+                      Steam search is unavailable right now, so only a few saved
+                      games are shown.{" "}
                       <button
                         className="text-link"
                         onClick={() => void results.refetch()}
@@ -288,9 +308,12 @@ export function AddGameButton({
   secondary = false,
   initialQuery = "",
   className = "",
+  shortcut = false,
 }: {
   label?: string;
   secondary?: boolean;
+  /** Show the "/" keyboard hint (desktop nav only). */
+  shortcut?: boolean;
   /** Pre-fills the search, e.g. to find a deal's Steam match. */
   initialQuery?: string;
   className?: string;
@@ -301,7 +324,7 @@ export function AddGameButton({
       type="button"
       aria-label={label}
       aria-haspopup="dialog"
-      className={className || `action${secondary ? " secondary" : ""}`}
+      className={className || cn("action", secondary && "secondary")}
       onClick={() => open(initialQuery)}
     >
       {/* Inline text links read as part of a sentence: no "+" icon. */}
@@ -309,6 +332,11 @@ export function AddGameButton({
       <span className="add-label" aria-hidden="true">
         {label}
       </span>
+      {shortcut && (
+        <kbd className="kbd" aria-hidden="true">
+          /
+        </kbd>
+      )}
     </button>
   );
 }

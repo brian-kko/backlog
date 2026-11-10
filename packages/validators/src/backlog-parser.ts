@@ -333,7 +333,7 @@ export function classifyAndCleanSteamNews(item: {
 }
 
 const promoPattern =
-  /\b(keycaps?|figures?|figuarts|merch\w*|plush\w*|statues?|apparel|t-?shirts?|hoodies?|soundtracks?|art\s*books?|collector'?s edition|pre-?orders?|bundles?|on sale|sale (ends|starts|is live)|\d+%\s*off|discount\w*|wallpapers?)\b/i;
+  /\b(keycaps?|figures?|figuarts|replicas?|collectibles?|statuettes?|mousepads?|posters?|merch\w*|plush\w*|statues?|apparel|t-?shirts?|hoodies?|soundtracks?|art\s*books?|collector'?s edition|pre-?orders?|bundles?|on sale|sale (ends|starts|is live)|\d+%\s*off|discount\w*|wallpapers?)\b/i;
 
 /** Merchandise and storefront promotions, hidden from the patch-note digest. */
 export function isPromotionalNews(item: { title: string; tags?: string[] }) {

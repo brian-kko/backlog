@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 
+import { cn } from "@acme/ui";
 import { purchaseStoreNames } from "@acme/validators";
 
 import type { BacklogItem } from "~/components/backlog-provider";
 import { useBacklog } from "~/components/backlog-provider";
 import { money, plural } from "~/components/game-ui";
+import { CountUp } from "~/components/motion";
 import { useWishlistPrices } from "~/components/price-ui";
 
 interface Metric {
@@ -31,7 +33,10 @@ function storeBreakdown(paid: BacklogItem[]) {
   return [...totals]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .map(([store, total]) => `${money(total)} ${store === "store not set" ? "unassigned" : `on ${store}`}`)
+    .map(
+      ([store, total]) =>
+        `${money(total)} ${store === "store not set" ? "unassigned" : `on ${store}`}`,
+    )
     .join(" · ");
 }
 
@@ -39,7 +44,10 @@ export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
   const { items, isLoading } = useBacklog();
   const owned = items.filter((item) => item.isOwned);
   const paid = owned.filter((item) => item.amountPaid !== undefined);
-  const totalSpent = paid.reduce((sum, item) => sum + (item.amountPaid ?? 0), 0);
+  const totalSpent = paid.reduce(
+    (sum, item) => sum + (item.amountPaid ?? 0),
+    0,
+  );
   const byStatus = (value: NonNullable<BacklogItem["completionStatus"]>) =>
     owned.filter((item) => (item.completionStatus ?? "backlog") === value);
   const unplayed = byStatus("backlog");
@@ -133,10 +141,12 @@ export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
           <div key={label} className="metric-card">
             <dt>{label}</dt>
             <dd>
-              <Link href={href}>{isLoading ? "…" : value}</Link>
+              <Link href={href}>
+                {isLoading ? "…" : <CountUp value={value} />}
+              </Link>
             </dd>
             {note && (
-              <dd className={`metric-note${essential ? " essential" : ""}`}>
+              <dd className={cn("metric-note", essential && "essential")}>
                 {note}
               </dd>
             )}
