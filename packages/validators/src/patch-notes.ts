@@ -65,12 +65,14 @@ const downPattern =
 // Stats where "more" is worse for the player, so an increase is a nerf.
 const costlyStat =
   /\b(cool\s?downs?|costs?|recoil|spread|sway|delay|reload(ing)?( time)?|cast time|charge time|drop\s?off|price|heat|wind[- ]?up|spool[- ]?up|respawn time|ammo usage)\b/i;
-const adjustedPattern = /\b(chang\w*|adjust\w*|rework\w*|updat\w*|tweak\w*|rebalanc\w*)\b/i;
+const adjustedPattern =
+  /\b(chang\w*|adjust\w*|rework\w*|updat\w*|tweak\w*|rebalanc\w*)\b/i;
 const contextLabel =
   /^(problem|issue|why|context|intent|expectation|goal|reason|background|known issues?|developer('s)? notes?)\b/i;
 const systemSection =
   /\b(system|general|gameplay|ui|ux|interface|performance|audio|server|network|quality of life|qol|balance|economy|progression|matchmaking|stability)\b/i;
-const versionPattern = /\b(?:v|version\s*|patch\s*)?(\d+(?:\.\d+){1,3}[a-z]?)\b/i;
+const versionPattern =
+  /\b(?:v|version\s*|patch\s*)?(\d+(?:\.\d+){1,3}[a-z]?)\b/i;
 
 /**
  * Classifies one change line. "Increased" is a buff unless the stat is one
@@ -116,16 +118,75 @@ export function patchVersion(title: string) {
 const isShortLabel = (text: string) =>
   text.length > 0 && text.length <= 60 && text.split(/\s+/).length <= 8;
 
+/** Plain-text bullets ("- ", "• ", "* ") used instead of BBCode lists. */
+const dashBullet = /^(?:[-•*–]|\d+[.)])\s+/;
+/** "Apollo: Riposte - T2 increased…" → subject "Apollo". */
+const subjectPrefix = /^([A-Za-z0-9][^:.!?]{0,38}?):\s+(\S[\s\S]*)$/;
+
+function prefixOf(text: string) {
+  const match = subjectPrefix.exec(text);
+  if (!match?.[1] || !match[2]) return null;
+  const name = match[1].trim();
+  if (name.split(/\s+/).length > 4 || contextLabel.test(name)) return null;
+  return { name, rest: match[2].trim() };
+}
+
+/**
+ * Some studios write one flat list where each line names what it changes
+ * ("Apollo: …", "Baba: …"). When most of a block's lines do, split it into
+ * one subject per name, in order of first appearance.
+ */
+function splitByPrefix(subjects: PatchSubject[]): PatchSubject[] {
+  return subjects.flatMap((subject) => {
+    if (subject.changes.length < 4) return [subject];
+    const prefixes = subject.changes.map((change) => prefixOf(change.text));
+    const matched = prefixes.filter(Boolean).length;
+    const names = new Set(
+      prefixes.flatMap((value) => (value ? [value.name.toLowerCase()] : [])),
+    );
+    // Mostly prefixed, and at least one name repeats (so it's a list of
+    // subjects, not a list of "Label: sentence" lines).
+    if (matched / subject.changes.length < 0.6 || names.size > matched - 1)
+      return [subject];
+    const rest: PatchChange[] = [];
+    const byName = new Map<string, PatchSubject>();
+    subject.changes.forEach((change, index) => {
+      const prefix = prefixes[index];
+      if (!prefix) {
+        rest.push(change);
+        return;
+      }
+      const key = prefix.name.toLowerCase();
+      let target = byName.get(key);
+      if (!target) {
+        target = {
+          name: prefix.name,
+          group: "adjusted",
+          changes: [],
+          context: [],
+        };
+        byName.set(key, target);
+      }
+      target.changes.push({
+        text: prefix.rest,
+        kind: classifyChange(prefix.rest),
+      });
+    });
+    const remaining =
+      rest.length || subject.context.length
+        ? [{ ...subject, changes: rest }]
+        : [];
+    return [...remaining, ...byName.values()];
+  });
+}
+
 /**
  * Turns a Steam (BBCode) patch post into sections, subjects and classified
  * changes. Headings start sections; a short line wrapped entirely in bold or
  * italics starts a subject; "Label:" lines decide whether the list that
  * follows is developer context or actual changes.
  */
-export function parsePatchNotes(
-  contents: string,
-  title = "",
-): ParsedPatch {
+export function parsePatchNotes(contents: string, title = ""): ParsedPatch {
   const raw = contents.replace(/\{STEAM_CLAN_IMAGE\}/g, STEAM_CLAN_IMAGE);
   const heroImage =
     /\[img(?:=[^\]]*)?\]\s*(https?:\/\/[^\s[]+)\s*\[\/img\]/i.exec(raw)?.[1] ??
@@ -186,15 +247,29 @@ export function parsePatchNotes(
       contextMode = false;
       continue;
     }
+    if (!trimmed.startsWith("\u0001") && dashBullet.test(trimmed))
+      trimmed = `\u0001L ${trimmed.replace(dashBullet, "")}`;
     const isItem = trimmed.startsWith("\u0001L ");
     const body = isItem ? trimmed.slice(3) : trimmed;
     // A line that is entirely bold/italic/underlined is a subject name.
-    const emphasised = /^(?:\[(b|i|u)\]\s*)+([\s\S]+?)(?:\s*\[\/(?:b|i|u)\])+$/i.exec(
-      body,
-    );
+    const emphasised =
+      /^(?:\[(b|i|u)\]\s*)+([\s\S]+?)(?:\s*\[\/(?:b|i|u)\])+$/i.exec(body);
     const text = cleanSteamText(body);
     if (!text) continue;
     if (!isItem && emphasised && isShortLabel(text) && !/[.!?]$/.test(text)) {
+      // A bold "Label:" is either developer context or a category of changes
+      // ("General:", "Heroes:"), which reads best as its own section.
+      if (text.endsWith(":")) {
+        if (contextLabel.test(text)) {
+          contextMode = true;
+          continue;
+        }
+        section = { title: text.slice(0, -1).trim(), subjects: [] };
+        sections.push(section);
+        subject = null;
+        contextMode = false;
+        continue;
+      }
       if (!section) {
         intro.push(text);
         continue;
@@ -218,8 +293,10 @@ export function parsePatchNotes(
   }
 
   for (const current of sections) {
-    current.subjects = current.subjects.filter(
-      (value) => value.changes.length || value.context.length,
+    current.subjects = splitByPrefix(
+      current.subjects.filter(
+        (value) => value.changes.length || value.context.length,
+      ),
     );
     const systemFallback = systemSection.test(current.title);
     for (const value of current.subjects) {
@@ -325,7 +402,9 @@ export function summarizePatch(patch: ParsedPatch): PatchSummary {
       subject.changes.map((change) => ({
         change,
         label:
-          subject.name === change.text ? change.text : `${subject.name}: ${change.text}`,
+          subject.name === change.text
+            ? change.text
+            : `${subject.name}: ${change.text}`,
       })),
     )
     .sort((a, b) => rank[a.change.kind] - rank[b.change.kind])

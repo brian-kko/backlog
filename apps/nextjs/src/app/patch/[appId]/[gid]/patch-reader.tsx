@@ -373,9 +373,21 @@ export function PatchReader({
   const [aiGroups, setAiGroups] = useState<Map<string, SubjectGroup> | null>(
     null,
   );
-  const game =
+  const knownTitle =
     items.find((item) => item.steamAppId === steamAppId)?.title ??
-    featuredGames.find((value) => value.steamAppId === steamAppId)?.title ??
+    featuredGames.find((value) => value.steamAppId === steamAppId)?.title;
+  // Games outside your collection (e.g. opened from a shared link) still
+  // get their real name, from the same lookup the game page uses.
+  const details = useQuery(
+    trpc.backlog.getGameDetails.queryOptions(
+      { steamAppId },
+      { enabled: !knownTitle, staleTime: 60 * 60 * 1000 },
+    ),
+  );
+  const game =
+    knownTitle ??
+    details.data?.metadata?.name ??
+    details.data?.prices?.title ??
     `Steam app ${steamAppId}`;
   const groupOf = (subject: Subject) =>
     aiGroups?.get(subject.name.toLowerCase()) ?? subject.group;
