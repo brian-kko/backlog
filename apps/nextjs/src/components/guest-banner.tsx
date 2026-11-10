@@ -10,13 +10,13 @@ import { useBacklog } from "./backlog-provider";
  * secondary pages; the full banner lives on the dashboard.
  */
 export function GuestBanner({ compact = false }: { compact?: boolean }) {
-  const { isGuest, isDemo, clearSample, keepSamples, isLoading } =
-    useBacklog();
+  const { isGuest, isDemo, clearSample, keepSamples, isLoading } = useBacklog();
   const [busy, setBusy] = useState(false);
   if (!isGuest || isLoading || (compact && !isDemo)) return null;
   const clear = (
     <button
       className="text-link"
+      aria-label="Clear sample games"
       disabled={busy}
       onClick={async () => {
         setBusy(true);
@@ -27,7 +27,9 @@ export function GuestBanner({ compact = false }: { compact?: boolean }) {
         }
       }}
     >
-      Clear sample games
+      {/* Whole labels: the link is a flex box, which would eat a split space. */}
+      <span className="max-sm:hidden">Clear sample games</span>
+      <span className="sm:hidden">Clear samples</span>
     </button>
   );
   const keep = (
@@ -57,7 +59,12 @@ export function GuestBanner({ compact = false }: { compact?: boolean }) {
     );
   return (
     <aside className="guest-banner" aria-label="Guest mode">
-      <div>
+      <div className="space-y-1.5">
+        {isDemo && (
+          <p className="guest-tagline">
+            Compare stores. Set your price. Follow your games.
+          </p>
+        )}
         <strong>
           {isDemo
             ? "You’re exploring with sample games"
@@ -72,7 +79,7 @@ export function GuestBanner({ compact = false }: { compact?: boolean }) {
           </span>
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="guest-actions">
         {isDemo && clear}
         {isDemo && keep}
         <AddGameButton secondary label="Add your games" />

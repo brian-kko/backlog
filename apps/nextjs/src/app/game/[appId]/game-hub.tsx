@@ -5,22 +5,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { BacklogEditor } from "~/components/backlog-editor";
-import { featuredGames, useBacklog } from "~/components/backlog-provider";
-import {
-  headerArt,
-  LaunchLink,
-  money,
-  storeName,
-} from "~/components/game-ui";
+import { cn } from "@acme/ui";
 import { itemPlatform, platformNames } from "@acme/validators";
 
-import { canLaunch } from "~/components/collection";
 import type { Prices } from "~/components/price-ui";
+import { BacklogEditor } from "~/components/backlog-editor";
+import { featuredGames, useBacklog } from "~/components/backlog-provider";
+import { canLaunch } from "~/components/collection";
+import { headerArt, LaunchLink, money, storeName } from "~/components/game-ui";
 import {
   bestOffer,
   lowLabel,
   priceLabel,
+  PricesChecked,
   steamDelta,
   targetGap,
 } from "~/components/price-ui";
@@ -36,9 +33,12 @@ const shouting = (text: string) => {
 /** Steam sometimes stores names and blurbs in all caps; display them calmly. */
 const titleCase = (text: string) =>
   shouting(text)
-    ? text.toLowerCase().replace(/(^|[\s:–-])(\p{L})/gu, (_, p, c: string) =>
-        `${p}${c.toUpperCase()}`,
-      )
+    ? text
+        .toLowerCase()
+        .replace(
+          /(^|[\s:–-])(\p{L})/gu,
+          (_, p, c: string) => `${p}${c.toUpperCase()}`,
+        )
     : text;
 // Words that stay capitalised when a shouting sentence is calmed down.
 const keepUpper = new Set([
@@ -90,11 +90,14 @@ const sentenceCase = (text: string, title: string) => {
               const bare = token.replace(/[^\p{L}\p{N}]/gu, "");
               if (keepUpper.has(bare)) return token;
               const fromTitle = titleWords.get(bare.toUpperCase());
-              return fromTitle ? token.replace(bare, fromTitle) : token.toLowerCase();
+              return fromTitle
+                ? token.replace(bare, fromTitle)
+                : token.toLowerCase();
             })
             .join("")
-            .replace(/^(\P{L}*)(\p{L})/u, (_, p: string, c: string) =>
-              `${p}${c.toUpperCase()}`,
+            .replace(
+              /^(\P{L}*)(\p{L})/u,
+              (_, p: string, c: string) => `${p}${c.toUpperCase()}`,
             )
         : sentence,
     )
@@ -168,9 +171,7 @@ function StorePrices({
           aria-expanded={showAll}
           onClick={() => setShowAll((value) => !value)}
         >
-          {showAll
-            ? "Show fewer stores"
-            : `Compare all ${total} stores`}
+          {showAll ? "Show fewer stores" : `Compare all ${total} stores`}
         </button>
       )}
     </>
@@ -208,7 +209,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
       <Link className="back-link" href={back.href}>
         ← {back.label}
       </Link>
-      <section className="game-hero">
+      <section data-reveal className="game-hero">
         <Image
           className="hub-art"
           src={game.data?.metadata?.header_image ?? headerArt(steamAppId)}
@@ -222,7 +223,10 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           <h1 className="hero-title">{title}</h1>
           {description && (
             <p
-              className={`text-muted-foreground max-w-prose leading-relaxed${item?.isOwned ? " max-sm:hidden" : ""}`}
+              className={cn(
+                "text-muted-foreground max-w-prose leading-relaxed",
+                item?.isOwned && "max-sm:hidden",
+              )}
             >
               {sentenceCase(description, title)}
             </p>
@@ -272,14 +276,14 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           </button>
         </p>
       )}
-      <section className="hub-grid">
+      <section data-reveal className="hub-grid">
         {/* Owned games lead with collection controls, in DOM and visual order. */}
         {item?.isOwned && (
-        <BacklogEditor
-          steamAppId={steamAppId}
-          title={title}
-          loading={game.isPending && game.fetchStatus !== "paused" && !item}
-        />
+          <BacklogEditor
+            steamAppId={steamAppId}
+            title={title}
+            loading={game.isPending && game.fetchStatus !== "paused" && !item}
+          />
         )}
         <div className="panel space-y-4">
           <div className="section-heading">
@@ -311,6 +315,9 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
                   {item && !item.isOwned ? ` · ${targetGap(item, prices)}` : ""}
                 </p>
               </div>
+              {offer.state !== "cached" && game.dataUpdatedAt ? (
+                <PricesChecked at={game.dataUpdatedAt} />
+              ) : null}
               {offer.state === "cached" && (
                 <p className="price-source-note">
                   Live prices couldn’t be reached. Saved prices from{" "}
@@ -345,14 +352,14 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
         </div>
 
         {!item?.isOwned && (
-        <BacklogEditor
-          steamAppId={steamAppId}
-          title={title}
-          loading={game.isPending && game.fetchStatus !== "paused" && !item}
-        />
+          <BacklogEditor
+            steamAppId={steamAppId}
+            title={title}
+            loading={game.isPending && game.fetchStatus !== "paused" && !item}
+          />
         )}
       </section>
-      <section className="space-y-5">
+      <section data-reveal className="space-y-5">
         <div className="section-heading">
           <h2>Patch notes &amp; events</h2>
         </div>

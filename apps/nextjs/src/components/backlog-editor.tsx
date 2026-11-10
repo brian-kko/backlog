@@ -34,14 +34,12 @@ export function BacklogEditor({
     try {
       // Send only the edited fields. The provider serializes writes and merges
       // against the latest item, including when a price blur precedes a click.
-      await save(
-        {
-          steamAppId,
-          title,
-          isOwned: item?.isOwned ?? false,
-          ...change,
-        },
-      );
+      await save({
+        steamAppId,
+        title,
+        isOwned: item?.isOwned ?? false,
+        ...change,
+      });
       setMessage("Saved.");
     } catch {
       setError("Couldn’t save this change. Please try again.");
@@ -117,11 +115,7 @@ export function BacklogEditor({
                     ["playing", "Playing"],
                     ["completed", "Completed"],
                   ].map(([value, label]) => (
-                    <option
-                      key={value}
-                      value={value}
-                     
-                    >
+                    <option key={value} value={value}>
                       {label}
                     </option>
                   ))}
@@ -201,9 +195,7 @@ export function BacklogEditor({
               />
             </>
           )}
-          <p className="filter-help">
-            Changes save automatically.
-          </p>
+          <p className="filter-help">Changes save automatically.</p>
           <div className="editor-footer">
             <Link
               className="text-link"

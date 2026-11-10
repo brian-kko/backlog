@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 
 import type { Platform, PurchaseStore } from "@acme/validators";
+import { cn } from "@acme/ui";
 import {
   defaultPlatform,
   itemPlatform,
@@ -177,6 +178,7 @@ function LibraryCard({ item }: { item: BacklogItem }) {
     <article
       className="game-card library-card"
       data-testid="library-card"
+      data-status={item.completionStatus ?? "backlog"}
       aria-busy={pending}
     >
       <GameArt appId={item.steamAppId} title={item.title} />
@@ -309,7 +311,9 @@ function LibraryRow({ item }: { item: BacklogItem }) {
             aria-label={`${item.purchaseStore ? purchaseStoreNames[item.purchaseStore] : "Not set"}: edit store for ${item.title}`}
             onClick={() => setEditingStore(true)}
           >
-            {item.purchaseStore ? purchaseStoreNames[item.purchaseStore] : "Not set"}
+            {item.purchaseStore
+              ? purchaseStoreNames[item.purchaseStore]
+              : "Not set"}
           </button>
         )}
       </td>
@@ -416,7 +420,11 @@ function BackupPanel() {
     }
   }
   return (
-    <section className="backup-panel" aria-labelledby="backup-heading">
+    <section
+      data-reveal
+      className="backup-panel"
+      aria-labelledby="backup-heading"
+    >
       <div>
         <h2 id="backup-heading">Backup &amp; restore</h2>
         <p className="filter-help">
@@ -525,8 +533,9 @@ export default function LibraryPage() {
   const count = (value: Filter) =>
     value === "all"
       ? ownedAll.length
-      : ownedAll.filter((item) => (item.completionStatus ?? "backlog") === value)
-          .length;
+      : ownedAll.filter(
+          (item) => (item.completionStatus ?? "backlog") === value,
+        ).length;
   const rank = { playing: 0, backlog: 1, completed: 2 };
   const owned = ownedAll
     .filter(
@@ -552,12 +561,15 @@ export default function LibraryPage() {
   return (
     <main className="page-shell">
       <PageHeading title="Library">
-        Every game you own, how far you’ve got, and what you paid at each
-        store.
+        Every game you own, how far you’ve got, and what you paid at each store.
       </PageHeading>
       <GuestBanner compact />
       {error && <p role="alert">{error}</p>}
-      <section aria-label="Library toolbar" className="collection-toolbar">
+      <section
+        data-reveal
+        aria-label="Library toolbar"
+        className="collection-toolbar"
+      >
         <div
           role="group"
           aria-label="Filter by status"
@@ -601,7 +613,11 @@ export default function LibraryPage() {
             <option value="paid">Price paid</option>
             <option value="store">Store</option>
           </select>
-          <div role="group" aria-label="Layout" className="segmented view-toggle">
+          <div
+            role="group"
+            aria-label="Layout"
+            className="segmented view-toggle"
+          >
             {(["grid", "table"] as const).map((value) => (
               <button
                 key={value}
@@ -640,8 +656,9 @@ export default function LibraryPage() {
       ) : (
         <>
           <section
+            data-reveal
             aria-label="Owned games"
-            className={`card-grid${view === "table" ? " sm:hidden" : ""}`}
+            className={cn("card-grid", view === "table" && "sm:hidden")}
           >
             {owned.map((item) => (
               <LibraryCard key={item.steamAppId} item={item} />
@@ -688,7 +705,11 @@ export default function LibraryPage() {
           )}
         </>
       )}
-      <section className="space-y-4" aria-labelledby="spending-heading">
+      <section
+        data-reveal
+        className="space-y-4"
+        aria-labelledby="spending-heading"
+      >
         <div className="section-heading">
           <h2 id="spending-heading">Spending &amp; progress</h2>
         </div>

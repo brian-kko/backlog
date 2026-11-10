@@ -380,6 +380,28 @@ export function GameArt({
   );
 }
 
+export const coverArt = (appId: number) =>
+  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg`;
+
+/** Vertical library cover (2:3), falling back to the wide header art. */
+export function CoverArt({ appId, title }: { appId: number; title: string }) {
+  const [fallback, setFallback] = useState(false);
+  return (
+    <div className="cover-frame">
+      <Image
+        className={cn("cover-art", fallback && "is-header")}
+        src={fallback ? headerArt(appId) : coverArt(appId)}
+        alt={title}
+        width={300}
+        height={450}
+        unoptimized
+        loading="lazy"
+        onError={() => setFallback(true)}
+      />
+    </div>
+  );
+}
+
 export function PriceField({
   label,
   ariaLabel,
