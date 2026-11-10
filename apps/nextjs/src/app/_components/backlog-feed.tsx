@@ -62,6 +62,14 @@ export function NewsCards({
           </div>
           <h3>{item.title}</h3>
           {item.cleanSummary && <p>{item.cleanSummary}</p>}
+          {item.category === "patch_note" && /^\d+$/.test(item.id) && (
+            <Link
+              className="text-link news-read"
+              href={`/patch/${item.steamAppId}/${item.id}`}
+            >
+              Read patch notes<span className="sr-only">: {item.title}</span>
+            </Link>
+          )}
           {/^https?:\/\//i.test(item.url) && (
             <a
               className="text-link"

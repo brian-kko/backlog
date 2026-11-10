@@ -1,4 +1,5 @@
 import type { TRPCRouterRecord } from "@trpc/server";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod/v4";
 
 import { and, asc, eq, sql } from "@acme/db";
@@ -7,8 +8,12 @@ import {
   BacklogExportSchema,
   CollectionFeedInputSchema,
   DealItemSchema,
+  cleanSteamText,
   GameSearchInputSchema,
   GameSearchResultSchema,
+  parsePatchNotes,
+  PatchNotesInputSchema,
+  summarizePatch,
   SearchDealsInputSchema,
   SteamFeedInputSchema,
   UpsertBacklogItemSchema,
@@ -21,10 +26,25 @@ import {
   fetchGameMetadata,
   fetchGamePrices,
   fetchSteamFeed,
+  fetchSteamPost,
   fetchSteamPrices,
   searchGames,
 } from "../steam-discovery";
+import { summarizePatchWithAi } from "../patch-ai";
 import { protectedProcedure, publicProcedure } from "../trpc";
+
+async function loadPatch(steamAppId: number, gid: string) {
+  const result = await fetchSteamPost(steamAppId, gid);
+  if (!result.available)
+    throw new TRPCError({
+      code: "SERVICE_UNAVAILABLE",
+      message: "Steam news is unavailable right now.",
+    });
+  if (!result.post)
+    throw new TRPCError({ code: "NOT_FOUND", message: "Post not found." });
+  const post = result.post;
+  return { post, parsed: parsePatchNotes(post.contents, post.title) };
+}
 
 export const backlogRouter = {
   getSteamFeed: publicProcedure
@@ -74,6 +94,52 @@ export const backlogRouter = {
         ...result,
         snapshotAt: result.live ? null : catalogVerifiedAt,
       };
+    }),
+
+  // Free for everyone: structured notes plus a rules-based summary.
+  getPatchNotes: publicProcedure
+    .input(PatchNotesInputSchema)
+    .query(async ({ ctx, input }) => {
+      const { post, parsed } = await loadPatch(input.steamAppId, input.gid);
+      return {
+        steamAppId: input.steamAppId,
+        gid: post.gid,
+        title: cleanSteamText(post.title),
+        url: post.url,
+        publishedAt: new Date(post.date * 1000),
+        patch: parsed,
+        summary: summarizePatch(parsed),
+        /** The AI summary (premium preview) can be requested. */
+        aiAvailable: ctx.features.patchAi,
+      };
+    }),
+
+  // Premium preview: a Claude-written summary, one cached call per post.
+  // TODO(premium tier): gate on the user's plan here.
+  getPatchAiSummary: publicProcedure
+    .input(PatchNotesInputSchema)
+    .query(async ({ ctx, input }) => {
+      if (!ctx.features.patchAi)
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "AI summaries aren't enabled on this server.",
+        });
+      const { post, parsed } = await loadPatch(input.steamAppId, input.gid);
+      const summary = await summarizePatchWithAi(
+        `${input.steamAppId}:${post.gid}`,
+        {
+          game: post.feedlabel ?? `Steam app ${input.steamAppId}`,
+          title: cleanSteamText(post.title),
+          text: cleanSteamText(post.contents),
+          parsed,
+        },
+      );
+      if (!summary)
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "Couldn't summarize this post.",
+        });
+      return summary;
     }),
 
   getSteamPrices: publicProcedure

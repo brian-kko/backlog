@@ -10,6 +10,9 @@ import {
   BacklogExportSchema,
   CollectionFeedInputSchema,
   GameSearchInputSchema,
+  parsePatchNotes,
+  PatchNotesInputSchema,
+  summarizePatch,
   SearchDealsInputSchema,
   SteamFeedInputSchema,
   UpsertBacklogItemSchema,
@@ -127,6 +130,7 @@ function searchFixtureDeals(input: z.infer<typeof SearchDealsInputSchema>) {
             result = result.filter((deal) => deal.savingsPercent > 0);
           return result;
 }
+const patchPost = `[h3]Stratagems[/h3][p][i]AMW-20 APEX[/i][/p][p]Problem we want to solve:[/p][list][*]Demolition strength was too low[/*][/list][p]Changes:[/p][list][*]Decreased caliber from 60 to 20[/*][*]Increased demolition strength to 30[/*][/list][p][i]SG-22 BUSHWACKER[/i][/p][list][*]Increased damage from 405 to 486[/*][/list][h3]Fixes[/h3][list][*]Fixed a crash when joining a squad[/*][/list]`;
 const browserErrors = new WeakMap<Page, string[]>();
 
 // Browser integration uses the actual tRPC serialization protocol with deterministic
@@ -229,6 +233,29 @@ test.beforeEach(async ({ page }) => {
           );
           return { removed: input.steamAppId };
         }),
+      getPatchNotes: t.procedure
+        .input(PatchNotesInputSchema)
+        .query(({ input }) => {
+          const patch = parsePatchNotes(patchPost, "Devoid of Liberty: 7.2.2");
+          return {
+            steamAppId: input.steamAppId,
+            gid: input.gid,
+            title: "Devoid of Liberty: 7.2.2",
+            url: "https://store.steampowered.com/news/app/553850",
+            publishedAt: new Date("2026-10-29T12:00:00Z"),
+            patch,
+            summary: summarizePatch(patch),
+            aiAvailable: true,
+          };
+        }),
+      getPatchAiSummary: t.procedure
+        .input(PatchNotesInputSchema)
+        .query(() => ({
+          overview:
+            "A small balance patch that makes two Stratagems hit harder.",
+          highlights: ["Bushwacker damage up to 486"],
+          subjects: [{ name: "AMW-20 APEX", group: "buff" as const }],
+        })),
       getSteamPrices: t.procedure
         .input(z.object({ steamAppIds: z.array(z.number()) }))
         .query(({ input }) =>
@@ -1210,4 +1237,33 @@ test("wishlist moves stay coherent while saves are slow or fail", async ({
   await expect(page.locator("main [tabindex='-1']").first()).toBeFocused();
   // The forced 500 above is expected; clear it from the error log.
   browserErrors.get(page)?.splice(0);
+});
+
+test("patch notes reader shows the overview, opens changes and adds an AI summary", async ({
+  page,
+}) => {
+  await page.goto("/patch/553850/1847920302234123");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("7.2.2");
+  const glance = page.getByRole("region", { name: "Patch at a glance" });
+  await expect(glance.locator(".patch-legend")).toContainText("1 nerf");
+  await expect(glance.locator(".patch-legend")).toContainText("2 buffs");
+  await expect(
+    glance.getByRole("heading", { name: /Buffs/ }),
+  ).toBeVisible();
+  await expect(page.getByText(/2 buffs, 1 nerf, and 1 fix across/)).toBeVisible();
+  // A tile jumps to that change in the full notes.
+  await glance.getByRole("button", { name: "AMW-20 APEX" }).click();
+  await expect(page.getByRole("tab", { name: "Full patch notes" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator("#change-0-0")).toBeFocused();
+  await expect(page.locator("#change-0-0")).toContainText("Decreased caliber from 60 to 20");
+  // Premium preview: the AI summary is requested on demand.
+  await page.getByRole("tab", { name: "Quick read" }).click();
+  await page.getByRole("button", { name: "Summarize this patch" }).click();
+  await expect(
+    page.getByText("A small balance patch that makes two Stratagems hit harder."),
+  ).toBeVisible();
+  await expect(page.getByText("Sorted by AI summary")).toBeVisible();
 });

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import type { Platform, PurchaseStore } from "@acme/validators";
+import { cn } from "@acme/ui";
 import {
   defaultPlatform,
   platformNames,
@@ -50,7 +51,7 @@ export function LaunchLink({
 }) {
   return (
     <a
-      className={`action launch-link${secondary ? "secondary" : ""}`}
+      className={cn("action launch-link", secondary && "secondary")}
       href={getSteamLaunchUrl(steamAppId)}
       aria-label={`${typeof children === "string" && children !== "Launch in Steam" ? children : "Launch"} ${title} in Steam`}
       title="Opens the Steam app on this computer"

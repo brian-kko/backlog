@@ -35,6 +35,14 @@
   --field-border: #868d79;
   --control-border: #868d79;
   --warn: #8a4b00;
+  /* Patch change kinds: validated categorical palette (bar order:
+     new, nerf, buff, adjusted, fix; system appears only on tiles). */
+  --kind-new: #2a78d6;
+  --kind-nerf: #e34948;
+  --kind-buff: #1baf7a;
+  --kind-adjusted: #eda100;
+  --kind-system: #6250d6;
+  --kind-fix: #e87ba4;
 }
 :root.dark {
   --background: #151a1d;
@@ -60,6 +68,12 @@
   --field-border: #6b7d84;
   --control-border: #6b7d84;
   --warn: #f0b862;
+  --kind-new: #3987e5;
+  --kind-nerf: #e66767;
+  --kind-buff: #199e70;
+  --kind-adjusted: #c98500;
+  --kind-system: #9085e9;
+  --kind-fix: #d55181;
 }
 
 @utility container {
@@ -1013,6 +1027,238 @@
     @apply hover:bg-muted -mx-2 inline-flex min-h-9 cursor-pointer items-center gap-1 rounded px-2 text-left text-sm font-medium underline-offset-4 hover:underline;
     color: var(--signal);
   }
+
+  .news-read {
+    @apply mr-5;
+  }
+  /* ---------- Patch notes reader ---------- */
+  [data-kind="new"],
+  [data-group="new"] {
+    --kind: var(--kind-new);
+  }
+  [data-kind="nerf"],
+  [data-group="nerf"] {
+    --kind: var(--kind-nerf);
+  }
+  [data-kind="buff"],
+  [data-group="buff"] {
+    --kind: var(--kind-buff);
+  }
+  [data-kind="adjusted"],
+  [data-kind="removed"],
+  [data-group="adjusted"] {
+    --kind: var(--kind-adjusted);
+  }
+  [data-group="system"] {
+    --kind: var(--kind-system);
+  }
+  [data-kind="fix"],
+  [data-group="fix"] {
+    --kind: var(--kind-fix);
+  }
+  [data-kind="note"] {
+    --kind: var(--muted-foreground);
+  }
+  .patch-page {
+    @apply gap-8;
+  }
+  .patch-hero {
+    @apply relative isolate flex min-h-64 items-end overflow-hidden rounded-xl border;
+    background: #0d1215;
+  }
+  .patch-hero-art {
+    @apply absolute inset-0 -z-10 h-full w-full object-cover opacity-60;
+  }
+  .patch-hero::before {
+    content: "";
+    @apply absolute inset-0 -z-10;
+    background: linear-gradient(
+      100deg,
+      rgb(8 12 14 / 0.95) 0%,
+      rgb(8 12 14 / 0.75) 45%,
+      rgb(8 12 14 / 0.2) 100%
+    );
+  }
+  .patch-hero-copy {
+    @apply max-w-2xl space-y-2 p-6 sm:p-8;
+    color: #eef3f3;
+  }
+  .patch-game {
+    @apply text-xs font-semibold tracking-[0.12em] uppercase;
+    color: #b9c7c9;
+  }
+  .patch-hero h1 {
+    @apply flex flex-wrap items-baseline gap-x-4 gap-y-1;
+  }
+  .patch-version {
+    font-size: clamp(2.75rem, 7vw, 4.5rem);
+    @apply leading-none font-bold tabular-nums;
+    letter-spacing: -0.04em;
+  }
+  .patch-label {
+    @apply text-sm font-semibold tracking-[0.2em] uppercase;
+    color: #9ad5bd;
+  }
+  .patch-title {
+    @apply text-lg font-medium;
+  }
+  .patch-meta {
+    @apply text-sm;
+    color: #b9c7c9;
+  }
+  .patch-meta a {
+    color: #9ad5bd;
+    @apply font-medium hover:underline;
+  }
+  .patch-glance {
+    @apply bg-card space-y-6 rounded-xl border p-5 sm:p-6;
+  }
+  .patch-bar {
+    @apply space-y-3;
+  }
+  .patch-bar-track {
+    @apply flex h-3 gap-0.5 overflow-hidden rounded-full;
+  }
+  .patch-bar-segment {
+    @apply h-full min-w-1.5 first:rounded-l-full last:rounded-r-full;
+    background: var(--kind);
+  }
+  .patch-legend {
+    @apply flex flex-wrap gap-x-5 gap-y-2 text-sm;
+  }
+  .patch-legend li {
+    @apply inline-flex items-center gap-2;
+  }
+  .patch-legend li[data-empty] {
+    @apply text-muted-foreground;
+  }
+  .patch-legend li[data-empty] .patch-swatch {
+    opacity: 0.35;
+  }
+  .patch-legend-count {
+    @apply font-semibold tabular-nums;
+  }
+  .patch-swatch {
+    @apply inline-flex h-4 w-4 items-center justify-center rounded text-[10px] leading-none font-bold;
+    background: var(--kind);
+    color: #fff;
+  }
+  .glance-columns {
+    @apply grid gap-x-10 gap-y-6 lg:grid-cols-2;
+  }
+  .glance-column {
+    @apply space-y-6;
+  }
+  .glance-group {
+    @apply space-y-3;
+  }
+  .glance-heading {
+    @apply flex items-center gap-2.5 border-b pb-2 text-sm font-bold tracking-[0.14em] uppercase;
+  }
+  .glance-icon {
+    @apply text-base leading-none;
+    color: var(--kind);
+  }
+  .glance-count {
+    @apply bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs tracking-normal tabular-nums;
+  }
+  .glance-tiles {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  }
+  .glance-tile {
+    @apply flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-lg p-1 text-center;
+  }
+  .glance-mark {
+    @apply flex h-14 w-14 items-center justify-center rounded-lg text-base font-bold tracking-wide transition-transform;
+    border: 2px solid var(--kind);
+    background: color-mix(in srgb, var(--kind) 16%, var(--card));
+    box-shadow: inset 0 0 0 3px var(--card);
+  }
+  .glance-tile:hover .glance-mark {
+    transform: translateY(-2px);
+  }
+  .glance-name {
+    @apply line-clamp-2 text-[11px] leading-tight font-semibold tracking-wide uppercase;
+  }
+  .glance-more {
+    @apply text-muted-foreground flex items-center justify-center text-xs;
+  }
+  .summary-layout {
+    @apply grid items-start gap-5 lg:grid-cols-2;
+  }
+  .summary-headline {
+    @apply text-base font-medium;
+  }
+  .summary-points {
+    @apply list-disc space-y-1.5 pl-5 text-sm leading-relaxed;
+  }
+  .ai-summary {
+    @apply bg-card space-y-3 rounded-lg border p-5 sm:p-6;
+    border-color: color-mix(in srgb, var(--kind-system) 45%, var(--border));
+  }
+  .ai-summary-head {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+  .ai-summary-head h3 {
+    @apply text-base font-semibold;
+  }
+  .ai-overview {
+    @apply text-sm leading-relaxed;
+  }
+  .premium-badge {
+    @apply rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    background: color-mix(in srgb, var(--kind-system) 16%, transparent);
+    color: var(--foreground);
+  }
+  .patch-notes {
+    @apply space-y-10;
+  }
+  .patch-intro {
+    @apply text-muted-foreground border-l-2 pl-4 text-sm italic;
+  }
+  .patch-section {
+    @apply space-y-4;
+  }
+  .patch-section > h2 {
+    @apply border-b pb-2 text-xl font-bold tracking-tight;
+  }
+  .patch-subject {
+    @apply bg-card scroll-mt-24 space-y-3 rounded-lg border p-4 outline-none sm:p-5;
+    border-left: 3px solid var(--kind);
+  }
+  .patch-subject:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  .patch-subject h3 {
+    @apply flex flex-wrap items-center gap-3 text-base font-semibold;
+  }
+  .patch-group-tag {
+    @apply bg-muted rounded px-2 py-0.5 text-xs font-medium;
+  }
+  .patch-group-tag > span {
+    color: var(--kind);
+  }
+  .patch-context summary {
+    @apply text-muted-foreground cursor-pointer text-sm font-medium;
+  }
+  .patch-context ul {
+    @apply text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm;
+  }
+  .patch-changes {
+    @apply space-y-2 text-sm leading-relaxed;
+  }
+  .patch-changes li {
+    @apply grid grid-cols-[5.5rem_minmax(0,1fr)] items-baseline gap-3;
+  }
+  .change-kind {
+    @apply inline-flex items-center gap-1 justify-self-start rounded px-1.5 py-0.5 text-xs font-semibold;
+    background: color-mix(in srgb, var(--kind) 14%, transparent);
+  }
+  .change-kind > span[aria-hidden] {
+    color: var(--kind);
+  }
 }
 
 /* ---------- Responsive ---------- */
@@ -1227,6 +1473,20 @@
   }
   .track-toggle:not([data-open]) .track-toggle-body {
     display: none;
+  }
+
+  /* Patch reader on phones */
+  .patch-hero {
+    @apply min-h-52;
+  }
+  .glance-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  }
+  .glance-mark {
+    @apply h-12 w-12 text-sm;
+  }
+  .patch-changes li {
+    @apply grid-cols-1 gap-1;
   }
 }
 /* No desktop Steam client to launch on touch-first devices. */
