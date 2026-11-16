@@ -6,20 +6,21 @@ import { and, asc, eq, sql } from "@acme/db";
 import { userBacklog } from "@acme/db/schema";
 import {
   BacklogExportSchema,
+  cleanSteamText,
   CollectionFeedInputSchema,
   DealItemSchema,
-  cleanSteamText,
   GameSearchInputSchema,
   GameSearchResultSchema,
   parsePatchNotes,
   PatchNotesInputSchema,
-  summarizePatch,
   SearchDealsInputSchema,
   SteamFeedInputSchema,
+  summarizePatch,
   UpsertBacklogItemSchema,
 } from "@acme/validators";
 
 import { catalogVerifiedAt } from "../curated-games";
+import { summarizePatchWithAi } from "../patch-ai";
 import {
   fetchCollectionFeed,
   fetchDealsWithStatus,
@@ -30,7 +31,6 @@ import {
   fetchSteamPrices,
   searchGames,
 } from "../steam-discovery";
-import { summarizePatchWithAi } from "../patch-ai";
 import { protectedProcedure, publicProcedure } from "../trpc";
 
 async function loadPatch(steamAppId: number, gid: string) {
@@ -145,7 +145,9 @@ export const backlogRouter = {
   getSteamPrices: publicProcedure
     .input(
       z.object({
-        steamAppIds: z.array(z.number().int().positive().max(2147483647)).max(60),
+        steamAppIds: z
+          .array(z.number().int().positive().max(2147483647))
+          .max(60),
       }),
     )
     .query(({ input }) => fetchSteamPrices(input.steamAppIds)),
@@ -241,6 +243,8 @@ export const backlogRouter = {
         for (const item of input.items) {
           const values = {
             ...item,
+            purchaseStore: item.purchaseStore ?? null,
+            platform: item.platform ?? null,
             amountPaid: item.amountPaid?.toFixed(2) ?? null,
             targetPrice: item.targetPrice?.toFixed(2) ?? null,
             completionStatus: item.completionStatus ?? "backlog",

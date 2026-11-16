@@ -279,6 +279,20 @@ export async function fetchDealsWithStatus(
           !price.success && steamAppId
             ? await fetchPriceFallback(steamAppId)
             : null;
+        // Saved prices must never enter a batch presented as live offers.
+        if (fallback?.source === "catalog") return null;
+        const fallbackStore = fallback?.deals[0]?.storeID;
+        if (
+          fallback &&
+          ((options?.storeIds?.length &&
+            !options.storeIds.some((storeId) => storeId === fallbackStore)) ||
+            (options?.maxPrice !== undefined &&
+              fallback.currentPrice > options.maxPrice) ||
+            (options?.steamOnly && fallbackStore !== "1") ||
+            (options?.onSale &&
+              fallback.currentPrice >= (fallback.deals[0]?.retailPrice ?? 0)))
+        )
+          return null;
         const cheapestPrice = price.success
           ? price.data
           : fallback?.currentPrice;
@@ -312,12 +326,12 @@ export async function fetchDealsWithStatus(
   ).filter((item) => item !== null);
   const live = Array.isArray(response);
   if (deals.length) return { offers: deals, live: true };
-  if (configured && live && rows.length === 0) return { offers: [], live };
+  if (live && rows.length === 0) return { offers: [], live };
   // Preserve search semantics during an outage; do not show unrelated titles.
   const catalog = curatedGames.filter((item) =>
     item.title.toLowerCase().includes(title.toLowerCase()),
   );
-  if ((options?.page ?? 0) > 0) return { offers: [], live };
+  if ((options?.page ?? 0) > 0) return { offers: [], live: false };
   const fallbackDeals = catalog
     .filter(
       (item) =>
@@ -344,7 +358,7 @@ export async function fetchDealsWithStatus(
       }),
     );
   return {
-    live,
+    live: false,
     offers: fallbackDeals.sort((a, b) =>
       options?.sort === "price"
         ? a.cheapestPrice - b.cheapestPrice
@@ -390,7 +404,8 @@ export async function fetchSteamPrices(steamAppIds: number[]) {
   const prices: Record<number, number> = {};
   for (const id of ids) {
     const entry = parsed.data[String(id)];
-    const data = entry?.success && !Array.isArray(entry.data) ? entry.data : null;
+    const data =
+      entry?.success && !Array.isArray(entry.data) ? entry.data : null;
     if (data?.price_overview) prices[id] = data.price_overview.final / 100;
   }
   return prices;
@@ -517,7 +532,8 @@ export async function fetchGamePrices(
             : catalogLow != null
               ? ("catalog" as const)
               : null,
-        historicalLowAsOf: recordedLow == null && catalogLow != null ? catalogVerifiedAt : null,
+        historicalLowAsOf:
+          recordedLow == null && catalogLow != null ? catalogVerifiedAt : null,
         deals,
         steamPrice: steam,
         source: "cheapshark" as const,
@@ -589,7 +605,10 @@ async function fetchAppType(steamAppId: number) {
 }
 
 // Merges official posts across the user's games, newest first.
-export async function fetchCollectionFeed(steamAppIds: number[], limit: number) {
+export async function fetchCollectionFeed(
+  steamAppIds: number[],
+  limit: number,
+) {
   const ids = [...new Set(steamAppIds)];
   const feeds = await Promise.all(ids.map((id) => fetchSteamFeed(id)));
   const newest = <T extends { publishedAt: Date; official: boolean }>(

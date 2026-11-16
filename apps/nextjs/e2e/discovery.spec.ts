@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   fetchDeals,
+  fetchDealsWithStatus,
   fetchGameMetadata,
   fetchGamePrices,
   fetchSteamFeed,
@@ -216,10 +217,8 @@ test("adapters recover from unavailable providers and preserve missing games", a
       source: "catalog",
     });
     globalThis.fetch = () => Promise.resolve(Response.json([]));
-    expect(await fetchDeals()).toHaveLength(12);
-    expect(await fetchDeals("Cyberpunk")).toMatchObject([
-      { title: "Cyberpunk 2077", cheapestPrice: 17.99 },
-    ]);
+    expect(await fetchDeals()).toEqual([]);
+    expect(await fetchDeals("Cyberpunk")).toEqual([]);
     expect(await fetchGamePrices(1234)).toBeNull();
     globalThis.fetch = () =>
       Promise.resolve(Response.json({ "1234": { success: false } }));
@@ -609,6 +608,69 @@ test("a successful empty filtered search does not substitute unrelated catalog o
         maxPrice: 0,
       }),
     ).toEqual([]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("malformed deal batches identify saved catalog offers as offline", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = () => Promise.resolve(Response.json([{ invalid: true }]));
+  try {
+    const result = await fetchDealsWithStatus("Cyberpunk", {
+      query: "Cyberpunk",
+      pageSize: 12,
+    });
+    expect(result.live).toBe(false);
+    expect(result.offers).toMatchObject([{ source: "catalog" }]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("missing prices cannot replace selected-store offers with another store", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (input) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    return Promise.resolve(
+      Response.json(
+        url.includes("cheapshark.com")
+          ? [
+              {
+                dealID: "missing-gog",
+                title: "Cyberpunk 2077",
+                salePrice: null,
+                normalPrice: "59.99",
+                steamAppID: "1091500",
+                storeID: "7",
+              },
+            ]
+          : {
+              "1091500": {
+                success: true,
+                data: {
+                  name: "Cyberpunk 2077",
+                  price_overview: {
+                    currency: "USD",
+                    initial: 5999,
+                    final: 2999,
+                  },
+                },
+              },
+            },
+      ),
+    );
+  };
+  try {
+    const result = await fetchDealsWithStatus("Cyberpunk", {
+      query: "Cyberpunk",
+      storeIds: ["7"],
+      maxPrice: 20,
+    });
+    expect(result.live).toBe(false);
+    expect(result.offers).toMatchObject([
+      { source: "catalog", storeId: "7", cheapestPrice: 17.99 },
+    ]);
   } finally {
     globalThis.fetch = original;
   }

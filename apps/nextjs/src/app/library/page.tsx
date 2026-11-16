@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { Platform, PurchaseStore } from "@acme/validators";
 import { cn } from "@acme/ui";
 import {
+  BacklogExportSchema,
   defaultPlatform,
   itemPlatform,
   platformNames,
@@ -456,9 +457,19 @@ function BackupPanel() {
               event.target.value = "";
               if (!file) return;
               setBusy(true);
+              setMessage("");
               try {
-                await importItems(JSON.parse(await file.text()));
-                setMessage("Backup restored.");
+                const backup = BacklogExportSchema.parse(
+                  JSON.parse(await file.text()),
+                );
+                try {
+                  await importItems(backup);
+                  setMessage("Backup restored.");
+                } catch {
+                  setMessage(
+                    "Couldn’t save your backup. Your file is valid; try importing it again.",
+                  );
+                }
               } catch {
                 setMessage(
                   "That file isn’t a valid Backlog backup. Choose another and try again.",
