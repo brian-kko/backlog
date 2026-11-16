@@ -189,6 +189,15 @@ function updateGuest(
     cachedRaw = raw;
     cachedSample = sampleRaw;
   } catch {
+    // A metadata write can succeed before the collection write hits quota.
+    // Remember what storage actually contains so the next snapshot read does
+    // not replace these recoverable in-memory edits with the older backup.
+    try {
+      cachedRaw = localStorage.getItem(storageKey);
+      cachedSample = localStorage.getItem(sampleKey);
+    } catch {
+      // Storage itself may be blocked; retain the in-memory snapshot.
+    }
     guestSnapshot = {
       ...guestSnapshot,
       error:

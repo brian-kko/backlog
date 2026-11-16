@@ -1294,3 +1294,128 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
   ).toBeVisible();
   await expect(page.getByText("Sorted by AI summary")).toBeVisible();
 });
+
+test("guest quota failures preserve edits for export even after sample metadata changes", async ({
+  page,
+}) => {
+  await page.goto("/library");
+  await expect(page.getByTestId("library-card")).toHaveCount(3);
+  await page.evaluate(() => {
+    // Called below with an explicit `this`, so the unbound reference is safe.
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "backlog-guest-v1")
+        throw new DOMException("Quota exceeded", "QuotaExceededError");
+      original.call(this, key, value);
+    };
+  });
+  const card = page
+    .getByTestId("library-card")
+    .filter({ hasText: "Cyberpunk 2077" });
+  await card.getByRole("button", { name: "Completed", exact: true }).click();
+  await expect(
+    card.getByRole("button", { name: "Completed", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Export a backup" }),
+  ).toContainText("Export a backup");
+  const downloading = page.waitForEvent("download");
+  await page.getByTestId("export-json-btn").click();
+  const path = await (await downloading).path();
+  if (!path) throw new Error("Missing backup download");
+  const data = BacklogExportSchema.parse(
+    JSON.parse(await readFile(path, "utf8")),
+  );
+  expect(data.items.find((item) => item.steamAppId === 1091500)).toMatchObject({
+    completionStatus: "completed",
+  });
+  expect(
+    data.items.find((item) => item.steamAppId === 1091500)?.amountPaid,
+  ).toBeUndefined();
+});
+
+test("valid backup server failures offer retry without blaming the file", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/get-session**", (route) =>
+    route.fulfill({ json: signedInSession }),
+  );
+  await page.goto("/library");
+  await expect(page.getByTestId("library-card")).toHaveCount(1);
+  await page.route("**/api/trpc/**importBacklogJson**", (route) =>
+    route.fulfill({ status: 500, body: "{}" }),
+  );
+  const file = {
+    name: "backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(backup)),
+  };
+  await page.getByLabel("Import JSON", { exact: true }).setInputFiles(file);
+  await expect(page.locator(".backup-panel").getByRole("status")).toContainText(
+    "Your file is valid",
+  );
+  await page.unroute("**/api/trpc/**importBacklogJson**");
+  await page.getByLabel("Import JSON", { exact: true }).setInputFiles(file);
+  await expect(page.locator(".backup-panel").getByRole("status")).toHaveText(
+    "Backup restored.",
+  );
+  browserErrors.get(page)?.splice(0);
+});
+
+for (const width of [390, 1440]) {
+  test(`core routes fit ${width}px and search supports keyboard dismissal`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of [
+      "/",
+      "/deals",
+      "/library",
+      "/wishlist",
+      "/updates",
+      "/game/1091500",
+      "/patch/553850/1847920302234123",
+    ]) {
+      await page.goto(route);
+      await expect(page.locator("main h1")).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Add game", exact: true }).first(),
+      ).toBeEnabled();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        )
+        .toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath(
+          `${route.replaceAll("/", "_") || "home"}.png`,
+        ),
+        fullPage: true,
+        caret: "initial",
+      });
+    }
+    await page
+      .getByRole("button", { name: "Add game", exact: true })
+      .first()
+      .click();
+    await expect(
+      page.getByRole("dialog").getByLabel("Search games"),
+    ).toBeFocused();
+    await page.getByRole("dialog").getByLabel("Search games").fill("Dota");
+    await expect(
+      page.getByRole("dialog").getByText("Dota 2", { exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath("search.png"),
+      caret: "initial",
+    });
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).not.toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add game", exact: true }).first(),
+    ).toBeFocused();
+  });
+}
