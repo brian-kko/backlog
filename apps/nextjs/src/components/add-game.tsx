@@ -209,6 +209,13 @@ export function AddGameProvider({ children }: { children: React.ReactNode }) {
         onClick={(event) => {
           if (event.target === event.currentTarget) close();
         }}
+        // Escape always closes, even from a filled search field (where the
+        // browser would otherwise only clear the text).
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          close();
+        }}
       >
         {open && (
           <div className="add-game-panel">
