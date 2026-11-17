@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import { cn } from "@acme/ui";
 import { storeNames } from "@acme/validators";
 
 import type { BacklogItem } from "~/components/backlog-provider";
@@ -13,6 +14,7 @@ import {
   CoverArt,
   GameArt,
   LaunchLink,
+  libraryHero,
   money,
   PageHeading,
   plural,
@@ -49,7 +51,7 @@ function PriceWatch() {
     return (
       <div className="empty-state space-y-4">
         <p>
-          Wishlist a game and set the price you’d pay. Backlog compares{" "}
+          Wishlist a game and set the price you’d pay. Gemuzu compares{" "}
           {Object.keys(storeNames).length} stores and flags it when it’s worth
           buying.
         </p>
@@ -209,62 +211,52 @@ const statusLabel = {
   completed: "Completed",
 } as const;
 
-function QueueCard({ game }: { game: BacklogItem }) {
+/** Play or mark-as-playing for one queued game. */
+function QueueActions({ game }: { game: BacklogItem }) {
   const { save } = useBacklog();
   const [error, setError] = useState(false);
   const playing = game.completionStatus === "playing";
   return (
-    <article
-      className="queue-card cover-card"
-      data-status={game.completionStatus ?? "backlog"}
-    >
-      <Link href={`/game/${game.steamAppId}`} tabIndex={-1} aria-hidden="true">
-        <CoverArt appId={game.steamAppId} title={game.title} />
-      </Link>
-      <div className="cover-body">
-        <h3 className="queue-title">
-          <Link href={`/game/${game.steamAppId}`}>{game.title}</Link>
-        </h3>
-        <p className="queue-status">
-          {statusLabel[game.completionStatus ?? "backlog"]}
+    <div className="cover-actions">
+      {playing && canLaunch(game) ? (
+        <LaunchLink steamAppId={game.steamAppId} title={game.title}>
+          Play
+        </LaunchLink>
+      ) : null}
+      {!playing && (
+        <button
+          className="action secondary compact"
+          onClick={() =>
+            void save({
+              steamAppId: game.steamAppId,
+              title: game.title,
+              isOwned: true,
+              completionStatus: "playing",
+            }).catch(() => setError(true))
+          }
+        >
+          Mark as playing
+        </button>
+      )}
+      {error && (
+        <p role="alert" className="field-error">
+          Couldn’t update. Try again.
         </p>
-        <div className="cover-actions">
-          {playing && canLaunch(game) ? (
-            <LaunchLink steamAppId={game.steamAppId} title={game.title}>
-              Play
-            </LaunchLink>
-          ) : null}
-          {!playing && (
-            <button
-              className="action secondary compact"
-              onClick={() =>
-                void save({
-                  steamAppId: game.steamAppId,
-                  title: game.title,
-                  isOwned: true,
-                  completionStatus: "playing",
-                }).catch(() => setError(true))
-              }
-            >
-              Mark as playing
-            </button>
-          )}
-        </div>
-        {error && (
-          <p role="alert" className="field-error">
-            Couldn’t update. Try again.
-          </p>
-        )}
-      </div>
-    </article>
+      )}
+    </div>
   );
 }
 
+/**
+ * Play next as a spotlight: the chosen game large, with its own hero art and
+ * logo, and a numbered list to switch between the rest (opacity crossfade).
+ */
 function PlayNext() {
   const { items, isLoading } = useBacklog();
   const queue = followedGames(items.filter((item) => item.isOwned))
     .filter((item) => item.completionStatus !== "completed")
-    .slice(0, 6);
+    .slice(0, 5);
+  const [chosen, setChosen] = useState<number | null>(null);
   if (isLoading) return <p role="status">Loading your library…</p>;
   if (!queue.length)
     return (
@@ -275,23 +267,110 @@ function PlayNext() {
         <AddGameButton secondary />
       </div>
     );
+  const featured = queue.find((game) => game.steamAppId === chosen) ?? queue[0];
+  if (!featured) return null;
   return (
-    <div className="cover-shelf">
-      {queue.map((game) => (
-        <QueueCard key={game.steamAppId} game={game} />
-      ))}
+    <div className="spotlight">
+      <article
+        key={featured.steamAppId}
+        className="queue-card spotlight-feature"
+        data-status={featured.completionStatus ?? "backlog"}
+      >
+        <div className="spotlight-art" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={libraryHero(featured.steamAppId)} alt="" />
+        </div>
+        <div className="spotlight-body">
+          <p className="spotlight-status">
+            {statusLabel[featured.completionStatus ?? "backlog"]}
+          </p>
+          <h3 className="queue-title">
+            <Link href={`/game/${featured.steamAppId}`}>{featured.title}</Link>
+          </h3>
+          <QueueActions game={featured} />
+        </div>
+      </article>
+      <ol className="spotlight-list" aria-label="Up next">
+        {queue.map((game, index) => (
+          <li
+            key={game.steamAppId}
+            className={cn(
+              "spotlight-pick",
+              game.steamAppId !== featured.steamAppId && "queue-card",
+            )}
+            data-status={game.completionStatus ?? "backlog"}
+          >
+            <button
+              type="button"
+              aria-pressed={game.steamAppId === featured.steamAppId}
+              onClick={() => setChosen(game.steamAppId)}
+              // Preview on hover/focus; the crossfade is opacity only.
+              onMouseEnter={() => setChosen(game.steamAppId)}
+              onFocus={() => setChosen(game.steamAppId)}
+            >
+              <span className="spotlight-index" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="spotlight-thumb" aria-hidden="true">
+                <CoverArt appId={game.steamAppId} title={game.title} />
+              </span>
+              <span className="spotlight-name">
+                {game.title}
+                <span className="spotlight-meta">
+                  {statusLabel[game.completionStatus ?? "backlog"]}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+        {queue.length < 3 && (
+          <li className="spotlight-pick spotlight-add">
+            <AddGameButton secondary label="Line up your next game" />
+          </li>
+        )}
+      </ol>
     </div>
   );
 }
 
+/** "3 owned · 1 playing · 2 on your wishlist", beside the heading. */
+function CollectionCounts() {
+  const { items, isLoading } = useBacklog();
+  if (isLoading || !items.length) return null;
+  const owned = items.filter((item) => item.isOwned);
+  const playing = owned.filter((item) => item.completionStatus === "playing");
+  const wished = items.length - owned.length;
+  return (
+    <p className="collection-counts">
+      <Link href="/library">
+        <strong>{owned.length}</strong> owned
+      </Link>
+      <Link href="/library?status=playing">
+        <strong>{playing.length}</strong> playing
+      </Link>
+      <Link href="/wishlist">
+        <strong>{wished}</strong> on your wishlist
+      </Link>
+    </p>
+  );
+}
+
 export default function HomePage() {
+  const { items, isLoading } = useBacklog();
+  const dashboardArt = isLoading ? [] : items.map((item) => item.steamAppId);
   return (
     <main className="page-shell">
-      <PageHeading title="Dashboard">
-        What’s worth buying, what changed in your games, and what to play next,
-        with prices from {Object.keys(storeNames).length} stores, not just
-        Steam.
-      </PageHeading>
+      <div className="dash-hero">
+        <PageHeading
+          title="Dashboard"
+          actions={<CollectionCounts />}
+          art={dashboardArt}
+        >
+          What’s worth buying, what changed in your games, and what to play
+          next, with prices from {Object.keys(storeNames).length} stores, not
+          just Steam.
+        </PageHeading>
+      </div>
       <GuestBanner />
       <div className="dash-grid">
         <section className="space-y-4" data-reveal>

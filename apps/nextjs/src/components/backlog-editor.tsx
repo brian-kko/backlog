@@ -70,25 +70,36 @@ export function BacklogEditor({
             : "Set the price you’re willing to pay and we’ll flag it when a store hits it."
           : "Add it to your library if you own it, or wishlist it to watch prices across stores."}
       </p>
-      <div className="membership-picker" aria-label="Backlog membership">
+      <div className="membership-picker" aria-label="Collection membership">
+        {/* Labels say what a press does; the selected state reads as status. */}
         <button
           className="membership-option"
-          aria-label="In Library"
           aria-pressed={item?.isOwned === true}
           disabled={disabled}
           onClick={() => void update({ isOwned: true })}
         >
-          <strong>In Library</strong>
+          <strong>
+            {!item
+              ? "Add to library"
+              : item.isOwned
+                ? "In library"
+                : "Move to library"}
+          </strong>
           <span>I own it</span>
         </button>
         <button
           className="membership-option"
-          aria-label="On Wishlist"
           aria-pressed={item?.isOwned === false}
           disabled={disabled}
           onClick={() => void update({ isOwned: false })}
         >
-          <strong>On Wishlist</strong>
+          <strong>
+            {!item
+              ? "Add to wishlist"
+              : item.isOwned
+                ? "Move to wishlist"
+                : "On wishlist"}
+          </strong>
           <span>Watch the price</span>
         </button>
       </div>
@@ -100,7 +111,7 @@ export function BacklogEditor({
                 Status
                 <select
                   className="form-control mt-2 w-full"
-                  aria-label="Backlog completion status"
+                  aria-label="Completion status"
                   value={item.completionStatus ?? "backlog"}
                   disabled={disabled}
                   onChange={(event) =>

@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "with-env": "dotenv -e ../../.env --",
     "test": "e2e",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "ux:audit": "playwright test -c playwright.ux.config.ts"
   },
   "dependencies": {
     "@acme/api": "workspace:*",
@@ -38,6 +39,7 @@
     "@acme/prettier-config": "workspace:*",
     "@acme/tailwind-config": "workspace:*",
     "@acme/tsconfig": "workspace:*",
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "^1.64.1",
     "@types/node": "catalog:",
     "@types/react": "catalog:react19",

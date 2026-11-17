@@ -408,7 +408,7 @@ function BackupPanel() {
       );
       const link = document.createElement("a");
       link.href = url;
-      link.download = `backlog-${backup.exportedAt.slice(0, 10)}.json`;
+      link.download = `gemuzu-${backup.exportedAt.slice(0, 10)}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -440,7 +440,7 @@ function BackupPanel() {
           disabled={busy || isLoading || Boolean(error && !isGuest)}
           onClick={() => void downloadBackup()}
         >
-          Export Backlog JSON
+          Export Gemuzu JSON
         </button>
         <label
           className={`action secondary ${busy || isLoading ? "opacity-50" : ""}`}
@@ -472,7 +472,7 @@ function BackupPanel() {
                 }
               } catch {
                 setMessage(
-                  "That file isn’t a valid Backlog backup. Choose another and try again.",
+                  "That file isn’t a valid Gemuzu backup. Choose another and try again.",
                 );
               } finally {
                 setBusy(false);
@@ -571,7 +571,24 @@ export default function LibraryPage() {
   if (reversed) owned.reverse();
   return (
     <main className="page-shell">
-      <PageHeading title="Library">
+      <PageHeading
+        title="Library"
+        stat={
+          ownedAll.length ? (
+            <>
+              <strong>
+                {
+                  ownedAll.filter(
+                    (item) => item.completionStatus === "completed",
+                  ).length
+                }
+              </strong>{" "}
+              of {ownedAll.length} finished
+            </>
+          ) : null
+        }
+        art={ownedAll.map((item) => item.steamAppId)}
+      >
         Every game you own, how far you’ve got, and what you paid at each store.
       </PageHeading>
       <GuestBanner compact />

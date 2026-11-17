@@ -129,11 +129,15 @@ function GroupedNews({
   items,
   titles,
   newSince,
+  level = 3,
 }: {
   items: NewsItem[];
   titles?: Map<number, string>;
   newSince?: number;
+  /** Heading level for date groups: 2 when the page has no section heading. */
+  level?: 2 | 3;
 }) {
+  const GroupHeading = level === 2 ? "h2" : "h3";
   const [showOlder, setShowOlder] = useState(false);
   const [now] = useState(() => Date.now());
   const recent = items.filter(
@@ -150,7 +154,7 @@ function GroupedNews({
     <div className="space-y-6">
       {[...groups].map(([group, posts]) => (
         <section key={group} aria-label={group}>
-          <h3 className="date-group">{group}</h3>
+          <GroupHeading className="date-group">{group}</GroupHeading>
           <NewsCards items={posts} titles={titles} newSince={newSince} />
         </section>
       ))}
@@ -176,12 +180,14 @@ export function NewsTabs({
   titles,
   emptyHint,
   newSince,
+  level,
   children,
 }: {
   items: NewsItem[] | undefined;
   titles?: Map<number, string>;
   emptyHint: string;
   newSince?: number;
+  level?: 2 | 3;
   children?: React.ReactNode;
 }) {
   const [tab, setTab] = useState<"patches" | "events">("patches");
@@ -242,6 +248,7 @@ export function NewsTabs({
             items={visible}
             titles={titles}
             newSince={newSince}
+            level={level}
           />
         ) : (
           <p className="empty-state">
@@ -275,12 +282,16 @@ function FeedStatus({
   if (pending) return <p role="status">Loading Steam news…</p>;
   if (error)
     return (
-      <p role="alert">
-        Steam news is unavailable right now.{" "}
-        <button className="text-link" onClick={retry}>
+      // A designed outage state, not one line floating in empty space.
+      <div role="alert" className="offline-panel">
+        <p>
+          <strong>Steam news didn’t load.</strong> Your games, filters and read
+          state are saved; posts appear as soon as Steam responds.
+        </p>
+        <button className="action secondary" onClick={retry}>
           Try again
         </button>
-      </p>
+      </div>
     );
   return null;
 }
@@ -316,7 +327,14 @@ export function BacklogFeed({
     .filter((item) => includeCommunity || item.official !== false)
     .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
   return (
-    <NewsTabs items={items} emptyHint="for this game yet.">
+    <NewsTabs
+      items={items}
+      emptyHint={
+        includeCommunity
+          ? "for this game yet."
+          : "from the developers yet. Community and press posts may have some."
+      }
+    >
       <label className="check-label">
         <input
           type="checkbox"
@@ -375,10 +393,12 @@ export function FeedGaps({
 export function CollectionFeed({
   games,
   newSince,
+  level,
   children,
 }: {
   games: { steamAppId: number; title: string }[];
   newSince?: number;
+  level?: 2 | 3;
   children?: React.ReactNode;
 }) {
   const feed = useCollectionFeed(games.map((game) => game.steamAppId));
@@ -407,6 +427,7 @@ export function CollectionFeed({
         items={ownPosts(feed.data.items, titles)}
         titles={titles}
         newSince={newSince}
+        level={level}
         emptyHint="from your games recently."
       >
         {children}

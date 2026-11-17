@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { RouterOutputs } from "@acme/api";
 import type { ChangeKind, SubjectGroup } from "@acme/validators";
 
+import { useAmbientTint } from "~/components/ambient";
 import { featuredGames, useBacklog } from "~/components/backlog-provider";
 import { headerArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
@@ -41,11 +42,13 @@ const groups: Record<
   fix: { label: "Fixes", one: "Fix", icon: "✓", description: "bug fixes" },
 };
 // Legend wording per bar segment: [singular, plural].
+// The legend counts individual lines; the groups below count items, so say
+// "changes" here to keep "20 nerf changes" from contradicting "Nerfs · 2 items".
 const legendWords: Record<(typeof barKinds)[number], [string, string]> = {
   new: ["addition", "additions"],
-  nerf: ["nerf", "nerfs"],
-  buff: ["buff", "buffs"],
-  adjusted: ["change", "changes"],
+  nerf: ["nerf change", "nerf changes"],
+  buff: ["buff change", "buff changes"],
+  adjusted: ["other change", "other changes"],
   fix: ["fix", "fixes"],
 };
 // Two columns, as in a classic patch overview: balance left, the rest right.
@@ -145,9 +148,11 @@ function Glance({
     })),
   );
   return (
+    // Only populated groups, flowing into as many columns as fit, so a
+    // short patch never leaves an empty column.
     <div className="glance-columns">
-      {columns.map((column, index) => (
-        <div key={index} className="glance-column">
+      {[columns.flat()].map((column, index) => (
+        <div key={index} className="contents">
           {column.map((group) => {
             const members = tiles.filter((tile) => tile.group === group);
             if (!members.length) return null;
@@ -365,6 +370,7 @@ export function PatchReader({
   gid: string;
 }) {
   const trpc = useTRPC();
+  useAmbientTint(steamAppId);
   const { items } = useBacklog();
   const patch = useQuery(
     trpc.backlog.getPatchNotes.queryOptions({ steamAppId, gid }),
@@ -445,13 +451,31 @@ export function PatchReader({
         />
         <div className="patch-hero-copy">
           <p className="patch-game">{game}</p>
-          <h1>
-            {data.patch.version && (
-              <span className="patch-version">{data.patch.version}</span>
-            )}
-            <span className="patch-label">Patch notes</span>
-          </h1>
-          <p className="patch-title">{data.title}</p>
+          {data.patch.version ? (
+            <>
+              <h1>
+                <span className="patch-version">{data.patch.version}</span>
+                <span className="patch-label">Patch notes</span>
+              </h1>
+              <p className="patch-title">{data.title}</p>
+            </>
+          ) : (
+            // No version number: the date is the big mark, the post's own
+            // title the headline.
+            <>
+              <p className="patch-version" aria-hidden="true">
+                {data.publishedAt
+                  .toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "2-digit",
+                    timeZone: "UTC",
+                  })
+                  .toUpperCase()}
+              </p>
+              <p className="patch-label">Patch notes</p>
+              <h1 className="patch-headline">{data.title}</h1>
+            </>
+          )}
           <p className="patch-meta">
             <time dateTime={data.publishedAt.toISOString()}>{date}</time>
             {" · "}
@@ -494,7 +518,14 @@ export function PatchReader({
         })()}
         <ProportionBar counts={summary.counts} />
         {summary.groups.length ? (
-          <Glance data={data} groupOf={groupOf} onOpen={open} />
+          <>
+            <Glance data={data} groupOf={groupOf} onOpen={open} />
+            <p className="glance-note">
+              Items are grouped by the overall direction of their changes,
+              sorted automatically from the patch wording. Check the full notes
+              for exact numbers.
+            </p>
+          </>
         ) : (
           <p className="filter-help">
             This post has no itemised changes to chart.

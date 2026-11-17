@@ -77,7 +77,7 @@ export function InstallButton() {
         setPrompt(null);
       }}
     >
-      Install Backlog on this device
+      Install Gemuzu on this device
     </button>
   );
 }

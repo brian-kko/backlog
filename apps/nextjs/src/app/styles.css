@@ -113,6 +113,10 @@
   html {
     scroll-padding-top: 76px;
   }
+  /* Full-bleed sections use 100vw; never let that create sideways scroll. */
+  body {
+    overflow-x: clip;
+  }
   ::selection {
     background: var(--primary);
     color: var(--primary-foreground);
@@ -149,11 +153,16 @@
 @layer components {
   .page-shell {
     @apply mx-auto flex w-full max-w-[1216px] flex-col gap-7 px-4 pt-7 pb-16 sm:px-6 sm:pt-9;
+    /* At least a screen tall, so the footer never jumps into view as data loads. */
+    min-height: calc(100dvh - 60px);
   }
+  /* Transparent over the ambient background at the top; a near-solid tint
+     (no blur) once content scrolls underneath. */
   .site-nav {
-    @apply bg-background sticky top-0 z-30;
+    @apply sticky top-0 z-30;
+    background: transparent;
     border-bottom: 1px solid transparent;
-    transition: border-color 0.2s ease-out;
+    /* Colour changes are instant; motion is transform/opacity only. */
   }
   .nav-shell {
     @apply mx-auto flex h-[60px] max-w-[1216px] items-center gap-7 px-4 sm:px-6;
@@ -188,7 +197,7 @@
     content: none;
   }
   .nav-count {
-    @apply bg-muted text-muted-foreground min-w-5 rounded-full px-1.5 py-px text-center font-mono text-[11px] font-medium tabular-nums;
+    @apply bg-muted text-muted-foreground min-w-5 rounded-full px-1.5 py-px text-center font-mono text-[12px] font-medium tabular-nums;
   }
   .nav-link[aria-current="page"] .nav-count {
     @apply text-foreground;
@@ -213,14 +222,24 @@
   }
 
   /* ---------- Headings ---------- */
+  /* Mastheads: a condensed display title over the page's own covers. */
   .page-heading {
-    @apply flex flex-wrap items-end justify-between gap-x-10 gap-y-4;
+    @apply relative isolate flex flex-wrap items-end justify-between gap-x-10 gap-y-4;
   }
   .page-heading h1 {
-    font-size: clamp(1.875rem, 3vw, 2.25rem);
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+    font-family: var(--font-display);
+    font-size: clamp(2.75rem, 5.6vw, 4.5rem);
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    line-height: 0.92;
+    text-transform: uppercase;
+  }
+  .page-stat {
+    @apply text-muted-foreground font-mono text-sm tabular-nums;
+  }
+  .page-stat strong {
+    @apply font-medium;
+    color: var(--signal);
   }
   .page-description {
     @apply text-muted-foreground max-w-2xl text-base leading-relaxed;
@@ -249,14 +268,10 @@
     @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-transparent px-4 py-2 text-sm font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50;
     background: var(--primary);
     color: var(--primary-foreground);
-    transition:
-      background-color 0.12s ease-out,
-      border-color 0.12s ease-out,
-      filter 0.12s ease-out,
-      transform 0.08s ease-out;
+    transition: transform 0.08s ease-out;
   }
   .action:hover:not(:disabled) {
-    filter: brightness(1.08);
+    background-color: color-mix(in srgb, var(--primary) 88%, white);
   }
   .action.secondary {
     @apply text-foreground bg-transparent;
@@ -264,7 +279,6 @@
   }
   .action.secondary:hover:not(:disabled) {
     @apply bg-muted;
-    filter: none;
   }
   .action.compact {
     @apply min-h-9 px-3 py-1.5;
@@ -323,7 +337,7 @@
     background: var(--signal);
   }
   .tab-count {
-    @apply bg-muted rounded-full px-1.5 font-mono text-[11px] font-medium tabular-nums;
+    @apply bg-muted rounded-full px-1.5 font-mono text-[12px] font-medium tabular-nums;
   }
   .filter-pill[aria-pressed="true"] .tab-count {
     background: color-mix(in srgb, var(--background) 22%, transparent);
@@ -378,7 +392,7 @@
     @apply text-muted-foreground -mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm;
   }
   .sample-tag {
-    @apply rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase;
+    @apply rounded px-1.5 py-0.5 text-[12px] font-semibold uppercase;
     color: var(--warn);
     border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
   }
@@ -442,8 +456,20 @@
   .game-card:hover {
     border-color: color-mix(in srgb, var(--foreground) 30%, transparent);
   }
+  /* Until the artwork arrives the frame shows a deliberate placeholder
+     (soft diagonal pattern + image glyph) in the same 460:215 shape. */
   .game-art {
-    @apply aspect-[460/215] w-full bg-black/40 object-cover;
+    @apply aspect-[460/215] w-full object-cover;
+    background-color: var(--muted);
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' fill='none' stroke='%238f9885' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Ccircle cx='9' cy='10' r='1.6'/%3E%3Cpath d='m4 17 5-5 4 4 2-2 5 5'/%3E%3C/svg%3E"),
+      repeating-linear-gradient(
+        -45deg,
+        transparent 0 10px,
+        color-mix(in srgb, var(--foreground) 4%, transparent) 10px 11px
+      );
+    background-position: center;
+    background-repeat: no-repeat, repeat;
   }
   .artwork-placeholder {
     @apply text-muted-foreground bg-muted flex items-center justify-center p-4 text-center text-sm font-medium;
@@ -493,7 +519,7 @@
 
   /* ---------- Metrics & banners ---------- */
   .metrics-rail {
-    @apply grid grid-cols-2 border-y lg:grid-cols-4;
+    @apply grid grid-cols-2 border-y lg:auto-cols-fr lg:grid-flow-col;
   }
   .metric-card {
     @apply flex min-w-0 flex-col border-r px-5 py-4 first:pl-0;
@@ -523,25 +549,28 @@
     @apply text-muted-foreground mt-1 font-sans text-xs font-normal sm:text-xs sm:leading-[1.125rem];
   }
   .guest-banner {
-    @apply bg-card flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-lg border px-5 py-4;
+    @apply bg-card flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-lg border px-4 py-3 text-sm;
   }
-  .guest-banner .guest-tagline {
-    font-family: var(--font-display);
-    @apply text-foreground mt-0 text-[22px] leading-6 font-semibold tracking-[0.02em] uppercase;
+  .guest-copy {
+    @apply text-muted-foreground min-w-0;
   }
-  .guest-banner strong {
-    @apply text-sm font-semibold;
-  }
-  .guest-banner p {
-    @apply text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed;
+  .guest-copy strong {
+    @apply text-foreground font-semibold;
   }
   .guest-actions {
     @apply flex flex-wrap items-center gap-4;
+  }
+  .guest-actions .text-link {
+    @apply whitespace-nowrap;
   }
 
   /* ---------- Dashboard ---------- */
   .dash-grid {
     @apply grid items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12;
+  }
+  /* Grid items default to their content's width; the cover shelf scrolls instead. */
+  .dash-grid > * {
+    min-width: 0;
   }
   /* Play next: a shelf of vertical library covers. */
   .cover-shelf {
@@ -639,7 +668,7 @@
     color: var(--warn);
   }
   .new-badge {
-    @apply rounded-sm px-1.5 py-0.5 text-[11px] font-semibold;
+    @apply rounded-sm px-1.5 py-0.5 text-[12px] font-semibold;
     background: var(--signal);
     color: var(--primary-foreground);
   }
@@ -651,9 +680,10 @@
     @apply inline-block h-2 w-2 rounded-full;
     background: var(--signal);
   }
+  /* A strip aligned to the page column, not loose text. */
   .offline-banner {
-    @apply mx-auto max-w-7xl px-4 py-2 text-sm sm:px-8;
-    color: var(--warn);
+    @apply mx-auto mt-3 w-[calc(100%-2rem)] max-w-[1168px] rounded-md border px-4 py-2.5 text-sm sm:w-[calc(100%-3rem)];
+    border-left: 3px solid var(--warn);
   }
   .purchase-line {
     @apply text-muted-foreground flex items-center justify-between gap-3 text-sm;
@@ -855,8 +885,95 @@
   }
 
   /* ---------- Game page ---------- */
+  /* Cinematic hero: the game's wide art behind, its logo as the title, and
+     copy on a gradient that fades into the page (works in both themes). */
   .game-hero {
-    @apply flex flex-col items-start gap-8 md:flex-row md:items-center;
+    @apply relative isolate flex min-h-[300px] items-end overflow-hidden rounded-xl border sm:min-h-[380px];
+  }
+  /* Always a dark poster, so bright game logos read in light theme too. */
+  .game-hero {
+    --background: #121411;
+    --foreground: #f2f4eb;
+    --muted: #252a22;
+    --muted-foreground: #c3c9ba;
+    --border: #2c3227;
+    --primary: #c8ed78;
+    --primary-foreground: #141a0c;
+    --control-border: #77816c;
+    --ring: #c8ed78;
+    --signal: #c8ed78;
+    background: var(--background);
+    color: var(--foreground);
+  }
+  .hero-backdrop {
+    @apply absolute inset-0 -z-10 overflow-hidden;
+  }
+  .hero-backdrop-frame {
+    @apply absolute -inset-x-0 -top-10 -bottom-10;
+    will-change: transform;
+  }
+  .hero-backdrop img {
+    object-fit: cover;
+    object-position: center 30%;
+  }
+  .hero-backdrop::after {
+    content: "";
+    @apply absolute inset-0;
+    background:
+      /* Top fade keeps the transparent nav readable over bright art. */
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--background) 82%, transparent) 0,
+        transparent 120px
+      ),
+      linear-gradient(
+        to top,
+        var(--background) 4%,
+        color-mix(in srgb, var(--background) 70%, transparent) 42%,
+        transparent 78%
+      ),
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--background) 80%, transparent),
+        transparent 62%
+      );
+  }
+  /* Full-bleed: edge to edge and tucked under the transparent nav. */
+  .game-hero {
+    @apply min-h-[360px] rounded-none border-x-0 border-t-0 sm:min-h-[440px];
+    margin-inline: calc(50% - 50vw);
+    margin-top: calc(-60px - 1.75rem);
+  }
+  @media (min-width: 640px) {
+    .game-hero {
+      margin-top: calc(-60px - 2.25rem);
+    }
+  }
+  .hero-body {
+    @apply relative mx-auto w-full max-w-[1216px] space-y-4 px-4 pt-24 pb-8 sm:px-6 sm:pb-10;
+  }
+  .hero-body > :not(.back-link) {
+    @apply max-w-2xl;
+  }
+  .hero-body .back-link {
+    @apply absolute top-[76px];
+  }
+  /* Same height whether the title ends up as a wordmark or as text, so
+     swapping an emblem logo for the name doesn't shift the page. */
+  .hero-title {
+    @apply flex min-h-[156px] flex-col justify-end sm:min-h-[188px];
+  }
+  .hero-eyebrow {
+    font-family: var(--font-display);
+    @apply mb-3 block text-sm font-semibold tracking-[0.14em] uppercase;
+    color: #d8f08a;
+  }
+  .hero-name {
+    font-family: var(--font-display);
+    @apply block text-5xl leading-none font-bold uppercase sm:text-6xl;
+  }
+  .hero-logo {
+    @apply block h-auto max-h-32 w-auto max-w-[min(360px,80%)] object-contain object-left sm:max-h-40;
   }
   .hub-art {
     @apply w-full shrink-0 rounded-lg md:max-w-[44%];
@@ -954,6 +1071,190 @@
   }
   .prices-checked {
     @apply text-muted-foreground mt-2 text-xs;
+  }
+  .offline-panel {
+    @apply bg-card flex flex-wrap items-center justify-between gap-4 rounded-lg border px-5 py-4 text-sm;
+    border-left: 3px solid var(--warn);
+  }
+  .steam-line-muted {
+    @apply text-muted-foreground;
+  }
+  .deal-find {
+    @apply w-full;
+  }
+  .glance-note {
+    @apply text-muted-foreground max-w-prose text-xs;
+  }
+  /* Updates: feed beside a sticky "Your games" rail on wide screens. */
+  .updates-layout {
+    @apply grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start lg:gap-10;
+  }
+  .updates-filter {
+    @apply min-w-0 lg:sticky lg:top-24 lg:col-start-2 lg:row-start-1;
+  }
+  .rail-label {
+    font-family: var(--font-display);
+    @apply text-muted-foreground mb-3 hidden text-sm font-semibold tracking-[0.1em] uppercase lg:block;
+  }
+  .updates-filter .chip-scroller {
+    @apply lg:flex-col lg:items-stretch lg:overflow-visible;
+    mask-image: none;
+  }
+  .updates-filter .filter-pill {
+    @apply lg:justify-between lg:text-left;
+  }
+  .pill-count {
+    @apply text-muted-foreground ml-2 font-mono text-xs tabular-nums;
+  }
+  @media (min-width: 1024px) {
+    .news-entry.has-art {
+      grid-template-columns: 160px minmax(0, 1fr);
+      column-gap: 20px;
+    }
+  }
+  .cover-slot {
+    @apply flex flex-col gap-3;
+  }
+  .cover-slot-frame {
+    @apply text-muted-foreground flex aspect-[2/3] flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center text-sm;
+  }
+  .cover-slot-frame span {
+    @apply text-3xl leading-none;
+    color: var(--signal);
+  }
+  .sample-note > span:last-child {
+    @apply whitespace-nowrap;
+  }
+  .cover-mosaic {
+    @apply pointer-events-none absolute -top-6 right-0 -bottom-4 -z-10 hidden w-[680px] overflow-hidden md:block;
+    opacity: 0.3;
+    mask-image:
+      linear-gradient(to right, transparent 20%, #000 55%),
+      linear-gradient(to bottom, #000 55%, transparent);
+    mask-composite: intersect;
+  }
+  :root.light .cover-mosaic {
+    opacity: 0.18;
+  }
+
+  .cover-mosaic-track {
+    @apply grid grid-flow-col grid-rows-2 gap-2;
+    transform: rotate(-6deg) translate(40px, -30px);
+  }
+  .cover-mosaic-track img {
+    @apply h-36 w-24 rounded-lg object-cover;
+  }
+  .cover-mosaic-track.is-short {
+    @apply grid-rows-1;
+    transform: rotate(-6deg) translate(120px, 0);
+  }
+  .cover-mosaic-track img:nth-child(even) {
+    transform: translateY(48px);
+  }
+  .collection-counts {
+    @apply text-muted-foreground flex flex-wrap gap-x-5 gap-y-1 text-sm;
+  }
+  .collection-counts a:hover {
+    @apply text-foreground;
+  }
+  .collection-counts strong {
+    @apply text-foreground mr-1 font-mono font-medium tabular-nums;
+  }
+  /* Play next spotlight: one game large, a numbered list to switch. */
+  .spotlight {
+    @apply grid gap-3;
+  }
+  .spotlight-feature {
+    @apply relative isolate flex min-h-[220px] items-end overflow-hidden rounded-xl border;
+    --background: #121411;
+    --foreground: #f2f4eb;
+    --muted-foreground: #c3c9ba;
+    --control-border: #77816c;
+    --muted: #252a22;
+    --primary: #c8ed78;
+    --primary-foreground: #141a0c;
+    color: var(--foreground);
+    background: var(--background);
+    animation: spotlight-in 0.22s ease-out;
+  }
+  @keyframes spotlight-in {
+    from {
+      opacity: 0.4;
+    }
+  }
+  .spotlight-art {
+    @apply absolute inset-0 -z-10;
+  }
+  .spotlight-art img {
+    @apply h-full w-full object-cover;
+    object-position: center 30%;
+  }
+  .spotlight-art::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(
+      to top,
+      #121411 6%,
+      color-mix(in srgb, #121411 55%, transparent) 50%,
+      transparent
+    );
+  }
+  .spotlight-body {
+    @apply flex w-full flex-wrap items-end justify-between gap-3 p-4;
+  }
+  .spotlight-body .queue-title {
+    font-family: var(--font-display);
+    @apply w-full text-[40px] leading-[1.05] font-bold uppercase;
+  }
+  .spotlight-status {
+    font-family: var(--font-display);
+    @apply w-full text-xs font-semibold tracking-[0.12em] uppercase;
+    color: #d8f08a;
+  }
+  .spotlight-list {
+    @apply grid gap-1;
+  }
+  .spotlight-pick > button {
+    @apply hover:bg-muted/60 flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors;
+  }
+  .spotlight-pick > button {
+    box-shadow: inset 2px 0 0 transparent;
+  }
+  .spotlight-pick > button[aria-pressed="true"] {
+    @apply bg-muted/70;
+    box-shadow: inset 2px 0 0 var(--signal);
+  }
+  .spotlight-index {
+    @apply text-muted-foreground w-6 font-mono text-xs tabular-nums;
+  }
+  .spotlight-pick > button[aria-pressed="true"] .spotlight-index {
+    color: var(--signal);
+  }
+  .spotlight-thumb {
+    @apply block w-8 shrink-0 overflow-hidden rounded;
+  }
+  .spotlight-name {
+    @apply flex min-w-0 flex-col text-sm font-medium;
+  }
+  .spotlight-meta {
+    @apply text-muted-foreground text-xs font-normal;
+  }
+  .spotlight-add {
+    @apply pt-1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spotlight-feature {
+      animation: none;
+    }
+  }
+  .search-result-maker {
+    @apply text-muted-foreground truncate text-xs;
+  }
+  .price-missing {
+    @apply text-muted-foreground text-xs;
+  }
+  .price-track-skeleton {
+    @apply bg-muted/60 h-[52px] rounded;
   }
   .target-edit {
     @apply -ml-0.5 min-h-7 px-0.5 text-xs underline underline-offset-4;
@@ -1093,7 +1394,7 @@
     @apply flex items-start justify-between gap-2;
   }
   .sample-label {
-    @apply text-muted-foreground bg-muted rounded px-1.5 py-0.5 align-middle text-[11px] font-medium;
+    @apply text-muted-foreground bg-muted rounded px-1.5 py-0.5 align-middle text-[12px] font-medium;
   }
   .moved-panel:focus-visible {
     outline: 2px solid var(--ring);
@@ -1202,6 +1503,9 @@
   .patch-title {
     @apply text-lg font-medium;
   }
+  .patch-headline {
+    @apply max-w-3xl text-[32px] leading-[1.15] font-semibold tracking-tight sm:text-[40px];
+  }
   .patch-meta {
     @apply text-sm;
     color: #b9c7c9;
@@ -1239,12 +1543,12 @@
     @apply font-semibold tabular-nums;
   }
   .patch-swatch {
-    @apply inline-flex h-4 w-4 items-center justify-center rounded text-[10px] leading-none font-bold;
+    @apply inline-flex h-4 w-4 items-center justify-center rounded text-[12px] leading-none font-bold;
     background: var(--kind);
     color: #fff;
   }
   .glance-columns {
-    @apply grid gap-x-10 gap-y-6 lg:grid-cols-2;
+    @apply grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3;
   }
   .glance-column {
     @apply space-y-6;
@@ -1283,8 +1587,9 @@
   .glance-more {
     @apply text-muted-foreground flex items-center justify-center text-xs;
   }
+  /* Quick read gets a comfortable reading column; the AI summary sits beside it. */
   .summary-layout {
-    @apply grid items-start gap-5 lg:grid-cols-2;
+    @apply grid items-start gap-5 lg:grid-cols-[minmax(0,46rem)_minmax(0,1fr)];
   }
   .summary-headline {
     @apply text-base font-medium;
@@ -1461,22 +1766,23 @@
      neutralised by the reduced-motion block at the end of this file. */
   .site-nav[data-scrolled] {
     border-bottom-color: var(--border);
+    background: color-mix(in srgb, var(--background) 95%, transparent);
   }
   .nav-links::after {
     content: "";
     @apply pointer-events-none absolute bottom-0 left-0 h-0.5 rounded-full;
-    width: var(--ind-w, 0);
-    transform: translateX(var(--ind-x, 0));
+    /* A 100px bar moved and scaled to the active link: transform only. */
+    width: 100px;
+    transform-origin: left center;
+    transform: translateX(var(--ind-x, 0)) scaleX(var(--ind-s, 0));
     background: var(--signal);
-    transition:
-      transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-      width 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .nav-links[data-indicator="off"]::after {
     opacity: 0;
   }
   .kbd {
-    @apply ml-1 hidden rounded-sm border px-1.5 font-mono text-[11px] leading-5 font-medium lg:inline-block;
+    @apply ml-1 hidden rounded-sm border px-1.5 font-mono text-[12px] leading-5 font-medium lg:inline-block;
     border-color: color-mix(in srgb, currentColor 35%, transparent);
     opacity: 0.8;
   }
@@ -1488,8 +1794,8 @@
   }
   .motion-ok [data-reveal] {
     transition:
-      opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .motion-ok [data-reveal]:not([data-reveal-in]) {
     opacity: 0;
@@ -1508,12 +1814,20 @@
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 899px) {
-  .nav-link {
-    @apply px-2;
+/* Tablets: brand and actions on top, the five sections on their own row,
+   so links never sit under the action buttons. */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .nav-shell {
+    @apply h-auto flex-wrap gap-x-5 gap-y-0 pt-2;
   }
-  .nav-add .add-label {
-    display: none;
+  .nav-controls {
+    @apply min-h-12;
+  }
+  .nav-links {
+    @apply order-last -mx-3 w-[calc(100%+1.5rem)] gap-1;
+  }
+  .nav-link {
+    @apply min-h-11 px-3;
   }
 }
 @media (max-width: 639px) {
@@ -1524,11 +1838,11 @@
 
   /* Bottom tab bar on phones (also used by the installed PWA). */
   .nav-links {
-    @apply bg-background/95 fixed inset-x-0 bottom-0 z-30 grid h-auto grid-cols-5 border-t backdrop-blur;
+    @apply bg-background/97 fixed inset-x-0 bottom-0 z-30 grid h-auto grid-cols-5 border-t;
     padding-bottom: env(safe-area-inset-bottom);
   }
   .nav-link {
-    @apply flex-col justify-center gap-0.5 px-0 py-2 text-[11px];
+    @apply flex-col justify-center gap-0.5 px-0 py-2 text-[12px];
     min-height: 56px;
   }
   .nav-link svg {
@@ -1538,7 +1852,7 @@
     color: var(--signal);
   }
   .nav-count {
-    @apply absolute top-1.5 left-1/2 ml-2 min-w-4 px-1 text-[10px];
+    @apply absolute top-1.5 left-1/2 ml-2 min-w-4 px-1 text-[12px];
   }
   .nav-controls .action.secondary {
     @apply px-3;
@@ -1579,6 +1893,16 @@
   }
   .metric-card {
     @apply px-4;
+  }
+  /* Sort and page size share one row. */
+  .deal-sort {
+    @apply grid w-full grid-cols-2 gap-2;
+  }
+  .deal-sort .inline-select {
+    @apply min-w-0 flex-col items-stretch gap-1 text-xs;
+  }
+  .deal-sort .form-control {
+    @apply w-full min-w-0;
   }
   /* Deals become compact rows on phones. */
   .deal-grid {
@@ -1683,9 +2007,6 @@
   .guest-banner {
     @apply px-4 py-3;
   }
-  .guest-banner p {
-    @apply mt-0.5;
-  }
   .metric-card {
     @apply py-3;
   }
@@ -1707,10 +2028,6 @@
   }
   .meta-part + .meta-part::before {
     content: "";
-  }
-  /* Compact guest notice so the first price row is above the fold. */
-  .guest-banner p {
-    display: none;
   }
   .guest-banner {
     @apply gap-y-2;
@@ -1756,7 +2073,7 @@
   }
 }
 /* No desktop Steam client to launch on touch-first devices. */
-@media (hover: none) and (pointer: coarse) {
+@media (pointer: coarse) {
   .launch-link {
     display: none;
   }
@@ -1768,4 +2085,290 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* ---------- Touch targets ----------
+   Unlayered so it wins over the phone layout rules above. On touch screens
+   every control is at least 44px (platform guidance, WCAG 2.5.5). Standalone
+   text links (titles, "See all" links) get a taller hit area from padding
+   with a matching negative margin, so the layout doesn't move. */
+@media (pointer: coarse) {
+  .action,
+  .quiet-button,
+  .filter-pill,
+  .segmented button,
+  .glance-tile,
+  .popover-picker summary,
+  .form-control,
+  .inline-select select,
+  .track-toggle-button,
+  .tab,
+  .site-nav button {
+    min-height: 44px;
+  }
+  .nav-add .action,
+  .nav-controls button,
+  .quiet-button,
+  .track-toggle-button {
+    min-width: 44px;
+  }
+  .nav-add .action {
+    min-height: 44px;
+  }
+  .metric-card dd > a {
+    display: inline-block;
+    min-width: 44px;
+  }
+  /* Links inside sentences stay inline; vertical padding still gives them a
+     44px tall hit area without moving any text. */
+  p .text-link,
+  li p a {
+    padding-block: 12px;
+  }
+  .brand,
+  .skip-link {
+    min-height: 44px;
+  }
+  .store-prices a {
+    min-width: 44px;
+  }
+  .popover-picker fieldset > label:not(.field-label),
+  .check-label {
+    min-height: 44px;
+  }
+  .deal-ledger .price-link {
+    @apply min-h-11 items-center;
+  }
+  /* Standalone text links; links inside a sentence are exempt (WCAG 2.5.8). */
+  :is(a, button).text-link:not(p *),
+  .sample-note .text-link,
+  .checked-at .text-link,
+  .back-link,
+  .collection-counts a,
+  .store-prices a,
+  .section-heading .text-link,
+  .card-links > a,
+  .card-links > button,
+  :is(h2, h3) > a,
+  .strip-title,
+  .news-game,
+  .metric-card dd > a,
+  .watch-row-price a,
+  .popover-picker .text-link {
+    display: inline-block;
+    padding-block: 13px;
+    margin-block: -13px;
+  }
+}
+
+/* ---------- Ambient background ----------
+   One bounded region under the header (it scrolls away with the page). Only
+   the main field drifts, via transform: painted once, never repainted, so it
+   stays cheap with software rendering. Game and patch pages tint the second
+   field with a colour sampled from the game's artwork. */
+:root {
+  --ambient-main: 123 152 72;
+  --ambient-tint: 66 102 25;
+  --ambient-main-alpha: 0.12;
+  --ambient-tint-alpha: 0.06;
+  --ambient-dot: transparent;
+}
+:root.dark {
+  --ambient-main: 123 152 72;
+  --ambient-tint: 201 239 120;
+  --ambient-main-alpha: 0.22;
+  --ambient-tint-alpha: 0.08;
+  --ambient-dot: rgb(201 239 120 / 0.045);
+}
+.ambient {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: 520px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient-grid {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 220px;
+  background-image: radial-gradient(var(--ambient-dot) 1px, transparent 1.5px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(to bottom, #000, transparent);
+}
+.ambient-field {
+  position: absolute;
+  border-radius: 50%;
+}
+.ambient-main {
+  top: -120px;
+  left: max(0px, calc(50% - 600px));
+  width: 760px;
+  height: 430px;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--ambient-main) / var(--ambient-main-alpha)),
+    transparent 70%
+  );
+  transform: translate3d(-48px, 0, 0) scale(1.04);
+  will-change: transform;
+  animation: ambient-drift 18s ease-in-out infinite alternate;
+  /* Drifts only while someone is using the page (see AmbientBackground):
+     a paused animation costs nothing without a GPU. */
+  animation-play-state: paused;
+}
+:root[data-ambient-live] .ambient-main {
+  animation-play-state: running;
+}
+.ambient-tint {
+  top: -60px;
+  right: max(0px, calc(50% - 600px));
+  width: 520px;
+  height: 340px;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--ambient-tint) / var(--ambient-tint-alpha)),
+    transparent 70%
+  );
+  transition: background 0.6s ease-out;
+}
+/* A sampled artwork colour is a little stronger than the default lime. */
+:root[style*="--ambient-tint"] {
+  --ambient-tint-alpha: 0.08;
+}
+@keyframes ambient-drift {
+  to {
+    transform: translate3d(48px, 24px, 0) scale(1.04);
+  }
+}
+/* Phones: one still field, no dots. */
+@media (max-width: 767px) {
+  .ambient {
+    height: 360px;
+  }
+  .ambient-grid,
+  .ambient-tint {
+    display: none;
+  }
+  .ambient-main {
+    left: -40px;
+    width: 360px;
+    height: 240px;
+    animation: none;
+    --ambient-main-alpha: 0.07;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-main {
+    animation: none !important;
+  }
+}
+
+/* Search dialog: a quick rise-in over a plain scrim (no blur). */
+.add-game-dialog[open] {
+  animation: dialog-in 0.14s ease-out;
+}
+.add-game-dialog::backdrop {
+  background: rgb(8 10 7 / 0.55);
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .add-game-dialog[open] {
+    animation: none;
+  }
+}
+
+/* ---------- Boot intro ----------
+   A cartridge drops into a slot, clicks, the light turns lime, and the screen
+   fades into the page. Transform/opacity only; < 1s; never blocks input. */
+.boot {
+  display: none;
+}
+:root[data-boot="play"] .boot {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: #121411;
+  animation: boot-out 0.26s ease-in 0.72s forwards;
+}
+.boot-console {
+  fill: #1a1d18;
+  stroke: #2c3227;
+  stroke-width: 2;
+}
+.boot-slot {
+  fill: #0b0d0a;
+}
+.boot-led {
+  fill: #c8ed78;
+  opacity: 0;
+  animation: boot-led 0.12s linear 0.5s forwards;
+}
+.boot-cart {
+  transform: translateY(-90px);
+  opacity: 0;
+  animation:
+    boot-insert 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.04s forwards,
+    boot-click 0.14s ease-out 0.46s;
+}
+.boot-cart-shell {
+  fill: #2a3022;
+  stroke: #77816c;
+  stroke-width: 2;
+}
+.boot-cart-label {
+  fill: #c8ed78;
+}
+.boot-cart-name {
+  fill: #141a0c;
+  font-family: var(--font-display), sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.boot-cart-grip {
+  stroke: #77816c;
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+}
+@keyframes boot-insert {
+  from {
+    transform: translateY(-90px);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(18px);
+    opacity: 1;
+  }
+}
+@keyframes boot-click {
+  50% {
+    transform: translateY(22px);
+  }
+}
+@keyframes boot-led {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes boot-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+:root[data-boot="skip"] .boot {
+  display: none;
 }

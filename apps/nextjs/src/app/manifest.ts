@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Backlog",
-    short_name: "Backlog",
+    name: "Gemuzu",
+    short_name: "Gemuzu",
     description:
       "Track what you own and play, watch prices across stores, and follow patch notes for your games.",
     start_url: "/",

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 import type { RouterOutputs } from "@acme/api";
-import { purchaseStoreFromDeal } from "@acme/validators";
+import { compareToSteam, purchaseStoreFromDeal } from "@acme/validators";
 
 import { AddGameButton } from "./add-game";
 import { GameArt, money, price, storeName, TrackActions } from "./game-ui";
@@ -16,13 +16,27 @@ export interface DealGroup {
   otherStores: number;
 }
 
+/** "Borderlands 3 Super Deluxe (EPIC)" and "…Deluxe™" name the same game. */
+const normalTitle = (title: string) =>
+  title
+    .toLowerCase()
+    .replace(/\s*[([][^)\]]*[)\]]\s*/g, " ")
+    .replace(/[™®©:–—-]/g, " ")
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 /** Collapses one-offer-per-store results into one row per game. */
 export function groupDeals(deals: Deal[]): DealGroup[] {
   const groups = new Map<string, { deal: Deal; stores: Set<string> }>();
+  // Offers without a Steam match join a matched offer with the same title.
+  const appByTitle = new Map<string, number>();
+  for (const deal of deals)
+    if (deal.steamAppId)
+      appByTitle.set(normalTitle(deal.title), deal.steamAppId);
   for (const deal of deals) {
-    const key = deal.steamAppId
-      ? `app-${deal.steamAppId}`
-      : deal.title.toLowerCase();
+    const appId = deal.steamAppId ?? appByTitle.get(normalTitle(deal.title));
+    const key = appId ? `app-${appId}` : normalTitle(deal.title);
     const group = groups.get(key);
     if (!group)
       groups.set(key, { deal, stores: new Set([deal.storeId ?? deal.id]) });
@@ -112,19 +126,45 @@ function TrackToggle({ children }: { children: React.ReactNode }) {
   );
 }
 
-const cents = (value: number) => Math.round(value * 100);
-
 /** Steam's own price minus this offer, in cents (positive = offer is cheaper). */
 function steamGap(deal: Deal, steam?: number) {
   if (deal.source === "catalog" || steam == null) return null;
   if (deal.storeId === "1") return 0;
-  return cents(steam) - cents(deal.cheapestPrice);
+  const comparison = compareToSteam(deal.cheapestPrice, steam);
+  if (!comparison) return null;
+  return comparison.kind === "cheaper"
+    ? comparison.savingCents
+    : comparison.kind === "same"
+      ? 0
+      : -comparison.extraCents;
 }
 
 /** "Steam $X · save $Y", or that Steam matches or beats this offer. */
-function SteamLine({ deal, steam }: { deal: Deal; steam?: number }) {
+function SteamLine({
+  deal,
+  steam,
+  checking,
+}: {
+  deal: Deal;
+  steam?: number;
+  /** Steam prices for this batch are still loading. */
+  checking: boolean;
+}) {
+  // Every card keeps a Steam row in the same slot, saying why when there's
+  // no comparison, so the column scans and cards stay the same height.
+  const reason = (text: string) => (
+    <p className="steam-line steam-line-muted">
+      <span className="ledger-label" aria-hidden="true">
+        Steam
+      </span>
+      <span>{text}</span>
+    </p>
+  );
   // A saved offer can't support a "save $X" claim against today's Steam price.
-  if (deal.source === "catalog") return null;
+  if (deal.source === "catalog") return reason("compare once prices are live");
+  // The feed often lists editions (Gold, Deluxe…) without a Steam ID; that
+  // doesn't mean the game isn't on Steam.
+  if (!deal.steamAppId) return reason("couldn’t match this edition");
   if (deal.storeId === "1")
     return (
       <p className="steam-line">
@@ -135,7 +175,8 @@ function SteamLine({ deal, steam }: { deal: Deal; steam?: number }) {
       </p>
     );
   const gap = steamGap(deal, steam);
-  if (gap == null || steam == null) return null;
+  if (gap == null || steam == null)
+    return reason(checking ? "checking…" : "no Steam price right now");
   return (
     <p className="steam-line">
       <span className="ledger-label" aria-hidden="true">
@@ -207,7 +248,11 @@ export function DealCards({
                     ↗
                   </span>
                 </a>
-                <SteamLine deal={deal} steam={steam} />
+                <SteamLine
+                  deal={deal}
+                  steam={steam}
+                  checking={steamPrices === undefined}
+                />
               </div>
               <div className="deal-actions">
                 {gap != null && gap < 0 && deal.steamAppId ? (
@@ -244,22 +289,12 @@ export function DealCards({
                     />
                   </TrackToggle>
                 ) : (
-                  <div className="deal-untracked">
-                    {/* One inline run, so flex layout can't eat the spaces. */}
-                    <p>
-                      No Steam match
-                      <span className="max-sm:hidden">
-                        {" "}
-                        from the price feed
-                      </span>
-                      .{" "}
-                      <AddGameButton
-                        label="Find it on Steam"
-                        initialQuery={deal.title}
-                        className="text-link"
-                      />
-                    </p>
-                  </div>
+                  // The Steam row already says there's no match; offer the fix.
+                  <AddGameButton
+                    label="Find it on Steam to track"
+                    initialQuery={deal.title}
+                    className="action secondary deal-find"
+                  />
                 )}
               </div>
             </div>

@@ -8,7 +8,6 @@ import { purchaseStoreNames } from "@acme/validators";
 import type { BacklogItem } from "~/components/backlog-provider";
 import { useBacklog } from "~/components/backlog-provider";
 import { money, plural } from "~/components/game-ui";
-import { CountUp } from "~/components/motion";
 import { useWishlistPrices } from "~/components/price-ui";
 
 interface Metric {
@@ -105,17 +104,8 @@ export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
         },
       ]
     : [
-        {
-          label: "Playing now",
-          value: byStatus("playing").length,
-          href: "/library?status=playing",
-        },
-        {
-          label: "Unplayed",
-          value: unplayed.length,
-          href: "/library?status=backlog",
-          note: unplayedSpend ? `${money(unplayedSpend)} paid` : undefined,
-        },
+        // Counts of playing/owned live in the heading strip; these are the
+        // money questions the strip can't answer.
         {
           label: "Price alerts",
           value: prices.pending ? "…" : prices.alerts.length,
@@ -133,7 +123,20 @@ export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
           note: coverage,
           essential: Boolean(coverage),
         },
+        {
+          label: "Paid, never played",
+          value: money(unplayedSpend),
+          href: "/library?status=backlog",
+          note: `across ${plural(unplayed.length, "unplayed game")}`,
+        },
       ];
+  // Nothing owned yet: one useful line beats a row of $0.00 blocks.
+  if (!owned.length && (ledger || !prices.rows.length))
+    return (
+      <p className="empty-inline">
+        Spending shows up here once you add games you own and what you paid.
+      </p>
+    );
   return (
     <section aria-label={ledger ? "Spending and progress" : "At a glance"}>
       <dl className="metrics-rail">
@@ -142,7 +145,8 @@ export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
             <dt>{label}</dt>
             <dd>
               <Link href={href}>
-                {isLoading ? "…" : <CountUp value={value} />}
+                {/* Final values at once: money shouldn't tick through made-up amounts. */}
+                {isLoading ? "…" : value}
               </Link>
             </dd>
             {note && (

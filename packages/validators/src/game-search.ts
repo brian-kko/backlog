@@ -13,6 +13,9 @@ export const GameSearchResultSchema = z.object({
   image: z.string(),
   /** Current Steam price in USD; null when unknown, 0 when free. */
   price: z.number().nonnegative().nullable(),
+  /** Tells same-named games apart in search ("Valve · 2024"). */
+  developer: z.string().optional(),
+  releaseYear: z.number().int().optional(),
 });
 export type GameSearchResult = z.infer<typeof GameSearchResultSchema>;
 

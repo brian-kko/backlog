@@ -192,3 +192,50 @@ describe("Flat 'Name: change' patch notes (Deadlock style)", () => {
     expect(patch.sections[0]?.subjects[0]?.changes).toHaveLength(4);
   });
 });
+
+describe("Digest wording stays defensible", () => {
+  it("doesn't call a change a buff from a comparative alone", () => {
+    expect(classifyChange("Stacks now diminish 20% more aggressively")).toBe(
+      "adjusted",
+    );
+    expect(classifyChange("Cooldown increased from 27s to 28s")).toBe("nerf");
+    expect(classifyChange("Damage increased from 50 to 60")).toBe("buff");
+  });
+
+  it("counts items when a post has no section headings", () => {
+    const summary = summarizePatch(
+      parsePatchNotes(
+        [
+          "[p]- Apollo: Damage increased from 50 to 60[/p]",
+          "[p]- Apollo: Range increased from 10m to 12m[/p]",
+          "[p]- Baba: Damage reduced from 40 to 35[/p]",
+          "[p]- Baba: Cooldown increased from 20s to 22s[/p]",
+        ].join(""),
+      ),
+    );
+    expect(summary.headline).toBe("2 buffs and 2 nerfs across 2 items.");
+  });
+
+  it("strips emoji from section names", () => {
+    const patch = parsePatchNotes(
+      "[h3]🔧 Fixes[/h3][list][*]Fixed a crash[/*][/list]",
+    );
+    expect(patch.sections[0]?.title).toBe("Fixes");
+  });
+});
+
+describe("Deadlock-style wording", () => {
+  it("treats a longer cycle time as a nerf, like a longer cooldown", () => {
+    expect(
+      classifyChange("Baba's Brew - Cycle time increased from 1.5s to 1.6s"),
+    ).toBe("nerf");
+    expect(classifyChange("Cast delay reduced from 0.4s to 0.3s")).toBe("buff");
+  });
+
+  it("labels new behaviour as a change rather than a note", () => {
+    expect(
+      classifyChange("Riposte - Pommel Hit now also disarms the enemy"),
+    ).toBe("adjusted");
+    expect(classifyChange("See you on the battlefield")).toBe("note");
+  });
+});

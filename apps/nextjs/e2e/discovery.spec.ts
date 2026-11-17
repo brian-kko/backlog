@@ -286,7 +286,7 @@ test("rate limits, invalid JSON and network failures use Steam then verified cat
   const original = globalThis.fetch;
   let steamOnline = true;
   globalThis.fetch = (input, init) => {
-    expect(new Headers(init?.headers).get("User-Agent")).toBe("BacklogApp/1.0");
+    expect(new Headers(init?.headers).get("User-Agent")).toBe("GemuzuApp/1.0");
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     const url = new URL(
       input instanceof Request ? input.url : input.toString(),
@@ -392,7 +392,9 @@ test("missing deal prices recover without treating null or empty strings as free
   }
 });
 
-test("external fetches abort at 2.5 seconds and return the catalog", async () => {
+// The deadline allows for a cold first connection (DNS + TLS can exceed 3s on
+// some hosts) while still falling back to the catalog when Steam hangs.
+test("external fetches abort at 6 seconds and return the catalog", async () => {
   const original = globalThis.fetch;
   let aborted = false;
   globalThis.fetch = (_input, init) =>
@@ -413,8 +415,8 @@ test("external fetches abort at 2.5 seconds and return the catalog", async () =>
       name: "Cyberpunk 2077",
     });
     expect(aborted).toBe(true);
-    expect(Date.now() - start).toBeGreaterThanOrEqual(2400);
-    expect(Date.now() - start).toBeLessThan(3500);
+    expect(Date.now() - start).toBeGreaterThanOrEqual(5900);
+    expect(Date.now() - start).toBeLessThan(7000);
   } finally {
     globalThis.fetch = original;
   }

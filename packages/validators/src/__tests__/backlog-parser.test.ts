@@ -6,9 +6,9 @@ import {
   cleanSteamText,
   DealItemSchema,
   evaluateDealAlert,
-  SearchDealsInputSchema,
   isAboutSequel,
   isPromotionalNews,
+  SearchDealsInputSchema,
   SteamFeedInputSchema,
   truncateAtWord,
   UpsertBacklogItemSchema,
@@ -290,7 +290,8 @@ describe("Steam news classification from tags, labels and titles", () => {
     expect(
       classifyAndCleanSteamNews({
         title: "From the developers",
-        contents: "[b]update[/b] on our plans, bug reports and the next version.",
+        contents:
+          "[b]update[/b] on our plans, bug reports and the next version.",
       }).category,
     ).toBe("general");
   });
@@ -425,16 +426,18 @@ describe("Steam news classification from tags, labels and titles", () => {
       cleanSteamText(
         "Stratagems\nAMW-20 APEX\nProblem we want to solve:\nDemolition strength was too low.",
       ),
-    ).toBe("AMW-20 APEX: Problem we want to solve: Demolition strength was too low.");
+    ).toBe(
+      "AMW-20 APEX: Problem we want to solve: Demolition strength was too low.",
+    );
   });
 
   it("recognizes sequel posts cross-posted to the original game", () => {
     expect(isAboutSequel("Hades II v1.0 Is Now Available!", "Hades")).toBe(
       true,
     );
-    expect(isAboutSequel("Hades: It's the Five-Year Anniversary!", "Hades")).toBe(
-      false,
-    );
+    expect(
+      isAboutSequel("Hades: It's the Five-Year Anniversary!", "Hades"),
+    ).toBe(false);
     expect(isAboutSequel("Baldur's Gate 3 Patch 8", "Baldur's Gate 3")).toBe(
       false,
     );
@@ -536,5 +539,13 @@ describe("Wishlist decisions and status backups", () => {
         completionStatus: "unknown",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("Escaped BBCode brackets", () => {
+  it("keeps literal [PC] labels instead of leaking a backslash", () => {
+    expect(cleanSteamText("[list][*][p]\\[PC] Fixed an issue[/p][/list]")).toBe(
+      "[PC] Fixed an issue",
+    );
   });
 });

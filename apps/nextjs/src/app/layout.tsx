@@ -1,12 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, IBM_Plex_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 
 import { cn } from "@acme/ui";
 import { ThemeProvider } from "@acme/ui/theme";
 import { Toaster } from "@acme/ui/toast";
 
 import { AddGameProvider } from "~/components/add-game";
-import { BacklogProvider } from "~/components/backlog-provider";
+import { AmbientBackground } from "~/components/ambient";
+import {
+  BacklogProvider,
+  guestStateCookie,
+} from "~/components/backlog-provider";
+import { BootIntro, bootScript } from "~/components/boot-intro";
 import { MotionRoot } from "~/components/motion";
 import { Navbar } from "~/components/navbar";
 import { InstallButton, PwaSupport } from "~/components/pwa";
@@ -21,16 +27,16 @@ export const metadata: Metadata = {
       ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
       : "http://localhost:3000",
   ),
-  title: { default: "Backlog", template: "%s · Backlog" },
+  title: { default: "Gemuzu", template: "%s · Gemuzu" },
   description:
     "Your PC game backlog in one place: track what you own and play, set price targets across stores, and follow patch notes for your games.",
-  applicationName: "Backlog",
-  appleWebApp: { capable: true, title: "Backlog", statusBarStyle: "default" },
+  applicationName: "Gemuzu",
+  appleWebApp: { capable: true, title: "Gemuzu", statusBarStyle: "default" },
   openGraph: {
-    title: "Backlog",
+    title: "Gemuzu",
     description:
       "Track what you own and play, watch prices across stores, and follow patch notes for your games.",
-    siteName: "Backlog",
+    siteName: "Gemuzu",
   },
   twitter: { card: "summary" },
 };
@@ -60,9 +66,21 @@ const plexMono = IBM_Plex_Mono({
   variable: "--font-plex-mono",
 });
 
-export default function RootLayout(props: { children: React.ReactNode }) {
+export default async function RootLayout(props: { children: React.ReactNode }) {
+  // Better Auth's session cookie ("…session_token", "__Secure-" on HTTPS).
+  // Without it the visitor is a guest, so pages can render their collection
+  // on the server instead of waiting for the session check.
+  const jar = await cookies();
+  const signedOut = !jar
+    .getAll()
+    .some((cookie) => cookie.name.endsWith("session_token"));
+  const pristineGuest = jar.get(guestStateCookie)?.value !== "saved";
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Decides before first paint whether the boot animation plays. */}
+        <script dangerouslySetInnerHTML={{ __html: bootScript }} />
+      </head>
       <body
         className={cn(
           "bg-background text-foreground min-h-screen font-sans antialiased",
@@ -73,8 +91,13 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       >
         <ThemeProvider>
           <TRPCReactProvider>
-            <BacklogProvider>
+            <BacklogProvider
+              signedOut={signedOut}
+              pristineGuest={pristineGuest}
+            >
               <AddGameProvider>
+                <BootIntro />
+                <AmbientBackground />
                 <a className="skip-link" href="#main">
                   Skip to content
                 </a>
@@ -85,7 +108,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
                   {props.children}
                 </div>
                 <footer className="site-footer">
-                  <span>Backlog · not affiliated with Valve or any store</span>
+                  <span>Gemuzu · not affiliated with Valve or any store</span>
                   <InstallButton />
                   <span>
                     Prices in USD from CheapShark and Steam · News from Steam

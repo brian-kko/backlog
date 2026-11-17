@@ -93,8 +93,11 @@ function WatchCard({
           <div>
             <dt>{priceLabel(prices)}</dt>
             <dd className="deal-price">
-              {pending ? "…" : offer ? money(offer.price) : "Unavailable"}
+              {pending ? "…" : offer ? money(offer.price) : "—"}
             </dd>
+            {!pending && !offer && (
+              <dd className="price-missing">Couldn’t check</dd>
+            )}
           </div>
           <div data-field="target">
             <dt>Your target</dt>
@@ -132,12 +135,17 @@ function WatchCard({
               {pending
                 ? "…"
                 : prices?.historicalLow == null
-                  ? "Not recorded"
+                  ? "—"
                   : money(prices.historicalLow)}
             </dd>
+            {!pending && prices?.historicalLow == null && (
+              <dd className="price-missing">No history</dd>
+            )}
           </div>
         </dl>
         <p className="price-pair-note">{offer ? offerSource(offer) : ""}</p>
+        {/* Placeholders hold the card's height while prices load. */}
+        {pending && <div className="price-track-skeleton" aria-hidden="true" />}
         {!pending && (
           <PriceTrack
             current={offer?.price}
@@ -148,6 +156,9 @@ function WatchCard({
                 : null
             }
           />
+        )}
+        {pending && (
+          <p className="gap-line text-muted-foreground">Checking prices…</p>
         )}
         {!pending && (
           <p className="gap-line">
@@ -331,8 +342,18 @@ export default function WishlistPage() {
     );
   return (
     <main className="page-shell">
-      <PageHeading title="Wishlist">
-        Set the price you’re willing to pay. Each time you open Backlog it
+      <PageHeading
+        title="Wishlist"
+        stat={
+          rows.length && !pending ? (
+            <>
+              <strong>{alerts.length}</strong> of {rows.length} at your price
+            </>
+          ) : null
+        }
+        art={rows.map((row) => row.item.steamAppId)}
+      >
+        Set the price you’re willing to pay. Each time you open Gemuzu it
         compares stores and flags games at your target or their lowest price
         ever.
       </PageHeading>
@@ -344,15 +365,18 @@ export default function WishlistPage() {
               ? "You’re offline. Prices will update when you reconnect."
               : pending
                 ? "Checking prices across stores…"
-                : `${
-                    alerts.length
-                      ? `${plural(alerts.length, "game")} worth buying now.`
-                      : "Nothing has hit your targets yet."
-                  }${
-                    unchecked.length
-                      ? ` ${plural(unchecked.length, "game")} couldn’t be checked live.`
-                      : ""
-                  }`}
+                : unchecked.length === rows.length
+                  ? // Without any live price we can't say nothing hit a target.
+                    `Couldn’t check prices for ${plural(unchecked.length, "game")}. Your targets are saved.`
+                  : `${
+                      alerts.length
+                        ? `${plural(alerts.length, "game")} worth buying now.`
+                        : "Nothing has hit your targets yet."
+                    }${
+                      unchecked.length
+                        ? ` ${plural(unchecked.length, "game")} couldn’t be checked live.`
+                        : ""
+                    }`}
           </p>
           <p className="checked-at">
             {checkedAt > 0 && `Prices checked ${checked} · `}

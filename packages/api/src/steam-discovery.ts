@@ -28,11 +28,14 @@ async function fetchJson(url: string): Promise<unknown> {
 
   const request = (async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    // A cold first connection (DNS + TLS) can take over 3s on some hosts,
+    // e.g. WSL; later requests reuse it and take ~150ms. A slow first answer
+    // beats wrongly reporting Steam as unavailable.
+    const timeout = setTimeout(() => controller.abort(), 6000);
     try {
       const response = await fetch(url, {
         signal: controller.signal,
-        headers: { "User-Agent": "BacklogApp/1.0" },
+        headers: { "User-Agent": "GemuzuApp/1.0" },
       });
       if (!response.ok) return null;
       const value: unknown = await response.json();
@@ -560,15 +563,23 @@ export async function searchGames(query: string): Promise<{
     const results = parseSteamStoreSearch(response).slice(0, 10);
     // Steam's search lists soundtracks, tools and videos as "apps". Ask Steam
     // what each result is; keep games and DLC. Lookups that fail keep the row.
-    const kinds = await Promise.all(
-      results.map((game) => fetchAppType(game.steamAppId)),
+    // The same lookup also returns developer and release year, which tell
+    // same-named games apart ("Deadlock" by Valve vs. "DEADLOCK" by others).
+    const details = await Promise.all(
+      results.map((game) => fetchAppBasics(game.steamAppId)),
     );
     return {
       source: "steam",
-      results: results.filter((_, index) => {
-        const kind = kinds[index];
-        return kind == null || kind === "game" || kind === "dlc";
-      }),
+      results: results
+        .map((game, index) => ({
+          ...game,
+          developer: details[index]?.developer,
+          releaseYear: details[index]?.releaseYear,
+        }))
+        .filter((_, index) => {
+          const kind = details[index]?.type;
+          return kind == null || kind === "game" || kind === "dlc";
+        }),
     };
   }
   const needle = query.toLowerCase();
@@ -585,23 +596,37 @@ export async function searchGames(query: string): Promise<{
   };
 }
 
-const appTypeSchema = z.record(
+const appBasicsSchema = z.record(
   z.string(),
   z.object({
     success: z.boolean(),
-    data: z.object({ type: z.string() }).optional(),
+    data: z
+      .object({
+        type: z.string(),
+        developers: z.array(z.string()).optional(),
+        release_date: z.object({ date: z.string() }).optional(),
+      })
+      .optional(),
   }),
 );
 
-/** Steam's own type for an app ("game", "dlc", "music", …), if known. */
-async function fetchAppType(steamAppId: number) {
-  const parsed = appTypeSchema.safeParse(
+/** Steam's own type ("game", "dlc", "music", …), developer and release year. */
+async function fetchAppBasics(steamAppId: number) {
+  const parsed = appBasicsSchema.safeParse(
     await fetchJson(
-      `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&filters=basic`,
+      `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&filters=basic,developers,release_date`,
     ),
   );
   const entry = parsed.success ? parsed.data[String(steamAppId)] : undefined;
-  return entry?.success ? (entry.data?.type ?? null) : null;
+  if (!entry?.success || !entry.data) return null;
+  const year = /\b(19|20)\d{2}\b/.exec(
+    entry.data.release_date?.date ?? "",
+  )?.[0];
+  return {
+    type: entry.data.type,
+    developer: entry.data.developers?.[0],
+    releaseYear: year ? Number(year) : undefined,
+  };
 }
 
 // Merges official posts across the user's games, newest first.

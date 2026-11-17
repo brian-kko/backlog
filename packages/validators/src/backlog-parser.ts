@@ -38,7 +38,13 @@ export const purchaseStoreNames: Readonly<Record<PurchaseStore, string>> = {
 };
 
 /** Which launcher a game runs in. Unset means Steam, the default for AppIDs. */
-export const PlatformSchema = z.enum(["steam", "gog", "epic", "ubisoft", "other"]);
+export const PlatformSchema = z.enum([
+  "steam",
+  "gog",
+  "epic",
+  "ubisoft",
+  "other",
+]);
 export type Platform = z.infer<typeof PlatformSchema>;
 export const platformNames: Readonly<Record<Platform, string>> = {
   steam: "Steam",
@@ -72,7 +78,9 @@ export function purchaseStoreFromDeal(storeId: string | null | undefined) {
  * The launcher a purchase most likely runs in: GOG, Epic and Ubisoft sell for
  * their own launchers; key sellers and Steam itself activate on Steam.
  */
-export function defaultPlatform(store: PurchaseStore | null | undefined): Platform {
+export function defaultPlatform(
+  store: PurchaseStore | null | undefined,
+): Platform {
   return store === "gog" || store === "epic" || store === "ubisoft"
     ? store
     : store === "other"
@@ -192,7 +200,19 @@ export const BacklogExportSchema = z.object({
   ),
 });
 
+/**
+ * Escaped brackets ("\\[PC] Fixed…") are literal text, not BBCode: protect
+ * them from tag stripping, then put them back.
+ */
 export function cleanSteamText(text: string): string {
+  return cleanSteamMarkup(
+    text.replace(/\\\[/g, "\uE000").replace(/\\\]/g, "\uE001"),
+  )
+    .replace(/\uE000/g, "[")
+    .replace(/\uE001/g, "]");
+}
+
+function cleanSteamMarkup(text: string): string {
   const entities: Record<string, string> = {
     quot: '"',
     amp: "&",
@@ -208,70 +228,75 @@ export function cleanSteamText(text: string): string {
     ldquo: "“",
     rdquo: "”",
   };
-  return text
-    .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
-      if (!code.startsWith("#")) return entities[code.toLowerCase()] ?? entity;
-      const point = code.toLowerCase().startsWith("#x")
-        ? Number.parseInt(code.slice(2), 16)
-        : Number.parseInt(code.slice(1), 10);
-      return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : "";
-    })
-    .replace(/\[img\][\s\S]*?\[\/img\]/gi, "")
-    .replace(/(?:https?:\/\/|www\.)[^\s<>\]]+/gi, "")
-    // Block structure becomes line breaks; list items become bullets.
-    .replace(/\[\*\]|<li\b[^>]*>/gi, "\n\u2022 ")
-    .replace(
-      /\[\/?(?:h[1-6]|p|list|olist|hr|table|tr|td|th|quote|code|previewyoutube)\b[^\]]*\]|<\/?(?:h[1-6]|p|div|ul|ol|br|hr|table|tr|blockquote)\b[^>]*>/gi,
-      "\n",
-    )
-    // Inline markup is removed without leaving gaps before punctuation.
-    .replace(/\[\/?[a-z*][^\]]*\]/gi, "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/[*=_~-]{3,}/g, " ")
-    .split(/\n/)
-    .map((line) => line.replace(/\s+/g, " ").trim())
-    .filter((line) => line && line !== "\u2022")
-    .reduce((text, line) => {
-      const bullet = line.startsWith("\u2022 ");
-      const content = bullet ? line.slice(2).trim() : line;
-      if (!text) return content;
-      const previousBullet = text.endsWith("\u0000");
-      const base = text.replace(/\u0000$/, "");
-      // A short line without punctuation is a heading for what follows.
-      const lastLine = base.split(/[.!?…:·] /).pop() ?? "";
-      const words = lastLine.split(" ");
-      const heading =
-        !previousBullet &&
-        words.length <= 4 &&
-        words.every((word) => !/^\p{Ll}/u.test(word)) &&
-        !/[.!?…:,;–—-]$/.test(base);
-      // Consecutive headings ("Fixes" then "Crash Fixes") keep only the
-      // more specific one rather than chaining "Fixes: Crash Fixes:".
-      const contentWords = content.split(" ");
-      const contentIsHeading =
-        !bullet &&
-        contentWords.length <= 4 &&
-        contentWords.every((word) => !/^\p{Ll}/u.test(word)) &&
-        !/[.!?…:,;]$/.test(content);
-      if (heading && contentIsHeading)
-        return `${base.slice(0, base.length - lastLine.length)}${content}`;
-      const joiner = bullet
-        ? previousBullet
-          ? " · "
-          : /[.!?…:]$/.test(base)
+  return (
+    text
+      .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
+        if (!code.startsWith("#"))
+          return entities[code.toLowerCase()] ?? entity;
+        const point = code.toLowerCase().startsWith("#x")
+          ? Number.parseInt(code.slice(2), 16)
+          : Number.parseInt(code.slice(1), 10);
+        return point > 0 && point <= 0x10ffff
+          ? String.fromCodePoint(point)
+          : "";
+      })
+      .replace(/\[img\][\s\S]*?\[\/img\]/gi, "")
+      .replace(/(?:https?:\/\/|www\.)[^\s<>\]]+/gi, "")
+      // Block structure becomes line breaks; list items become bullets.
+      .replace(/\[\*\]|<li\b[^>]*>/gi, "\n\u2022 ")
+      .replace(
+        /\[\/?(?:h[1-6]|p|list|olist|hr|table|tr|td|th|quote|code|previewyoutube)\b[^\]]*\]|<\/?(?:h[1-6]|p|div|ul|ol|br|hr|table|tr|blockquote)\b[^>]*>/gi,
+        "\n",
+      )
+      // Inline markup is removed without leaving gaps before punctuation.
+      .replace(/\[\/?[a-z*][^\]]*\]/gi, "")
+      .replace(/<[^>]*>/g, "")
+      .replace(/[*=_~-]{3,}/g, " ")
+      .split(/\n/)
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter((line) => line && line !== "\u2022")
+      .reduce((text, line) => {
+        const bullet = line.startsWith("\u2022 ");
+        const content = bullet ? line.slice(2).trim() : line;
+        if (!text) return content;
+        const previousBullet = text.endsWith("\u0000");
+        const base = text.replace(/\u0000$/, "");
+        // A short line without punctuation is a heading for what follows.
+        const lastLine = base.split(/[.!?…:·] /).pop() ?? "";
+        const words = lastLine.split(" ");
+        const heading =
+          !previousBullet &&
+          words.length <= 4 &&
+          words.every((word) => !/^\p{Ll}/u.test(word)) &&
+          !/[.!?…:,;–—-]$/.test(base);
+        // Consecutive headings ("Fixes" then "Crash Fixes") keep only the
+        // more specific one rather than chaining "Fixes: Crash Fixes:".
+        const contentWords = content.split(" ");
+        const contentIsHeading =
+          !bullet &&
+          contentWords.length <= 4 &&
+          contentWords.every((word) => !/^\p{Ll}/u.test(word)) &&
+          !/[.!?…:,;]$/.test(content);
+        if (heading && contentIsHeading)
+          return `${base.slice(0, base.length - lastLine.length)}${content}`;
+        const joiner = bullet
+          ? previousBullet
+            ? " · "
+            : /[.!?…:]$/.test(base)
+              ? " "
+              : ": "
+          : /[.!?…:,;–—-]$/.test(base)
             ? " "
-            : ": "
-        : /[.!?…:,;–—-]$/.test(base)
-          ? " "
-          : heading
-            ? ": "
-            : ". ";
-      return `${base}${joiner}${content}${bullet ? "\u0000" : ""}`;
-    }, "")
-    .replace(/\u0000/g, "")
-    .replace(/\s+([.,!?;:])/g, "$1")
-    .replace(/([.!?])\./g, "$1")
-    .trim();
+            : heading
+              ? ": "
+              : ". ";
+        return `${base}${joiner}${content}${bullet ? "\u0000" : ""}`;
+      }, "")
+      .replace(/\u0000/g, "")
+      .replace(/\s+([.,!?;:])/g, "$1")
+      .replace(/([.!?])\./g, "$1")
+      .trim()
+  );
 }
 
 /**
@@ -313,7 +338,9 @@ export function classifyAndCleanSteamNews(item: {
   const taggedPatch = tags.some((tag) => tag.includes("patchnote"));
   const titledPatch =
     patchPattern.test(title) &&
-    !(launchPattern.test(title) && !/\b(patch|hotfix|update)\w*\b/i.test(title));
+    !(
+      launchPattern.test(title) && !/\b(patch|hotfix|update)\w*\b/i.test(title)
+    );
   if (
     taggedPatch ||
     titledPatch ||

@@ -2,7 +2,7 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClientProvider } from "@tanstack/react-query";
 import {
   createTRPCClient,
   httpBatchStreamLink,
@@ -22,7 +22,10 @@ const getQueryClient = () => {
     // Server: always make a new query client
     return createQueryClient();
   } else {
-    // Browser: use singleton pattern to keep the same query client
+    // Browser: use singleton pattern to keep the same query client.
+    // A page opened offline (served by the service worker) never gets an
+    // "offline" event, so start from the browser's own online state.
+    if (!clientQueryClientSingleton) onlineManager.setOnline(navigator.onLine);
     return (clientQueryClientSingleton ??= createQueryClient());
   }
 };

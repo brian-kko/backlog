@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
-import { evaluateDealAlert } from "@acme/validators";
+import { compareToSteam, evaluateDealAlert } from "@acme/validators";
 
 import type { BacklogItem } from "./backlog-provider";
 import { useTRPC } from "~/trpc/react";
@@ -188,10 +188,13 @@ export function offerSource(offer: NonNullable<ReturnType<typeof bestOffer>>) {
 export function steamDelta(prices: Prices | null | undefined) {
   if (prices?.currentPrice == null || prices.steamPrice == null) return null;
   if (priceState(prices, false) !== "live") return null;
-  const saving = prices.steamPrice - prices.currentPrice;
-  return saving >= 0.01
-    ? `${money(saving)} less than Steam`
-    : "Steam has the best price";
+  const comparison = compareToSteam(prices.currentPrice, prices.steamPrice);
+  if (!comparison) return null;
+  return comparison.kind === "cheaper"
+    ? `${money(comparison.savingCents / 100)} less than Steam`
+    : comparison.kind === "same"
+      ? "Steam matches the best price"
+      : "Steam is cheaper";
 }
 
 /** Plain-language distance between the best price and the user's target. */

@@ -6,6 +6,9 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: "http://localhost:3000",
+    // Functional tests run without decorative motion; the UX audit
+    // (playwright.ux.config.ts) checks motion separately.
+    reducedMotion: "reduce",
     trace: "on-first-retry",
   },
   webServer: {

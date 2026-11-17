@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -9,10 +9,18 @@ import { cn } from "@acme/ui";
 import { itemPlatform, platformNames } from "@acme/validators";
 
 import type { Prices } from "~/components/price-ui";
+import { useAmbientTint } from "~/components/ambient";
 import { BacklogEditor } from "~/components/backlog-editor";
 import { featuredGames, useBacklog } from "~/components/backlog-provider";
 import { canLaunch } from "~/components/collection";
-import { headerArt, LaunchLink, money, storeName } from "~/components/game-ui";
+import {
+  gameLogo,
+  headerArt,
+  LaunchLink,
+  libraryHero,
+  money,
+  storeName,
+} from "~/components/game-ui";
 import {
   bestOffer,
   lowLabel,
@@ -178,8 +186,96 @@ function StorePrices({
   );
 }
 
+/**
+ * The game's wide hero art behind the page title. It drifts a little slower
+ * than the page as you scroll (transform only; off with reduced motion).
+ */
+function HeroBackdrop({
+  steamAppId,
+  fallback,
+}: {
+  steamAppId: number;
+  fallback: string;
+}) {
+  const frame = useRef<HTMLDivElement>(null);
+  const [src, setSrc] = useState(libraryHero(steamAppId));
+  useEffect(() => {
+    const element = frame.current;
+    if (
+      !element ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    let pending = 0;
+    const update = () => {
+      pending = 0;
+      const offset = Math.min(window.scrollY, 600) * 0.18;
+      element.style.transform = `translate3d(0, ${offset}px, 0)`;
+    };
+    const onScroll = () => {
+      if (!pending) pending = requestAnimationFrame(update);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(pending);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+  return (
+    <div className="hero-backdrop" aria-hidden="true">
+      <div ref={frame} className="hero-backdrop-frame">
+        <Image
+          src={src}
+          alt=""
+          fill
+          sizes="(min-width: 1216px) 1168px, 100vw"
+          unoptimized
+          priority
+          onError={() => setSrc(fallback)}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** The game's own logo as the title, with the name kept as text. */
+function HeroTitle({
+  steamAppId,
+  title,
+}: {
+  steamAppId: number;
+  title: string;
+}) {
+  // "logo": wide wordmark under a small name; "text": no usable wordmark
+  // (missing, or a square emblem that doesn't say the name), so the name
+  // itself is the big title.
+  const [mode, setMode] = useState<"logo" | "text">("logo");
+  return (
+    <h1 className={cn("hero-title", mode === "logo" && "has-logo")}>
+      <span className={mode === "logo" ? "hero-eyebrow" : "hero-name"}>
+        {title}
+      </span>
+      {mode === "logo" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          className="hero-logo"
+          src={gameLogo(steamAppId)}
+          alt=""
+          aria-hidden="true"
+          onLoad={(event) => {
+            const image = event.currentTarget;
+            if (image.naturalWidth < image.naturalHeight * 2) setMode("text");
+          }}
+          onError={() => setMode("text")}
+        />
+      )}
+    </h1>
+  );
+}
+
 export function GameHub({ steamAppId }: { steamAppId: number }) {
   const trpc = useTRPC();
+  useAmbientTint(steamAppId);
   const game = useQuery(
     trpc.backlog.getGameDetails.queryOptions({ steamAppId }),
   );
@@ -206,21 +302,16 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
       : { href: "/deals", label: "Deals" };
   return (
     <main className="page-shell">
-      <Link className="back-link" href={back.href}>
-        ← {back.label}
-      </Link>
       <section data-reveal className="game-hero">
-        <Image
-          className="hub-art"
-          src={game.data?.metadata?.header_image ?? headerArt(steamAppId)}
-          width={460}
-          height={215}
-          unoptimized
-          priority
-          alt={`${title} Steam header artwork`}
+        <HeroBackdrop
+          steamAppId={steamAppId}
+          fallback={game.data?.metadata?.header_image ?? headerArt(steamAppId)}
         />
-        <div className="space-y-4">
-          <h1 className="hero-title">{title}</h1>
+        <div className="hero-body">
+          <Link className="back-link" href={back.href}>
+            ← {back.label}
+          </Link>
+          <HeroTitle steamAppId={steamAppId} title={title} />
           {description && (
             <p
               className={cn(
@@ -277,14 +368,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
         </p>
       )}
       <section data-reveal className="hub-grid">
-        {/* Owned games lead with collection controls, in DOM and visual order. */}
-        {item?.isOwned && (
-          <BacklogEditor
-            steamAppId={steamAppId}
-            title={title}
-            loading={game.isPending && game.fetchStatus !== "paused" && !item}
-          />
-        )}
+        {/* Prices lead for every game: that's what Gemuzu adds over Steam. */}
         <div className="panel space-y-4">
           <div className="section-heading">
             <h2>Prices across stores</h2>
@@ -336,6 +420,23 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
                 collapsed={item?.isOwned}
               />
             </>
+          ) : game.isError ? (
+            // A failed check is not the same as "nobody sells it".
+            <p role="alert" className="text-sm">
+              Store prices couldn’t be checked right now.{" "}
+              <button className="text-link" onClick={() => void game.refetch()}>
+                Try again
+              </button>{" "}
+              ·{" "}
+              <a
+                className="text-link"
+                href={steamUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Steam store page ↗
+              </a>
+            </p>
           ) : (
             <p className="text-muted-foreground text-sm">
               No store is listing a price for this game right now.{" "}
@@ -351,13 +452,11 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           )}
         </div>
 
-        {!item?.isOwned && (
-          <BacklogEditor
-            steamAppId={steamAppId}
-            title={title}
-            loading={game.isPending && game.fetchStatus !== "paused" && !item}
-          />
-        )}
+        <BacklogEditor
+          steamAppId={steamAppId}
+          title={title}
+          loading={game.isPending && game.fetchStatus !== "paused" && !item}
+        />
       </section>
       <section data-reveal className="space-y-5">
         <div className="section-heading">

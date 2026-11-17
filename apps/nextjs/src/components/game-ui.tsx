@@ -380,6 +380,12 @@ export function GameArt({
   );
 }
 
+/** Wide library hero art (1920×620) and the transparent title logo. */
+export const libraryHero = (appId: number) =>
+  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_hero.jpg`;
+export const gameLogo = (appId: number) =>
+  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/logo.png`;
+
 export const coverArt = (appId: number) =>
   `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg`;
 
@@ -532,18 +538,53 @@ export function GameLink({
   );
 }
 
+/**
+ * A still collage of the page's own game covers behind its heading:
+ * decoration that could only be this person's. Static, masked, desktop only.
+ */
+export function CoverMosaic({ appIds }: { appIds: number[] }) {
+  const covers = [...new Set(appIds)].slice(0, 8);
+  if (covers.length < 3) return null;
+  return (
+    <div className="cover-mosaic" aria-hidden="true">
+      <div
+        className={cn("cover-mosaic-track", covers.length < 5 && "is-short")}
+      >
+        {covers.map((appId) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={appId} src={coverArt(appId)} alt="" loading="lazy" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Page masthead: a display title, one live stat about this page's data,
+ * and (optionally) a collage of the page's own games behind it.
+ */
 export function PageHeading({
   title,
   children,
   actions,
+  stat,
+  art,
 }: {
   title: string;
   children?: React.ReactNode;
   actions?: React.ReactNode;
+  /** One live number for this page, e.g. "5 of 18 beat Steam"; pass null
+   * while it loads to keep its line reserved. */
+  stat?: React.ReactNode;
+  /** Steam AppIDs whose covers form the masthead collage. */
+  art?: number[];
 }) {
   return (
     <header className="page-heading">
+      {art && <CoverMosaic appIds={art} />}
       <div className="space-y-2">
+        {/* null reserves the line while data loads, so nothing shifts. */}
+        {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}
         <h1>{title}</h1>
         {children && <p className="page-description">{children}</p>}
       </div>
