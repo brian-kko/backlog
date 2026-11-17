@@ -18,7 +18,12 @@ const cacheTtlMs = 5 * 60 * 1000;
 
 // All upstream I/O, including reading JSON, has a deadline and fails closed into
 // the next provider. Provider outages must never become failed public tRPC calls.
-async function fetchJson(url: string): Promise<unknown> {
+async function fetchJson(
+  url: string,
+  // Background batches give up sooner, so one slow upstream can't stack
+  // seconds onto every row; a search the user is waiting on gets longer.
+  timeoutMs = 4000,
+): Promise<unknown> {
   const cached = jsonCache.get(url);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   jsonCache.delete(url);
@@ -29,9 +34,8 @@ async function fetchJson(url: string): Promise<unknown> {
   const request = (async () => {
     const controller = new AbortController();
     // A cold first connection (DNS + TLS) can take over 3s on some hosts,
-    // e.g. WSL; later requests reuse it and take ~150ms. A slow first answer
-    // beats wrongly reporting Steam as unavailable.
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    // e.g. WSL; later requests reuse it and take ~150ms.
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         signal: controller.signal,
@@ -558,6 +562,7 @@ export async function searchGames(query: string): Promise<{
 }> {
   const response = await fetchJson(
     `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&l=english&cc=US`,
+    6000,
   );
   if (response !== null) {
     const results = parseSteamStoreSearch(response).slice(0, 10);
@@ -573,6 +578,8 @@ export async function searchGames(query: string): Promise<{
       results: results
         .map((game, index) => ({
           ...game,
+          // Free-to-play games have no Steam price at all; say "Free".
+          price: game.price ?? (details[index]?.isFree ? 0 : null),
           developer: details[index]?.developer,
           releaseYear: details[index]?.releaseYear,
         }))
@@ -603,6 +610,7 @@ const appBasicsSchema = z.record(
     data: z
       .object({
         type: z.string(),
+        is_free: z.boolean().optional(),
         developers: z.array(z.string()).optional(),
         release_date: z.object({ date: z.string() }).optional(),
       })
@@ -624,6 +632,7 @@ async function fetchAppBasics(steamAppId: number) {
   )?.[0];
   return {
     type: entry.data.type,
+    isFree: entry.data.is_free === true,
     developer: entry.data.developers?.[0],
     releaseYear: year ? Number(year) : undefined,
   };

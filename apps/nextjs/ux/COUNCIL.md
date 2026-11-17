@@ -30,6 +30,17 @@ gamers, and they distrust template-looking UIs and oversold deals.
   once per session, is skippable, never plays with reduced motion, and
   `?boot` replays it.
 
+## Owner priorities for round 3 onward
+
+- **Browsers that aren't full-screen.** Check the `split` (840 px, a window
+  snapped to half a screen) and `laptop` (1024 px) captures as carefully as
+  phone and desktop. Cramped mid-width layouts are blocking.
+- **Free games.** Never show "$0.00". Free and free-to-play games should read
+  as free ("Free", "Get it free at Steam", "Free right now; nothing to wait
+  for"), and there's no target price to chase.
+- **Look cooler.** Borrow specific UI elements from popular modern sites and
+  apps where they make sense for gamers, and say which site each comes from.
+
 ## Hard constraints
 
 - No WebGL, blur, backdrop-filter or filter effects; the owner's GPU is
@@ -66,8 +77,8 @@ KEEP (what must not regress)
 
 ## Score history
 
-| Round | astra | Opus | Notes |
-|---|---|---|---|
-| 1 | 7.2 | 7.0 | Baseline; 5–6 gates failing |
-| 2 | 8.7 | 7.8 | Gates mostly pass; Opus asked for a bolder visual direction |
-| 3 | – | – | Mastheads, cinematic heroes, spotlight, Gemuzu rename, boot animation |
+| Round | astra | Opus | Notes                                                                 |
+| ----- | ----- | ---- | --------------------------------------------------------------------- |
+| 1     | 7.2   | 7.0  | Baseline; 5–6 gates failing                                           |
+| 2     | 8.7   | 7.8  | Gates mostly pass; Opus asked for a bolder visual direction           |
+| 3     | –     | –    | Mastheads, cinematic heroes, spotlight, Gemuzu rename, boot animation |

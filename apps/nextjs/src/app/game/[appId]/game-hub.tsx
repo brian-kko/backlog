@@ -19,6 +19,7 @@ import {
   LaunchLink,
   libraryHero,
   money,
+  price,
   storeName,
 } from "~/components/game-ui";
 import {
@@ -145,7 +146,7 @@ function StorePrices({
               <span aria-hidden="true"> ↗</span>
             </a>
             <span className="store-price">
-              <strong>{money(steam)}</strong>
+              <strong>{price(steam)}</strong>
             </span>
           </li>
         )}
@@ -167,7 +168,7 @@ function StorePrices({
                   {money(deal.retailPrice)}
                 </s>
               )}
-              <strong>{money(deal.price)}</strong>
+              <strong>{price(deal.price)}</strong>
             </span>
           </li>
         ))}
@@ -312,17 +313,14 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
             ← {back.label}
           </Link>
           <HeroTitle steamAppId={steamAppId} title={title} />
-          {description && (
-            <p
-              className={cn(
-                "text-muted-foreground max-w-prose leading-relaxed",
-                item?.isOwned && "max-sm:hidden",
-              )}
-            >
-              {sentenceCase(description, title)}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Space for three lines is held while Steam's description loads,
+              so the hero doesn't grow once it arrives. */}
+          <p
+            className={cn("hero-description", item?.isOwned && "max-sm:hidden")}
+          >
+            {description ? sentenceCase(description, title) : "\u00a0"}
+          </p>
+          <div className="hero-actions flex flex-wrap items-center gap-3">
             {canLaunch(item) ? (
               <LaunchLink
                 steamAppId={steamAppId}
@@ -338,7 +336,9 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
               >
                 {offer.state === "cached"
                   ? `Check price at ${offer.store}`
-                  : `Buy for ${money(offer.price)} at ${offer.store}`}
+                  : offer.price === 0
+                    ? `Get it free at ${offer.store}`
+                    : `Buy for ${money(offer.price)} at ${offer.store}`}
                 <span aria-hidden="true">↗</span>
               </a>
             ) : null}
@@ -386,7 +386,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
                   {priceLabel(prices)}
                 </p>
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <p className="hub-price">{money(offer.price)}</p>
+                  <p className="hub-price">{price(offer.price)}</p>
                   <p className="text-sm font-medium">
                     {steamDelta(prices) ?? `at ${offer.store}`}
                   </p>

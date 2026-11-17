@@ -157,7 +157,9 @@ function purchaseSummary(item: BacklogItem) {
   const paid =
     item.amountPaid === undefined
       ? "Price not recorded"
-      : `Paid ${money(item.amountPaid)}`;
+      : item.amountPaid === 0
+        ? "Got it free"
+        : `Paid ${money(item.amountPaid)}`;
   const from = item.purchaseStore
     ? ` at ${purchaseStoreNames[item.purchaseStore]}`
     : "";

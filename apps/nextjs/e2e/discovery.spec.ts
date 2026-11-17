@@ -394,7 +394,8 @@ test("missing deal prices recover without treating null or empty strings as free
 
 // The deadline allows for a cold first connection (DNS + TLS can exceed 3s on
 // some hosts) while still falling back to the catalog when Steam hangs.
-test("external fetches abort at 6 seconds and return the catalog", async () => {
+// User-initiated game search gets 6s; this background lookup gets 4s.
+test("external fetches abort at 4 seconds and return the catalog", async () => {
   const original = globalThis.fetch;
   let aborted = false;
   globalThis.fetch = (_input, init) =>
@@ -415,8 +416,8 @@ test("external fetches abort at 6 seconds and return the catalog", async () => {
       name: "Cyberpunk 2077",
     });
     expect(aborted).toBe(true);
-    expect(Date.now() - start).toBeGreaterThanOrEqual(5900);
-    expect(Date.now() - start).toBeLessThan(7000);
+    expect(Date.now() - start).toBeGreaterThanOrEqual(3900);
+    expect(Date.now() - start).toBeLessThan(5000);
   } finally {
     globalThis.fetch = original;
   }

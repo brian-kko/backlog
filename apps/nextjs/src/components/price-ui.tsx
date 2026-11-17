@@ -203,6 +203,8 @@ export function targetGap(
   prices: Prices | null | undefined,
 ) {
   if (prices?.currentPrice == null) return null;
+  // A free game has nothing to wait for, whatever the target.
+  if (prices.currentPrice === 0) return "Free right now; nothing to wait for";
   if (item.targetPrice === undefined)
     return prices.historicalLow == null
       ? "No target set"
@@ -273,7 +275,10 @@ export function PriceTrack({
           <span key={mark.key} data-mark={mark.key}>
             <span className="price-track-key" aria-hidden="true" />
             {mark.label}
-            <span className="sr-only"> {money(mark.value)}</span>
+            <span className="sr-only">
+              {" "}
+              {mark.value === 0 ? "Free" : money(mark.value)}
+            </span>
           </span>
         ))}
       </figcaption>

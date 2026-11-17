@@ -961,7 +961,18 @@
   /* Same height whether the title ends up as a wordmark or as text, so
      swapping an emblem logo for the name doesn't shift the page. */
   .hero-title {
-    @apply flex min-h-[156px] flex-col justify-end sm:min-h-[188px];
+    @apply flex min-h-[168px] flex-col justify-end sm:min-h-[200px];
+  }
+  .hero-description {
+    @apply text-muted-foreground max-w-prose leading-relaxed;
+    min-height: 3lh;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+  .hero-actions {
+    min-height: 44px;
   }
   .hero-eyebrow {
     font-family: var(--font-display);
@@ -2123,7 +2134,7 @@
      44px tall hit area without moving any text. */
   p .text-link,
   li p a {
-    padding-block: 12px;
+    padding-block: 13px;
   }
   .brand,
   .skip-link {

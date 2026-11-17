@@ -552,7 +552,7 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
     page
       .getByTestId("library-card")
       .filter({ hasText: "Counter-Strike 2" })
-      .getByText("Paid $0.00 at Steam"),
+      .getByText("Got it free at Steam"),
   ).toBeVisible();
   // Table view is remembered and sortable.
   await page.getByRole("button", { name: "Table", exact: true }).click();

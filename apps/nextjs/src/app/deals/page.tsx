@@ -13,7 +13,7 @@ import {
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { DealCards, groupDeals } from "~/components/deal-cards";
-import { GameArt, money, PageHeading, plural } from "~/components/game-ui";
+import { GameArt, PageHeading, plural, price } from "~/components/game-ui";
 import {
   bestOffer,
   PricesChecked,
@@ -133,7 +133,7 @@ function WishlistOnSale() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {money(offer.price)}
+                  {price(offer.price)}
                   <span>at {offer.store} ↗</span>
                 </a>
               )}

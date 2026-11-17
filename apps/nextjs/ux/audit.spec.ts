@@ -15,7 +15,9 @@ const outDir = path.join(import.meta.dirname, "report");
 const shotDir = path.join(outDir, "shots");
 mkdirSync(shotDir, { recursive: true });
 
-type ViewportName = "phone" | "tablet" | "desktop";
+// "laptop" and "split" cover browsers that aren't full-screen: a small
+// laptop and a window snapped to half of a 1680px display.
+type ViewportName = "phone" | "tablet" | "split" | "laptop" | "desktop";
 type Theme = "dark" | "light";
 const viewports: Record<ViewportName, BrowserContextOptions> = {
   phone: {
@@ -24,6 +26,8 @@ const viewports: Record<ViewportName, BrowserContextOptions> = {
     hasTouch: true,
   },
   tablet: { viewport: { width: 768, height: 1024 }, hasTouch: true },
+  split: { viewport: { width: 840, height: 900 } },
+  laptop: { viewport: { width: 1024, height: 720 } },
   desktop: { viewport: { width: 1440, height: 900 } },
 };
 
@@ -333,6 +337,8 @@ test("routes × viewports × themes", async ({ browser }) => {
   const matrix: [ViewportName, Theme][] = [
     ["desktop", "dark"],
     ["tablet", "dark"],
+    ["split", "dark"],
+    ["laptop", "dark"],
     ["phone", "dark"],
     ["desktop", "light"],
     ["phone", "light"],

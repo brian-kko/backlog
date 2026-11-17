@@ -17,7 +17,7 @@ import { cn } from "@acme/ui";
 
 import { useTRPC } from "~/trpc/react";
 import { useBacklog } from "./backlog-provider";
-import { money, OwnPrompt, TargetPrompt } from "./game-ui";
+import { OwnPrompt, price, TargetPrompt } from "./game-ui";
 
 function useDebounced(value: string, delay = 300) {
   const [debounced, setDebounced] = useState(value);
@@ -80,7 +80,7 @@ function ResultRow({
         <p className="search-result-meta">
           {game.price == null
             ? "Steam price not listed"
-            : `${money(game.price)} on Steam`}
+            : `${price(game.price)} on Steam`}
           {" · "}
           <Link
             className="text-link"

@@ -15,9 +15,9 @@ import {
   GameArt,
   LaunchLink,
   libraryHero,
-  money,
   PageHeading,
   plural,
+  price,
 } from "~/components/game-ui";
 import { GuestBanner } from "~/components/guest-banner";
 import { useNewsSeen } from "~/components/news-seen";
@@ -89,7 +89,7 @@ function PriceWatch() {
               {offer ? (
                 <>
                   <a href={offer.url} target="_blank" rel="noopener noreferrer">
-                    <strong>{money(offer.price)}</strong>
+                    <strong>{price(offer.price)}</strong>
                     <span className="sr-only">
                       {" "}
                       at {offer.store} (opens store)

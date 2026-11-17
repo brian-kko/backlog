@@ -16,6 +16,7 @@ import {
   OwnPrompt,
   PageHeading,
   plural,
+  price,
   PriceField,
   RemoveGameButton,
   SampleTag,
@@ -93,7 +94,7 @@ function WatchCard({
           <div>
             <dt>{priceLabel(prices)}</dt>
             <dd className="deal-price">
-              {pending ? "…" : offer ? money(offer.price) : "—"}
+              {pending ? "…" : offer ? price(offer.price) : "—"}
             </dd>
             {!pending && !offer && (
               <dd className="price-missing">Couldn’t check</dd>
