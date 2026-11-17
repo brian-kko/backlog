@@ -400,7 +400,7 @@ test("guest dashboard previews and persistent navigation cover all main routes",
     ["library", "/library", "Library"],
     ["wishlist", "/wishlist", "Wishlist"],
     ["updates", "/updates", "Updates"],
-    ["home", "/", "Dashboard"],
+    ["home", "/", "Home"],
   ]) {
     await page.getByTestId(`nav-${id}`).click();
     await expect(page).toHaveURL(path ?? "/");

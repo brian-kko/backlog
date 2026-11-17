@@ -586,7 +586,7 @@
     @apply whitespace-nowrap;
   }
 
-  /* ---------- Dashboard ---------- */
+  /* ---------- Home (dashboard) ---------- */
   .dash-grid {
     @apply grid items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12;
   }

@@ -369,7 +369,7 @@ export default function HomePage() {
     <main className="page-shell">
       <div className="dash-hero">
         <PageHeading
-          title="Dashboard"
+          title="Home"
           actions={<CollectionCounts />}
           art={dashboardArt}
         >

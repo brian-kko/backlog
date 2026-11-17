@@ -17,7 +17,7 @@ import { useWishlistPrices } from "./price-ui";
 
 const links = [
   {
-    label: "Dashboard",
+    label: "Home",
     href: "/",
     id: "home",
     path: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",

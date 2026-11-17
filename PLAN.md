@@ -32,12 +32,12 @@ Steam already has a library, a launcher, per-game news and a wishlist that email
 
 ### Global
 
-- **Navbar** (`src/components/navbar.tsx`): wordmark, `Dashboard` / `Deals` / `Library` / `Wishlist` / `Updates` (`data-testid="nav-*"`), library and wishlist counts (the wishlist badge switches to the price-alert count when alerts exist), an unread dot on Updates, **Add game**, theme menu, **Sign in with Discord**. "Desktop Connected" appears only inside the Tauri companion. Phones get a bottom tab bar.
+- **Navbar** (`src/components/navbar.tsx`): wordmark, `Home` / `Deals` / `Library` / `Wishlist` / `Updates` (`data-testid="nav-*"`), library and wishlist counts (the wishlist badge switches to the price-alert count when alerts exist), an unread dot on Updates, **Add game**, theme menu, **Sign in with Discord**. "Desktop Connected" appears only inside the Tauri companion. Phones get a bottom tab bar.
 - **Add game dialog** (`src/components/add-game.tsx`): one shared dialog that searches any Steam game (`backlog.searchGames`). Adding asks follow-ups in place: a target price for wishlist games; paid amount, "Bought from" and "Plays on" for owned games.
 - **Guest mode**: sample games are tagged per item, with "Keep" / "Keep them" / "Clear sample games". After sign-in, a prompt moves browser games to the account (`backlog.importGuestItems`, existing account games are left unchanged).
 - **PWA**: manifest, icons, versioned service worker that precaches the app shell, offline banner, install button (or iOS instructions).
 
-### `/` Dashboard
+### `/` Home
 
 Metrics (Playing now, Unplayed with amount paid, Price alerts, Total spent), **Price watch** (wishlist games ranked by alerts, with target gap and Steam saving), **Play next** (playing first, then unplayed, with Play / Mark as playing), **What changed** (latest patch or event per followed game, "New" since the last read).
 

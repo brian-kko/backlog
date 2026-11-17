@@ -31,7 +31,7 @@
 Product intent, page specs and roadmap live in `PLAN.md`. Its section 0, "Why Gemuzu instead of just Steam?", is the test for every feature: if Steam already does it as well, it shouldn't lead. Every route must work in **Guest Mode** (logged out) with live public data and honest fallback states (offline, saved catalog data, partial outages), and persist to the database when signed in.
 
 - **Top Navbar (`src/components/navbar.tsx`)**: `data-testid="nav-home"` (`/`), `"nav-deals"`, `"nav-library"`, `"nav-wishlist"`, `"nav-updates"`. The shared Add game dialog is provided by `AddGameProvider` (`src/components/add-game.tsx`); open it with `useAddGame()(query)`; don't mount extra dialogs.
-- **`/` (Dashboard)**: metrics, guest/sample banner, Price watch, Play next, What changed.
+- **`/` (Home)**: metrics, guest/sample banner, Price watch, Play next, What changed.
 - **`/deals`**: search input `data-testid="deal-search-input"`, presets, store picker, More filters, batched Load more (12/24/60), one card per game with Steam comparison, `+ Wishlist` / `I own this`. Filter state persists in the URL.
 - **`/library`**: status filters (All, Playing, Unplayed, Completed), Cards/Table, Launch only for owned games that run in Steam (`steam://rungameid/<id>`), `Export Gemuzu JSON` (`data-testid="export-json-btn"`), spending & progress metrics.
 - **`/wishlist`**: price-watch cards with alert state (`data-alert-state` of `TARGET_MET`, `ALL_TIME_LOW`, `WAIT`, `UNKNOWN`), target editing, Buy at store.
