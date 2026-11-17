@@ -431,11 +431,21 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
   await page.goto("/deals");
   // Owned games are hidden by default; the sample library owns Cyberpunk 2077.
   await expect(page.getByTestId("deal-card")).toHaveCount(11);
+  const featured = page.locator(".deal-featured");
+  await expect(featured.getByRole("heading")).toHaveText("Featured Game 2");
+  await expect(featured.locator(".deal-price")).toHaveText("$31.99");
+  await expect(featured.locator(".steam-line")).toHaveText(
+    "Steam $39.99 · save $8.00",
+  );
+  await expect(page.locator(".deal-grid .deal-featured")).toHaveCount(0);
+  await expect(page.locator(".deal-divider")).toHaveText(
+    "Other editions · no Steam match to compare",
+  );
   const unmatched = page
     .getByTestId("deal-card")
     .filter({ hasText: "Featured Game 11" });
   await expect(unmatched.locator(".steam-line")).toHaveText(
-    "Steamcouldn’t match this edition",
+    "Steam comparison unavailable for this edition",
   );
   await expect(
     unmatched.getByRole("button", { name: "Find it on Steam to track" }),
@@ -787,7 +797,9 @@ test("signed in library uses account data and exports the server backup", async 
   await page.getByTestId("nav-deals").click();
   // Hiding owned games is the default, so Cyberpunk is filtered out.
   await expect(page.getByTestId("deal-card")).toHaveCount(11);
-  const owned = page.getByTestId("deal-card").first();
+  const owned = page.getByTestId("deal-card").filter({
+    has: page.getByRole("heading", { name: "Featured Game 1", exact: true }),
+  });
   await owned.getByRole("button", { name: "I own this", exact: true }).click();
   // The card stays put so purchase details can be added; nothing is assumed.
   await expect(page.getByTestId("deal-card")).toHaveCount(11);
@@ -1109,7 +1121,9 @@ test.describe("phone layout", () => {
   }) => {
     await page.goto("/deals");
     const card = page.getByTestId("deal-card").first();
-    await expect(card.locator(".price-link-cue")).toHaveText(/at Steam ↗/);
+    await expect(card.locator(".price-link-cue")).toHaveText(
+      /at Epic Games Store ↗/,
+    );
     await expect(
       card.getByRole("button", { name: "+ Wishlist", exact: true }),
     ).toBeHidden();
@@ -1143,6 +1157,7 @@ test("saved offers during a store outage are labelled and never promise savings"
   ).toBeVisible();
   const card = page.getByTestId("deal-card").first();
   await expect(card.locator(".saved-price")).toHaveText("Saved price");
+  await expect(page.locator(".deal-featured, .deal-ribbon")).toHaveCount(0);
   await expect(
     card.getByRole("link", { name: /^Saved price \$9\.99 at Steam/ }),
   ).toBeVisible();

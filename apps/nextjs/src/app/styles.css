@@ -1921,7 +1921,7 @@
   }
   /* Art + title header, then a full-width ledger and buy action. */
   .deal-card {
-    @apply grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 rounded-none border-0 p-3 py-4;
+    @apply grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 rounded-none border-x-0 border-t-0 border-b p-3 py-4;
   }
   .deal-card .deal-content {
     display: contents;
@@ -1933,13 +1933,13 @@
     @apply rounded;
   }
   .deal-card .deal-price {
-    @apply text-lg leading-6;
+    @apply text-2xl leading-8;
   }
   .deal-card .deal-buy {
     @apply min-h-11 py-2;
   }
   .deal-card .track-actions .action {
-    @apply min-h-8 py-1 text-xs;
+    @apply min-h-11 py-1 text-xs;
   }
   .deal-card .deal-actions {
     @apply flex-col;
@@ -2010,7 +2010,7 @@
     @apply gap-1.5;
   }
   .deal-card .track-actions .action {
-    @apply min-h-8 px-2;
+    @apply min-h-11 px-2;
   }
   .own-prompt {
     @apply grid-cols-1;
