@@ -1098,21 +1098,21 @@
   }
   /* Updates: feed beside a sticky "Your games" rail on wide screens. */
   .updates-layout {
-    @apply grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start lg:gap-10;
+    @apply grid gap-6 min-[1200px]:grid-cols-[minmax(0,1fr)_16rem] min-[1200px]:items-start min-[1200px]:gap-10;
   }
   .updates-filter {
-    @apply min-w-0 lg:sticky lg:top-24 lg:col-start-2 lg:row-start-1;
+    @apply min-w-0 min-[1200px]:sticky min-[1200px]:top-24 min-[1200px]:col-start-2 min-[1200px]:row-start-1;
   }
   .rail-label {
     font-family: var(--font-display);
-    @apply text-muted-foreground mb-3 hidden text-sm font-semibold tracking-[0.1em] uppercase lg:block;
+    @apply text-muted-foreground mb-3 hidden text-sm font-semibold tracking-[0.1em] uppercase min-[1200px]:block;
   }
   .updates-filter .chip-scroller {
-    @apply lg:flex-col lg:items-stretch lg:overflow-visible;
+    @apply min-[1200px]:flex-col min-[1200px]:items-stretch min-[1200px]:overflow-visible;
     mask-image: none;
   }
   .updates-filter .filter-pill {
-    @apply lg:justify-between lg:text-left;
+    @apply min-[1200px]:justify-between min-[1200px]:text-left;
   }
   .pill-count {
     @apply text-muted-foreground ml-2 font-mono text-xs tabular-nums;

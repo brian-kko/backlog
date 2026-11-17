@@ -1,0 +1,92 @@
+@layer components {
+  .updates-page .updates-layout > section {
+    min-width: 0;
+  }
+
+  .updates-page .updates-count-help {
+    margin-bottom: 12px;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .updates-page .updates-filter .chip-scroller {
+    flex-wrap: wrap;
+    margin-inline: 0;
+    padding-inline: 0;
+    overflow: visible;
+    /* Override the shared, unlayered phone mask now that chips wrap. */
+    mask-image: none !important;
+  }
+
+  .updates-page .updates-filter .filter-pill {
+    max-width: 100%;
+    min-height: 44px;
+    flex-shrink: 0;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .updates-page .updates-filter .pill-count {
+    /* Reserve count space before the feed arrives so chips do not reflow. */
+    display: inline-block;
+    flex-shrink: 0;
+    width: 4ch;
+    margin-left: 0;
+    padding: 2px 4px;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    color: inherit;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .updates-page .updates-count-period {
+    display: none;
+  }
+
+  @media (min-width: 840px) and (max-width: 1199px) {
+    .updates-page .news-entry.has-art {
+      grid-template-columns: 96px minmax(0, 1fr);
+      column-gap: 16px;
+    }
+
+    .updates-page .news-art,
+    .updates-page .news-art .game-art {
+      width: 96px;
+      height: 45px;
+    }
+
+    .updates-page .news-art .game-art {
+      object-fit: cover;
+    }
+
+    .updates-page .news-entry h3 {
+      font-size: 18px;
+      line-height: 24px;
+    }
+
+    .updates-page .news-entry p {
+      @apply line-clamp-3;
+      font-size: 15px;
+      line-height: 23px;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .updates-page .updates-filter .pill-count {
+      width: 15ch;
+      padding-inline: 0;
+      border-color: transparent;
+      text-align: right;
+    }
+
+    .updates-page .updates-count-period {
+      display: inline;
+    }
+  }
+}

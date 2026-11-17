@@ -300,9 +300,11 @@ function FeedStatus({
 export function BacklogFeed({
   steamAppId,
   initialFeed,
+  level,
 }: {
   steamAppId: number;
   initialFeed?: Feed;
+  level?: 2 | 3;
 }) {
   const trpc = useTRPC();
   const [includeCommunity, setIncludeCommunity] = useState(false);
@@ -329,6 +331,7 @@ export function BacklogFeed({
   return (
     <NewsTabs
       items={items}
+      level={level}
       emptyHint={
         includeCommunity
           ? "for this game yet."
