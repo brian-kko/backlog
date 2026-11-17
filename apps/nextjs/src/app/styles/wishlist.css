@@ -1,0 +1,163 @@
+@layer components {
+  .watch-card .watch-current-price {
+    min-height: 28px;
+    font-family: var(--font-mono);
+    font-size: 28px;
+    line-height: 28px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--foreground);
+  }
+
+  .watch-card .watch-source {
+    min-height: 40px;
+    margin-top: 8px;
+    color: var(--muted-foreground);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .watch-card .watch-source > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .watch-card .watch-decision {
+    min-height: 44px;
+    margin-top: 0;
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  .watch-card .watch-decision .watch-state {
+    display: block;
+    font: inherit;
+    color: var(--foreground);
+  }
+
+  .watch-card .watch-decision .watch-state::before {
+    display: none;
+  }
+
+  .watch-card .watch-secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .watch-card .watch-secondary dt {
+    color: var(--muted-foreground);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .watch-card .watch-secondary-value {
+    min-height: 18px;
+    margin-top: 6px;
+    font-family: var(--font-mono);
+    font-size: 18px;
+    line-height: 18px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: var(--foreground);
+  }
+
+  .watch-card .target-edit,
+  .watch-card .watch-history-note {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .watch-card .watch-track-slot {
+    min-height: 56px;
+    padding-top: 4px;
+  }
+
+  .watch-card .watch-steam-comparison {
+    min-height: 20px;
+    color: var(--muted-foreground);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .watch-card .watch-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .watch-card .watch-actions .action,
+  .watch-card .watch-buy-placeholder {
+    min-height: 44px;
+  }
+
+  .watch-card .watch-buy {
+    padding: 6px 12px;
+    white-space: normal;
+    line-height: 16px;
+  }
+
+  /* Long store names stay accessible without growing the reserved action row. */
+  .watch-card .watch-buy-label {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .watch-card .watch-buy:not(.secondary) {
+    background: var(--signal);
+    color: var(--primary-foreground);
+  }
+
+  .watch-card .watch-buy:not(.secondary):hover {
+    background: color-mix(in srgb, var(--signal) 88%, var(--foreground));
+  }
+
+  .watch-card :is(a, button):focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+  }
+
+  /* Static bars share the dimensions of their final values; no shimmer. */
+  .watch-card .watch-skeleton {
+    display: block;
+    border-radius: 3px;
+    background: var(--muted);
+  }
+
+  .watch-card .watch-skeleton-price {
+    width: 72px;
+    height: 28px;
+  }
+
+  .watch-card .watch-skeleton-value {
+    width: 64px;
+    height: 18px;
+  }
+
+  .watch-card .watch-skeleton-decision {
+    width: 80%;
+    height: 15px;
+  }
+
+  .watch-card .watch-skeleton-rail {
+    width: 100%;
+    height: 6px;
+  }
+
+  .watch-card .watch-skeleton-legend {
+    width: 75%;
+    height: 12px;
+    margin-top: 8px;
+  }
+
+  .watch-card .watch-buy-placeholder > .watch-skeleton {
+    height: 100%;
+  }
+}
