@@ -141,7 +141,8 @@
   }
 
   .patch-change-values {
-    grid-column: 2;
+    /* Narrow layouts keep the full sentence without repeating its values. */
+    display: none;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     color: var(--foreground);
@@ -214,6 +215,7 @@
     }
 
     .patch-change-values {
+      display: block;
       grid-column: 3;
     }
 
@@ -237,10 +239,6 @@
   @media (max-width: 639px) {
     .patch-page .patch-hero-copy {
       padding: 20px;
-    }
-
-    .patch-change-values {
-      grid-column: 1;
     }
   }
 

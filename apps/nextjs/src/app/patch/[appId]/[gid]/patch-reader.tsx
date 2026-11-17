@@ -287,12 +287,13 @@ function AiSummary({
 }
 
 function ChangeText({ text }: { text: string }) {
-  // Keep the source intact: the comparison is a scanning aid, not a rewrite.
-  const comparison = /\bfrom\s+(.+?)\s+to\s+(.+?)(?=[,;.!?](?:\s|$)|$)/i.exec(
-    text,
-  );
-  const before = comparison?.[1]?.trim();
-  const after = comparison?.[2]?.trim();
+  // Only compact numeric tokens belong in the optional scanning column.
+  const comparison =
+    /\bfrom\s+([+−-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|[a-z]{1,3})?)\s+to\s+([+−-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|[a-z]{1,3})?)(?![\w%/+−-]|[.,]\d)/i.exec(
+      text,
+    );
+  const before = comparison?.[1];
+  const after = comparison?.[2];
   return (
     <>
       <span className="patch-change-text">{text}</span>
