@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
 import type { ChangeKind, SubjectGroup } from "@acme/validators";
 
 import { useAmbientTint } from "~/components/ambient";
+import { BackLink } from "~/components/back-link";
 import { featuredGames, useBacklog } from "~/components/backlog-provider";
 import { headerArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
@@ -448,9 +448,10 @@ export function PatchReader({
   if (patch.isError)
     return (
       <main className="page-shell space-y-4">
-        <Link className="back-link" href={`/updates?game=${steamAppId}`}>
-          ← Updates
-        </Link>
+        <BackLink
+          fallbackHref={`/updates?game=${steamAppId}`}
+          fallbackLabel="Updates"
+        />
         <p role="alert">
           {patch.error.data?.code === "NOT_FOUND"
             ? "This post is no longer in the game's recent Steam news."
@@ -472,12 +473,11 @@ export function PatchReader({
   });
   return (
     <main className="page-shell patch-page">
-      <Link
-        className="back-link patch-back-link"
-        href={`/updates?game=${steamAppId}`}
-      >
-        ← {game} updates
-      </Link>
+      <BackLink
+        className="patch-back-link"
+        fallbackHref={`/updates?game=${steamAppId}`}
+        fallbackLabel={`${game} updates`}
+      />
       <header className="patch-hero">
         {/* eslint-disable-next-line @next/next/no-img-element -- remote Steam art, decorative */}
         <img

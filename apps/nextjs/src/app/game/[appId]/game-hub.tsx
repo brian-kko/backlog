@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@acme/ui";
@@ -10,6 +9,7 @@ import { itemPlatform, platformNames } from "@acme/validators";
 
 import type { Prices } from "~/components/price-ui";
 import { useAmbientTint } from "~/components/ambient";
+import { BackLink } from "~/components/back-link";
 import { BacklogEditor } from "~/components/backlog-editor";
 import { featuredGames, useBacklog } from "~/components/backlog-provider";
 import { canLaunch } from "~/components/collection";
@@ -308,9 +308,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           fallback={game.data?.metadata?.header_image ?? headerArt(steamAppId)}
         />
         <div className="hero-body">
-          <Link className="back-link" href={back.href}>
-            ← {back.label}
-          </Link>
+          <BackLink fallbackHref={back.href} fallbackLabel={back.label} />
           <HeroTitle steamAppId={steamAppId} title={title} />
           {/* Space for three lines is held while Steam's description loads,
               so the hero doesn't grow once it arrives. */}

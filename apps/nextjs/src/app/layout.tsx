@@ -8,6 +8,7 @@ import { Toaster } from "@acme/ui/toast";
 
 import { AddGameProvider } from "~/components/add-game";
 import { AmbientBackground } from "~/components/ambient";
+import { NavHistory } from "~/components/back-link";
 import {
   BacklogProvider,
   guestStateCookie,
@@ -76,19 +77,23 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
     .some((cookie) => cookie.name.endsWith("session_token"));
   const pristineGuest = jar.get(guestStateCookie)?.value !== "saved";
   return (
-    <html lang="en" suppressHydrationWarning>
+    // next/font variables live on <html>: the theme's --font-display and
+    // --font-mono are resolved at :root, so on <body> they'd be undefined and
+    // headings and prices would silently fall back to plain Barlow.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={cn(
+        barlow.variable,
+        barlowCondensed.variable,
+        plexMono.variable,
+      )}
+    >
       <head>
         {/* Decides before first paint whether the boot animation plays. */}
         <script dangerouslySetInnerHTML={{ __html: bootScript }} />
       </head>
-      <body
-        className={cn(
-          "bg-background text-foreground min-h-screen font-sans antialiased",
-          barlow.variable,
-          barlowCondensed.variable,
-          plexMono.variable,
-        )}
-      >
+      <body className="bg-background text-foreground min-h-screen font-sans antialiased">
         <ThemeProvider>
           <TRPCReactProvider>
             <BacklogProvider
@@ -96,6 +101,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
               pristineGuest={pristineGuest}
             >
               <AddGameProvider>
+                <NavHistory />
                 <BootIntro />
                 <AmbientBackground />
                 <a className="skip-link" href="#main">
