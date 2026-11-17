@@ -835,6 +835,10 @@ for (const scenario of [
     const t = initTRPC.create({ transformer: SuperJSON });
     const router = t.router({
       backlog: t.router({
+        // The navbar's unread-news check is batched with price requests.
+        getCollectionFeed: t.procedure
+          .input(z.unknown())
+          .query(() => ({ items: [], unavailable: [] })),
         getGamePrices: t.procedure
           .input(z.object({ steamAppId: z.number() }))
           .query(({ input }) => ({
