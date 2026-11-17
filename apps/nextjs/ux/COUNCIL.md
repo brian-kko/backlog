@@ -77,8 +77,9 @@ KEEP (what must not regress)
 
 ## Score history
 
-| Round | astra | Opus | Notes                                                                 |
-| ----- | ----- | ---- | --------------------------------------------------------------------- |
-| 1     | 7.2   | 7.0  | Baseline; 5–6 gates failing                                           |
-| 2     | 8.7   | 7.8  | Gates mostly pass; Opus asked for a bolder visual direction           |
-| 3     | –     | –    | Mastheads, cinematic heroes, spotlight, Gemuzu rename, boot animation |
+| Round | astra | Opus | Notes                                                                                           |
+| ----- | ----- | ---- | ----------------------------------------------------------------------------------------------- |
+| 1     | 7.2   | 7.0  | Baseline; 5–6 gates failing                                                                     |
+| 2     | 8.7   | 7.8  | Gates mostly pass; Opus asked for a bolder visual direction                                     |
+| 3     | 8.7   | 8.4  | Mastheads, cinematic heroes, spotlight, Gemuzu rename, boot animation                           |
+| 4     | –     | –    | Codex workers: masthead art, deals billboard, wishlist cards, updates, patch reader; gate fixes |
