@@ -601,6 +601,14 @@ test("updates merge your games, filter by game, and keep tabs keyboard friendly"
     feed.getByRole("heading", { name: "Elden Ring Patch 1", exact: true }),
   ).toBeVisible();
   await expect(feed.locator(".news-game").first()).toBeVisible();
+  await expect(feed.locator('[data-category="patch_note"]')).toHaveCount(0);
+  await expect(feed.locator(".news-topics").first().locator("li")).toHaveText([
+    "Performance",
+    "Bug fixes",
+  ]);
+  await expect(feed.locator(".news-lead").first()).toHaveText(
+    "Performance improvements and bug fixes.",
+  );
   await page.getByTestId("tab-events").click();
   await expect(page.getByTestId("tab-events")).toHaveAttribute(
     "aria-selected",
@@ -609,6 +617,12 @@ test("updates merge your games, filter by game, and keep tabs keyboard friendly"
   await expect(
     feed.getByRole("heading", { name: "Night City Festival" }).first(),
   ).toBeVisible();
+  await expect(feed.locator('[data-category="event"]').first()).toHaveText(
+    "Event",
+  );
+  await expect(feed.locator(".news-lead").first()).toHaveText(
+    "Join the limited-time celebration.",
+  );
   await page.getByTestId("tab-events").press("ArrowLeft");
   await expect(page.getByTestId("tab-patches")).toBeFocused();
   await page.getByRole("button", { name: "Elden Ring", exact: true }).click();
