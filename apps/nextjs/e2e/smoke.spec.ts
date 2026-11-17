@@ -1350,9 +1350,17 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
   await expect(page.locator("#change-0-0")).toContainText(
     "Decreased caliber from 60 to 20",
   );
-  await expect(page.locator("#change-0-0 .patch-change-values")).toHaveText(
-    "60 → 20",
+  const comparison = page.locator("#change-0-0 .patch-change-values");
+  await expect(comparison).toHaveText("60 → 20");
+  await expect(comparison).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(comparison).toBeHidden();
+  await expect(firstChange.locator(".patch-change-text")).toHaveText(
+    "Decreased caliber from 60 to 20",
   );
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(comparison).toBeVisible();
+  await page.setViewportSize({ width: 840, height: 900 });
   // Premium preview: the AI summary is requested on demand.
   await page.getByRole("tab", { name: "Quick read" }).click();
   await page.getByRole("button", { name: "Summarize this patch" }).click();
