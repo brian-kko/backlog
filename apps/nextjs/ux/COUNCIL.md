@@ -115,14 +115,22 @@ or a fix lands, so a fresh context can resume without the conversation.
 - The history-aware `BackLink` ("Back to Updates") is used on game and patch
   pages.
 - "Dashboard" is renamed "Home".
+- Wishlist (astra 2 + 5, Opus 3): "Prices unavailable", "History unavailable",
+  saved targets visible while loading, compact cards (merged from `codex/wishlist`).
+- PR 7 (`feat/ui-council-2`) is merged to main. `feat/ui-council-5` holds the
+  wishlist work and still needs its own PR.
+
+**Workers launched 2026-11-17** (branched from `feat/ui-council-5` a1620e8):
+the worktrees are `/home/brian/projects/gemuzu-wt/{deals,updates,mastheads,patch-classifier,audit-additions}`,
+on branches `codex/<task>`. The specs, outputs (`out-<task>.md`) and logs are in
+`/home/brian/projects/gemuzu-wt/specs/`. Next: check each output, review the
+diff, commit on `codex/<task>`, merge into `feat/ui-council-5`, add the
+`@import` for the new `styles/home.css`, run the verification commands, then
+start round 5. Old worktrees (free-flow, wishlist, patch-values, updates-digest)
+are merged and can be removed.
 
 **Still open (round-4 blocking fixes not yet done)**
 
-- **Wishlist** (astra 2 + 5, Opus 3): "Prices unavailable" instead of
-  "0 of 2"; "History unavailable"; saved targets visible while loading; cards
-  ≤ 440 px on phones; no "Check prices now" while offline; source line without
-  an ISO date. _A worker was running when this was written:
-  branch `codex/wishlist`._
 - **Deals** (Opus 2):
   - billboard eyebrow "Biggest saving vs Steam" and bigger saving numbers;
   - unmatched editions shown as compact rows (desktop page ≤ 3600 px tall,
