@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@acme/tailwind-config/theme";
+/* Page-specific component styles (each wrapped in @layer components). */
+@import "./styles/mastheads.css";
+@import "./styles/deals.css";
+@import "./styles/wishlist.css";
+@import "./styles/updates.css";
+@import "./styles/patch.css";
 
 @source "../../../../packages/ui/src/*.{ts,tsx}";
 
