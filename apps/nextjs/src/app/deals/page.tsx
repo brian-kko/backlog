@@ -4,15 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQueries, useQuery } from "@tanstack/react-query";
 
-import {
-  compareToSteam,
-  SearchDealsInputSchema,
-  storeNames,
-} from "@acme/validators";
+import { SearchDealsInputSchema, storeNames } from "@acme/validators";
 
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
-import { DealCards, groupDeals } from "~/components/deal-cards";
+import { DealCards, groupDeals, steamGap } from "~/components/deal-cards";
 import { GameArt, PageHeading, plural, price } from "~/components/game-ui";
 import {
   bestOffer,
@@ -261,35 +257,15 @@ export default function DealsPage() {
       { enabled: steamIds.length > 0, staleTime: 5 * 60 * 1000 },
     ),
   );
-  // Hold the grid until Steam's prices are in, so ranking by comparison
-  // never reorders cards in front of the user.
+  // Wait under every sort so the billboard and comparison order appear together.
   const comparing =
-    filters.sort === "deals" &&
     steamIds.length > 0 &&
     steamPrices.isPending &&
     steamPrices.fetchStatus === "fetching";
-  // "Best deals" leads with offers that can answer "does it beat Steam?".
-  const comparable = (deal: (typeof filtered)[number]) =>
-    deal.source !== "catalog" &&
-    deal.steamAppId != null &&
-    steamPrices.data?.[deal.steamAppId] != null;
-  const ranked =
-    filters.sort === "deals" && steamPrices.data
-      ? [
-          ...filtered.filter(comparable),
-          ...filtered.filter((deal) => !comparable(deal)),
-        ]
-      : filtered;
-  const beatSteam = groups.filter((group) => {
+  const beatSteam = groups.filter(({ deal }) => {
     const steam =
-      group.deal.steamAppId != null
-        ? steamPrices.data?.[group.deal.steamAppId]
-        : undefined;
-    const comparison =
-      group.deal.source === "catalog"
-        ? null
-        : compareToSteam(group.deal.cheapestPrice, steam);
-    return comparison?.kind === "cheaper";
+      deal.steamAppId != null ? steamPrices.data?.[deal.steamAppId] : undefined;
+    return (steamGap(deal, steam) ?? 0) > 0;
   }).length;
   const hidden = loaded.length - filtered.length;
   const moreActive =
@@ -628,7 +604,11 @@ export default function DealsPage() {
             </button>
           </p>
         ) : filtered.length ? (
-          <DealCards deals={ranked} steamPrices={steamPrices.data} />
+          <DealCards
+            deals={filtered}
+            steamPrices={steamPrices.data}
+            bestDeals={filters.sort === "deals"}
+          />
         ) : cached && !loaded.length ? null : (
           <div className="empty-state space-y-3">
             <p>
