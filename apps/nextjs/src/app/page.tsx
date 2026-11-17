@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 import { cn } from "@acme/ui";
@@ -277,8 +278,14 @@ function PlayNext() {
         data-status={featured.completionStatus ?? "backlog"}
       >
         <div className="spotlight-art" aria-hidden="true">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={libraryHero(featured.steamAppId)} alt="" />
+          {/* The dashboard's largest element: optimized, sized and fetched first. */}
+          <Image
+            src={libraryHero(featured.steamAppId)}
+            alt=""
+            fill
+            sizes="(min-width: 1024px) 560px, 100vw"
+            priority
+          />
         </div>
         <div className="spotlight-body">
           <p className="spotlight-status">

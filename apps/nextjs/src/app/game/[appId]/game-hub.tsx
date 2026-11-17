@@ -230,7 +230,6 @@ function HeroBackdrop({
           alt=""
           fill
           sizes="(min-width: 1216px) 1168px, 100vw"
-          unoptimized
           priority
           onError={() => setSrc(fallback)}
         />

@@ -541,15 +541,13 @@ export function GameLink({
 function MastheadHero({ appId }: { appId: number }) {
   const [source, setSource] = useState<"hero" | "header" | "hidden">("hero");
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    <Image
       className="cover-mosaic-hero"
       src={source === "hero" ? libraryHero(appId) : headerArt(appId)}
       alt=""
       width={360}
       height={240}
-      loading="lazy"
-      decoding="async"
+      sizes="360px"
       style={{ visibility: source === "hidden" ? "hidden" : undefined }}
       onError={() => setSource(source === "hero" ? "header" : "hidden")}
     />

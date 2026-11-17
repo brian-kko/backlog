@@ -153,6 +153,18 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/auth/get-session**", (route) =>
     route.fulfill({ json: null }),
   );
+  // Fixture games use made-up Steam IDs whose art doesn't exist. Optimized
+  // images are same-origin, so their 404s would count as console errors;
+  // these tests don't check artwork, so serve a 1×1 placeholder instead.
+  await page.route("**/_next/image**", (route) =>
+    route.fulfill({
+      contentType: "image/gif",
+      body: Buffer.from(
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+        "base64",
+      ),
+    }),
+  );
   let accountItems = structuredClone(backup.items);
   const t = initTRPC.create({ transformer: SuperJSON });
   const router = t.router({
@@ -644,7 +656,8 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
   // Decorative hero art behind the title; the name stays readable as text.
   await expect(page.locator(".hero-backdrop img")).toHaveAttribute(
     "src",
-    /1091500\/(library_hero|header)\.jpg$/,
+    // Served through the image optimizer, so the Steam URL is encoded.
+    /1091500(\/|%2F)(library_hero|header)\.jpg/,
   );
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Cyberpunk 2077",
