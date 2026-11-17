@@ -538,21 +538,55 @@ export function GameLink({
   );
 }
 
-/**
- * A still collage of the page's own game covers behind its heading:
- * decoration that could only be this person's. Static, masked, desktop only.
- */
-export function CoverMosaic({ appIds }: { appIds: number[] }) {
-  const covers = [...new Set(appIds)].slice(0, 8);
-  if (covers.length < 3) return null;
+function MastheadHero({ appId }: { appId: number }) {
+  const [source, setSource] = useState<"hero" | "header" | "hidden">("hero");
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className="cover-mosaic-hero"
+      src={source === "hero" ? libraryHero(appId) : headerArt(appId)}
+      alt=""
+      width={360}
+      height={240}
+      loading="lazy"
+      decoding="async"
+      style={{ visibility: source === "hidden" ? "hidden" : undefined }}
+      onError={() => setSource(source === "hero" ? "header" : "hidden")}
+    />
+  );
+}
+
+/** The page's own games, composed in a separate decorative art region. */
+export function CoverMosaic({
+  appIds,
+  title,
+}: {
+  appIds: number[];
+  title?: string;
+}) {
+  const lead = appIds[0];
+  if (lead === undefined) return null;
+  const covers = appIds.slice(1, 4);
   return (
     <div className="cover-mosaic" aria-hidden="true">
-      <div
-        className={cn("cover-mosaic-track", covers.length < 5 && "is-short")}
-      >
-        {covers.map((appId) => (
+      <MastheadHero key={lead} appId={lead} />
+      {title && <span className="cover-mosaic-word">{title}</span>}
+      <div className="cover-mosaic-track">
+        {covers.map((appId, index) => (
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={appId} src={coverArt(appId)} alt="" loading="lazy" />
+          <img
+            key={`${appId}-${index}`}
+            src={coverArt(appId)}
+            alt=""
+            width={88}
+            height={132}
+            loading="lazy"
+            decoding="async"
+            onError={(event) => {
+              // Keep the reserved slot without showing a broken-image icon.
+              event.currentTarget.style.visibility = "hidden";
+            }}
+          />
         ))}
       </div>
     </div>
@@ -561,7 +595,7 @@ export function CoverMosaic({ appIds }: { appIds: number[] }) {
 
 /**
  * Page masthead: a display title, one live stat about this page's data,
- * and (optionally) a collage of the page's own games behind it.
+ * and (optionally) artwork from the page's own games beside it.
  */
 export function PageHeading({
   title,
@@ -581,8 +615,8 @@ export function PageHeading({
 }) {
   return (
     <header className="page-heading">
-      {art && <CoverMosaic appIds={art} />}
-      <div className="space-y-2">
+      {art && <CoverMosaic appIds={art} title={title} />}
+      <div className="page-heading-content space-y-2">
         {/* null reserves the line while data loads, so nothing shifts. */}
         {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}
         <h1>{title}</h1>
