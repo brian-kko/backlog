@@ -1,4 +1,26 @@
 @layer components {
+  .news-entry .news-topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .news-topics li {
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .news-entry .news-lead {
+    font-size: 15px;
+    line-height: 23px;
+  }
+
   .updates-page .updates-layout > section {
     min-width: 0;
   }

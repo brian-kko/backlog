@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
 import { cn } from "@acme/ui";
-import { isAboutSequel } from "@acme/validators";
+import { digestNews, isAboutSequel } from "@acme/validators";
 
 import { GameArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
@@ -24,11 +24,14 @@ const categoryLabel = (category: NewsItem["category"]) =>
 export function NewsCards({
   items,
   compact = false,
+  impliedCategory,
   titles,
   newSince = 0,
 }: {
   items: NewsItem[];
   compact?: boolean;
+  /** Omit the category already named by the surrounding tab. */
+  impliedCategory?: NewsItem["category"];
   /** Game titles by AppID; when given, each post names its game. */
   titles?: Map<number, string>;
   /** Posts published after this time (ms) are marked "New". */
@@ -36,77 +39,90 @@ export function NewsCards({
 }) {
   return (
     <div className={compact ? "news-list news-list-compact" : "news-list"}>
-      {items.map((item) => (
-        <article
-          key={item.id}
-          className={cn("news-entry", titles && "has-art")}
-        >
-          {titles && (
-            <Link
-              href={`/game/${item.steamAppId}`}
-              className="news-art"
-              tabIndex={-1}
-              aria-hidden="true"
-            >
-              <GameArt
-                appId={item.steamAppId}
-                title={titles.get(item.steamAppId) ?? ""}
-              />
-            </Link>
-          )}
-          <div className="news-body">
-            <div className="news-meta">
-              {titles && (
-                <Link className="news-game" href={`/game/${item.steamAppId}`}>
-                  {titles.get(item.steamAppId) ??
-                    `Steam app ${item.steamAppId}`}
-                </Link>
+      {items.map((item) => {
+        const { topics, line } = digestNews(item.cleanSummary, item.title);
+        const lead = line ?? item.cleanSummary;
+        return (
+          <article
+            key={item.id}
+            className={cn("news-entry", titles && "has-art")}
+          >
+            {titles && (
+              <Link
+                href={`/game/${item.steamAppId}`}
+                className="news-art"
+                tabIndex={-1}
+                aria-hidden="true"
+              >
+                <GameArt
+                  appId={item.steamAppId}
+                  title={titles.get(item.steamAppId) ?? ""}
+                />
+              </Link>
+            )}
+            <div className="news-body">
+              <div className="news-meta">
+                {titles && (
+                  <Link className="news-game" href={`/game/${item.steamAppId}`}>
+                    {titles.get(item.steamAppId) ??
+                      `Steam app ${item.steamAppId}`}
+                  </Link>
+                )}
+                {item.category !== impliedCategory && (
+                  <span className="badge" data-category={item.category}>
+                    {categoryLabel(item.category)}
+                  </span>
+                )}
+                {item.official === false && (
+                  <span className="badge">Community</span>
+                )}
+                {newSince > 0 && item.publishedAt.getTime() > newSince && (
+                  <span className="new-badge">New</span>
+                )}
+                <time dateTime={item.publishedAt.toISOString()}>
+                  {item.publishedAt.toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    timeZone: "UTC",
+                  })}
+                </time>
+              </div>
+              <h3>{item.title}</h3>
+              {topics.length > 0 && (
+                <ul className="news-topics" aria-label="Topics">
+                  {topics.map((topic) => (
+                    <li key={topic}>{topic}</li>
+                  ))}
+                </ul>
               )}
-              <span className="badge" data-category={item.category}>
-                {categoryLabel(item.category)}
-              </span>
-              {item.official === false && (
-                <span className="badge">Community</span>
-              )}
-              {newSince > 0 && item.publishedAt.getTime() > newSince && (
-                <span className="new-badge">New</span>
-              )}
-              <time dateTime={item.publishedAt.toISOString()}>
-                {item.publishedAt.toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                  timeZone: "UTC",
-                })}
-              </time>
+              {lead && <p className="news-lead">{lead}</p>}
+              <div className="news-links">
+                {item.category === "patch_note" && /^\d+$/.test(item.id) && (
+                  <Link
+                    className="text-link news-read"
+                    href={`/patch/${item.steamAppId}/${item.id}`}
+                  >
+                    Read patch notes
+                    <span className="sr-only">: {item.title}</span>
+                  </Link>
+                )}
+                {/^https?:\/\//i.test(item.url) && (
+                  <a
+                    className="text-link"
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Read on Steam<span className="sr-only">: {item.title}</span>{" "}
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                )}
+              </div>
             </div>
-            <h3>{item.title}</h3>
-            {item.cleanSummary && <p>{item.cleanSummary}</p>}
-            <div className="news-links">
-              {item.category === "patch_note" && /^\d+$/.test(item.id) && (
-                <Link
-                  className="text-link news-read"
-                  href={`/patch/${item.steamAppId}/${item.id}`}
-                >
-                  Read patch notes
-                  <span className="sr-only">: {item.title}</span>
-                </Link>
-              )}
-              {/^https?:\/\//i.test(item.url) && (
-                <a
-                  className="text-link"
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Read on Steam<span className="sr-only">: {item.title}</span>{" "}
-                  <span aria-hidden="true">↗</span>
-                </a>
-              )}
-            </div>
-          </div>
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -129,11 +145,13 @@ function GroupedNews({
   items,
   titles,
   newSince,
+  impliedCategory,
   level = 3,
 }: {
   items: NewsItem[];
   titles?: Map<number, string>;
   newSince?: number;
+  impliedCategory?: NewsItem["category"];
   /** Heading level for date groups: 2 when the page has no section heading. */
   level?: 2 | 3;
 }) {
@@ -155,7 +173,12 @@ function GroupedNews({
       {[...groups].map(([group, posts]) => (
         <section key={group} aria-label={group}>
           <GroupHeading className="date-group">{group}</GroupHeading>
-          <NewsCards items={posts} titles={titles} newSince={newSince} />
+          <NewsCards
+            items={posts}
+            titles={titles}
+            newSince={newSince}
+            impliedCategory={impliedCategory}
+          />
         </section>
       ))}
       {older > 0 && recent.length > 0 && (
@@ -246,6 +269,7 @@ export function NewsTabs({
           <GroupedNews
             key={tab}
             items={visible}
+            impliedCategory={tab === "patches" ? "patch_note" : undefined}
             titles={titles}
             newSince={newSince}
             level={level}
