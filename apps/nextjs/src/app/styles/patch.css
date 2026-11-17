@@ -1,0 +1,257 @@
+@layer components {
+  .patch-page {
+    /* Keep fixes distinct from nerfs throughout this reader, in both themes. */
+    --kind-fix: var(--muted-foreground);
+  }
+
+  .page-shell.patch-page {
+    gap: 20px;
+  }
+
+  .patch-back-link {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .patch-page .patch-hero {
+    min-height: 220px;
+    background: var(--card);
+  }
+
+  .patch-page .patch-hero-art {
+    z-index: -2;
+  }
+
+  .patch-page .patch-hero::before {
+    background: linear-gradient(
+      100deg,
+      var(--background) 0%,
+      color-mix(in srgb, var(--background) 95%, transparent) 55%,
+      color-mix(in srgb, var(--background) 70%, transparent) 100%
+    );
+  }
+
+  .patch-page .patch-hero-copy {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    max-width: 52rem;
+    padding: 20px 24px;
+    color: var(--foreground);
+  }
+
+  .patch-page .patch-hero-copy > * {
+    margin-block: 0;
+  }
+
+  .patch-page .patch-game {
+    overflow: hidden;
+    color: var(--muted-foreground);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .patch-page .patch-version {
+    font-size: 64px;
+    line-height: 1;
+  }
+
+  .patch-page .patch-label {
+    color: var(--signal);
+  }
+
+  .patch-page .patch-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    line-height: 32px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .patch-page .patch-headline {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 32px;
+    line-height: 36px;
+    overflow-wrap: anywhere;
+  }
+
+  .patch-page .patch-meta {
+    color: var(--muted-foreground);
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .patch-page .patch-meta a {
+    color: var(--foreground);
+  }
+
+  .patch-page .patch-glance {
+    display: grid;
+    gap: 8px;
+    padding: 16px 20px;
+  }
+
+  .patch-page .patch-glance > * {
+    margin-block: 0;
+  }
+
+  .patch-page .patch-count-heading h2 {
+    font-size: 18px;
+    line-height: 24px;
+  }
+
+  .patch-page .patch-bar {
+    display: grid;
+    gap: 8px;
+  }
+
+  .patch-page .patch-bar > * {
+    margin-block: 0;
+  }
+
+  .patch-page .patch-bar-track {
+    height: 6px;
+  }
+
+  .patch-page .patch-legend {
+    column-gap: 16px;
+    row-gap: 4px;
+  }
+
+  .patch-page .patch-swatch[data-kind="fix"] {
+    background: var(--muted);
+    color: var(--muted-foreground);
+  }
+
+  .patch-page .change-kind[data-kind="fix"],
+  .patch-page .patch-group-tag[data-group="fix"] {
+    background: var(--muted);
+    color: var(--foreground);
+  }
+
+  .patch-page .patch-changes li {
+    row-gap: 4px;
+  }
+
+  .patch-change-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .patch-change-values {
+    grid-column: 2;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--foreground);
+    overflow-wrap: anywhere;
+  }
+
+  .patch-change-values > :first-child {
+    color: var(--muted-foreground);
+  }
+
+  .patch-browse {
+    border-block: 1px solid var(--border);
+    padding-block: 4px;
+  }
+
+  .patch-browse > summary {
+    min-height: 44px;
+    padding-block: 10px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .patch-browse > .glance-note {
+    margin-block: 8px 20px;
+  }
+
+  .patch-browse > .glance-columns {
+    margin-bottom: 20px;
+  }
+
+  .patch-browse .glance-heading {
+    flex-wrap: wrap;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+  }
+
+  .patch-browse .glance-tile {
+    max-width: 100%;
+    border-left-width: 1px;
+    transition: none;
+  }
+
+  .patch-browse .glance-name {
+    overflow-wrap: anywhere;
+  }
+
+  .patch-browse .glance-changes {
+    flex-shrink: 0;
+  }
+
+  .patch-publisher-intro .patch-intro {
+    margin-top: 12px;
+  }
+
+  .patch-ai-summary {
+    /* Reserve the result area while the optional summary is fetched. */
+    height: 24rem;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
+  .patch-page :is(a, button, summary):focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+  }
+
+  @media (min-width: 900px) {
+    .patch-page .patch-changes li {
+      grid-template-columns: 5.5rem minmax(0, 1fr) 160px;
+    }
+
+    .patch-change-values {
+      grid-column: 3;
+    }
+
+    .patch-change-text:last-child {
+      grid-column: 2 / -1;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .patch-page .patch-headline {
+      font-size: 40px;
+      line-height: 44px;
+    }
+
+    .patch-page .patch-title {
+      font-size: 32px;
+      line-height: 36px;
+    }
+  }
+
+  @media (max-width: 639px) {
+    .patch-page .patch-hero-copy {
+      padding: 20px;
+    }
+
+    .patch-change-values {
+      grid-column: 1;
+    }
+  }
+
+  @media (pointer: coarse) {
+    .patch-page .patch-meta a,
+    .patch-page .patch-back-link,
+    .patch-page .patch-context summary,
+    .patch-page .text-link {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+    }
+  }
+}

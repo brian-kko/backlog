@@ -1280,23 +1280,44 @@ test("wishlist moves stay coherent while saves are slow or fail", async ({
 test("patch notes reader shows the overview, opens changes and adds an AI summary", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 840, height: 900 });
   await page.goto("/patch/553850/1847920302234123");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("7.2.2");
   const glance = page.getByRole("region", { name: "Patch at a glance" });
   await expect(glance.locator(".patch-legend")).toContainText("1 nerf change");
   await expect(glance.locator(".patch-legend")).toContainText("2 buff changes");
-  await expect(glance.getByRole("heading", { name: /Buffs/ })).toBeVisible();
+  await expect(page.locator("#change-0-0")).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: "Full patch notes" }),
+  ).toHaveAttribute("aria-selected", "true");
+  const firstChange = page.locator(".patch-changes li").first();
+  await expect(firstChange).toBeVisible();
+  expect(
+    await firstChange.evaluate(
+      (element) => element.getBoundingClientRect().top + window.scrollY,
+    ),
+  ).toBeLessThan(800);
+  const browse = page.locator(".patch-browse");
+  await expect(browse).not.toHaveAttribute("open", "");
+  await browse.getByText("Browse by hero / item", { exact: true }).click();
+  await expect(
+    browse.getByRole("heading", { name: /Mostly buffed/ }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Quick read" }).click();
   await expect(
     page.getByText(/2 buffs, 1 nerf, and 1 fix across/),
   ).toBeVisible();
   // A tile jumps to that change in the full notes.
-  await glance.getByRole("button", { name: "AMW-20 APEX" }).click();
+  await browse.getByRole("button", { name: "AMW-20 APEX" }).click();
   await expect(
     page.getByRole("tab", { name: "Full patch notes" }),
   ).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#change-0-0")).toBeFocused();
   await expect(page.locator("#change-0-0")).toContainText(
     "Decreased caliber from 60 to 20",
+  );
+  await expect(page.locator("#change-0-0 .patch-change-values")).toHaveText(
+    "60 → 20",
   );
   // Premium preview: the AI summary is requested on demand.
   await page.getByRole("tab", { name: "Quick read" }).click();
