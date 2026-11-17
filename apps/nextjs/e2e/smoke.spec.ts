@@ -739,7 +739,9 @@ test("games you don't own offer buying instead of launching", async ({
   await expect(
     page.getByRole("link", { name: "Buy for $19.99 at Steam" }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "← Wishlist" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /^(Back to )?Wishlist$/ }),
+  ).toBeVisible();
 });
 
 test("wishlist targets persist in guest mode and drive alerts", async ({
@@ -945,7 +947,9 @@ test("Game Hub ownership, completion and prices persist across pages with live n
   await expect(
     page.getByText("Lowest ever $14.99", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "← Library" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /^(Back to )?Library$/ }),
+  ).toBeVisible();
   await expect(page.getByTestId("nav-library")).toContainText("3");
   await page.getByLabel("Amount paid", { exact: true }).fill("12.34");
   await page.getByLabel("Amount paid", { exact: true }).press("Tab");
