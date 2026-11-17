@@ -222,18 +222,6 @@
   }
 
   /* ---------- Headings ---------- */
-  /* Mastheads: a condensed display title over the page's own covers. */
-  .page-heading {
-    @apply relative isolate flex flex-wrap items-end justify-between gap-x-10 gap-y-4;
-  }
-  .page-heading h1 {
-    font-family: var(--font-display);
-    font-size: clamp(2.75rem, 5.6vw, 4.5rem);
-    font-weight: 700;
-    letter-spacing: 0.005em;
-    line-height: 0.92;
-    text-transform: uppercase;
-  }
   .page-stat {
     @apply text-muted-foreground font-mono text-sm tabular-nums;
   }
@@ -1163,32 +1151,6 @@
   }
   .sample-note > span:last-child {
     @apply whitespace-nowrap;
-  }
-  .cover-mosaic {
-    @apply pointer-events-none absolute -top-6 right-0 -bottom-4 -z-10 hidden w-[680px] overflow-hidden md:block;
-    opacity: 0.3;
-    mask-image:
-      linear-gradient(to right, transparent 20%, #000 55%),
-      linear-gradient(to bottom, #000 55%, transparent);
-    mask-composite: intersect;
-  }
-  :root.light .cover-mosaic {
-    opacity: 0.18;
-  }
-
-  .cover-mosaic-track {
-    @apply grid grid-flow-col grid-rows-2 gap-2;
-    transform: rotate(-6deg) translate(40px, -30px);
-  }
-  .cover-mosaic-track img {
-    @apply h-36 w-24 rounded-lg object-cover;
-  }
-  .cover-mosaic-track.is-short {
-    @apply grid-rows-1;
-    transform: rotate(-6deg) translate(120px, 0);
-  }
-  .cover-mosaic-track img:nth-child(even) {
-    transform: translateY(48px);
   }
   .collection-counts {
     @apply text-muted-foreground flex flex-wrap gap-x-5 gap-y-1 text-sm;
