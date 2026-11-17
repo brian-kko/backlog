@@ -56,6 +56,7 @@ function WatchCard({
   const [saving, setSaving] = useState(false);
   const offer = bestOffer(prices);
   const verified = state === "live" || state === "steam-only";
+  const free = verified && offer?.price === 0;
   const buyNow =
     verified &&
     (alert === "TARGET_MET" || alert === "ALL_TIME_LOW" || offer?.price === 0);
@@ -70,7 +71,7 @@ function WatchCard({
       : state === "steam-only"
         ? "Other stores couldn’t be checked"
         : `Checked ${offer.checkedOn} · ${plural(offer.stores, "store")} compared`
-    : "";
+    : "Try checking again in a moment";
   async function update(change: Partial<BacklogItem>, done: string) {
     setSaving(true);
     try {
@@ -90,10 +91,14 @@ function WatchCard({
     }
   }
   return (
-    <article className="game-card watch-card" aria-busy={saving}>
+    <article
+      className="game-card watch-card"
+      aria-busy={saving}
+      data-free={free || undefined}
+    >
       <GameArt appId={item.steamAppId} title={item.title} />
       <div className="card-body">
-        <div className="space-y-2">
+        <div className="watch-heading">
           <div className="card-heading">
             <h2 className="card-title">
               <Link href={`/game/${item.steamAppId}`}>{item.title}</Link>
@@ -101,41 +106,65 @@ function WatchCard({
             <SampleTag item={item} />
           </div>
         </div>
-        <div className="watch-current">
-          <span className="sr-only">{priceLabel(prices)}</span>
-          <p className="watch-current-price">
+        <div className="watch-price-group">
+          <div className="watch-current">
+            <span className="sr-only">{priceLabel(prices)}</span>
+            <p className="watch-current-price">
+              {pending ? (
+                <span
+                  className="watch-skeleton watch-skeleton-price"
+                  aria-hidden="true"
+                />
+              ) : offer ? (
+                price(offer.price)
+              ) : (
+                "—"
+              )}
+            </p>
+            <p className="watch-source" role="status">
+              {pending ? (
+                <>
+                  <span className="sr-only">Checking prices…</span>
+                  <span
+                    className="watch-skeleton watch-skeleton-store"
+                    aria-hidden="true"
+                  />
+                  <span
+                    className="watch-skeleton watch-skeleton-freshness"
+                    aria-hidden="true"
+                  />
+                </>
+              ) : (
+                <>
+                  <span title={source}>{source}</span>
+                  <span title={freshness}>{freshness}</span>
+                </>
+              )}
+            </p>
+          </div>
+          <p className="watch-steam-comparison">
             {pending ? (
               <span
-                className="watch-skeleton watch-skeleton-price"
+                className="watch-skeleton watch-skeleton-comparison"
                 aria-hidden="true"
               />
-            ) : offer ? (
-              price(offer.price)
             ) : (
-              "—"
+              (delta ?? "No live Steam comparison")
             )}
-          </p>
-          <p className="watch-source" role="status">
-            <span title={source}>{source}</span>
-            <span title={freshness}>{freshness}</span>
           </p>
         </div>
         <p className="gap-line watch-decision">
-          {pending ? (
-            <span
-              className="watch-skeleton watch-skeleton-decision"
-              aria-hidden="true"
-              data-alert-state="UNKNOWN"
-            />
-          ) : (
-            <AlertBadge state={state} alert={alert}>
-              {targetGap(item, prices) ??
-                "Your target is saved; try checking again."}
-            </AlertBadge>
-          )}
+          <AlertBadge state={state} alert={alert}>
+            {pending
+              ? "Checking prices…"
+              : (targetGap(item, prices) ??
+                (item.targetPrice === undefined
+                  ? "Try checking prices again."
+                  : "Your target is saved; try checking again."))}
+          </AlertBadge>
         </p>
         <dl className="price-pair watch-secondary">
-          <div data-field="target">
+          <div data-field="target" hidden={free}>
             <dt>Your target</dt>
             <dd
               className="watch-secondary-value"
@@ -145,19 +174,13 @@ function WatchCard({
                   : undefined
               }
             >
-              {pending && (
-                <span
-                  className="watch-skeleton watch-skeleton-value"
-                  aria-hidden="true"
-                />
-              )}
-              <span className={pending ? "sr-only" : undefined}>
+              <span>
                 {item.targetPrice === undefined
                   ? "None"
                   : price(item.targetPrice)}
               </span>
             </dd>
-            <dd>
+            <dd className="watch-target-action">
               <button
                 type="button"
                 className="quiet-button target-edit"
@@ -175,11 +198,13 @@ function WatchCard({
           </div>
           <div>
             <dt>
-              {prices?.historicalLowSource === "cheapshark"
-                ? "Lowest ever"
-                : prices?.historicalLowSource === "catalog"
-                  ? "Lowest recorded"
-                  : "Price history"}
+              {!pending && prices?.historicalLow == null
+                ? "History unavailable"
+                : prices?.historicalLowSource === "cheapshark"
+                  ? "Lowest ever"
+                  : prices?.historicalLowSource === "catalog"
+                    ? "Lowest recorded"
+                    : "Price history"}
             </dt>
             <dd className="watch-secondary-value">
               {pending ? (
@@ -188,16 +213,20 @@ function WatchCard({
                   aria-hidden="true"
                 />
               ) : (
-                price(prices?.historicalLow)
+                <>
+                  {price(prices?.historicalLow)}
+                  {prices?.historicalLow != null &&
+                    prices.historicalLowSource === "catalog" && (
+                      <span
+                        className="watch-history-note"
+                        title={`Saved ${prices.historicalLowAsOf ?? "catalog data"}`}
+                      >
+                        {" "}
+                        · saved
+                      </span>
+                    )}
+                </>
               )}
-            </dd>
-            <dd className="price-missing watch-history-note">
-              {!pending &&
-                (prices?.historicalLow == null
-                  ? "No history"
-                  : prices.historicalLowSource === "catalog"
-                    ? `Saved ${prices.historicalLowAsOf ?? "catalog data"}`
-                    : null)}
             </dd>
           </div>
         </dl>
@@ -208,10 +237,12 @@ function WatchCard({
               <span className="watch-skeleton watch-skeleton-rail" />
               <span className="watch-skeleton watch-skeleton-legend" />
             </div>
+          ) : offer?.price == null ? (
+            <p className="watch-track-unavailable">Price track unavailable</p>
           ) : (
             <PriceTrack
-              current={offer?.price}
-              target={item.targetPrice}
+              current={offer.price}
+              target={free ? undefined : item.targetPrice}
               low={
                 prices?.historicalLowSource === "cheapshark"
                   ? prices.historicalLow
@@ -220,8 +251,7 @@ function WatchCard({
             />
           )}
         </div>
-        <p className="watch-steam-comparison">{delta}</p>
-        {editing && (
+        {editing && !free && (
           <PriceField
             label="Target price"
             ariaLabel={`Target price for ${item.title}`}
@@ -254,7 +284,7 @@ function WatchCard({
             </a>
           ) : (
             <span className="watch-buy-placeholder" aria-hidden="true">
-              {pending && <span className="watch-skeleton" />}
+              {pending ? "Checking stores…" : "Store unavailable"}
             </span>
           )}
           <button
@@ -412,10 +442,19 @@ export default function WishlistPage() {
       <PageHeading
         title="Wishlist"
         stat={
-          rows.length && !pending ? (
-            <>
-              <strong>{alerts.length}</strong> of {rows.length} at your price
-            </>
+          rows.length > 0 && !pending ? (
+            unchecked.length === rows.length ? (
+              "Prices unavailable"
+            ) : unchecked.length ? (
+              <>
+                <strong>{alerts.length}</strong> at your price ·{" "}
+                {unchecked.length} unchecked
+              </>
+            ) : (
+              <>
+                <strong>{alerts.length}</strong> of {rows.length} at your price
+              </>
+            )
           ) : null
         }
         art={rows.map((row) => row.item.steamAppId)}

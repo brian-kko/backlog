@@ -743,6 +743,9 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
   await expect(
     watch.getByRole("link", { name: "Buy at Steam" }),
   ).toHaveAttribute("href", /dealID=steam-deal/);
+  await expect(watch.locator(".watch-buy")).not.toHaveClass(/secondary/);
+  await expect(watch.locator(".price-track")).toBeVisible();
+  await expect(page.getByText("1 of 2 at your price")).toBeVisible();
   await expect(page.getByText("1 game worth buying now.")).toBeVisible();
   // The nav shows the alert count, not the list size, while alerts exist.
   await expect(page.getByTestId("nav-wishlist")).toContainText("1 price alert");
@@ -757,6 +760,7 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
     .getByLabel("Target price for Helldivers 2", { exact: true })
     .press("Tab");
   await expect(watch.locator('[data-alert-state="WAIT"]')).toBeVisible();
+  await expect(watch.locator(".watch-buy")).toHaveClass(/secondary/);
   await expect(
     page.getByText("Nothing has hit your targets yet."),
   ).toBeVisible();
@@ -767,6 +771,154 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
   await expect(watch.locator('[data-field="target"]')).toContainText("$5.00");
   await expect(page.getByRole("switch")).toHaveCount(0);
 });
+
+test("wishlist loading keeps saved targets and card geometry", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let release = () => undefined as void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/trpc/**getGamePrices**", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await page.goto("/wishlist", { waitUntil: "domcontentloaded" });
+  const watch = page.locator(".watch-card").filter({
+    has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
+  });
+  let loadingHeight = 0;
+  try {
+    await expect(watch.locator('[data-field="target"]')).toContainText(
+      "$25.00",
+    );
+    await expect(
+      watch.locator('[data-field="target"] .watch-skeleton'),
+    ).toHaveCount(0);
+    await expect(watch.locator(".watch-skeleton-price")).toBeVisible();
+    loadingHeight = await watch.evaluate(
+      (card) => card.getBoundingClientRect().height,
+    );
+  } finally {
+    release();
+  }
+  await expect(watch.locator('[data-alert-state="TARGET_MET"]')).toBeVisible();
+  const loadedHeight = await watch.evaluate(
+    (card) => card.getBoundingClientRect().height,
+  );
+  expect(loadedHeight).toBeLessThanOrEqual(440);
+  expect(Math.abs(loadedHeight - loadingHeight)).toBeLessThanOrEqual(1);
+});
+
+for (const scenario of [
+  "unavailable",
+  "partial",
+  "free",
+  "cached-free",
+] as const) {
+  test(`wishlist handles ${scenario} prices honestly`, async ({ page }) => {
+    const t = initTRPC.create({ transformer: SuperJSON });
+    const router = t.router({
+      backlog: t.router({
+        getGamePrices: t.procedure
+          .input(z.object({ steamAppId: z.number() }))
+          .query(({ input }) => ({
+            prices:
+              scenario === "unavailable" ||
+              (scenario === "partial" && input.steamAppId === 1145360)
+                ? null
+                : scenario === "partial"
+                  ? fixturePrices(input.steamAppId)
+                  : {
+                      ...fixturePrices(input.steamAppId),
+                      currentPrice: 0,
+                      historicalLow: null,
+                      historicalLowSource: null,
+                      source: scenario === "free" ? "steam" : "catalog",
+                      deals: fixturePrices(input.steamAppId).deals.map(
+                        (deal) => ({
+                          ...deal,
+                          price: 0,
+                        }),
+                      ),
+                    },
+          })),
+      }),
+    });
+    await page.route("**/api/trpc/**getGamePrices**", async (route) => {
+      const request = route.request();
+      const response = await fetchRequestHandler({
+        endpoint: "/api/trpc",
+        router,
+        createContext: () => ({}),
+        req: new Request(request.url(), {
+          headers: await request.allHeaders(),
+        }),
+      });
+      await route.fulfill({
+        status: response.status,
+        headers: Object.fromEntries(response.headers),
+        body: await response.text(),
+      });
+    });
+    await page.goto("/wishlist");
+    const cards = page.locator(".watch-card");
+    if (scenario === "unavailable" || scenario === "partial") {
+      await expect(
+        page.getByText(
+          scenario === "unavailable"
+            ? "Prices unavailable"
+            : "1 at your price · 1 unchecked",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      const unchecked =
+        scenario === "unavailable"
+          ? cards.first()
+          : cards.filter({
+              has: page.getByRole("heading", { name: "Hades", exact: true }),
+            });
+      await expect(
+        unchecked.getByText("History unavailable", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        unchecked.getByText("Couldn’t check", { exact: true }),
+      ).toBeVisible();
+      await expect(unchecked.locator(".watch-current-price")).toHaveText("—");
+      await expect(
+        unchecked.locator('[data-alert-state="UNKNOWN"]'),
+      ).toBeVisible();
+    } else {
+      const watch = cards.filter({
+        has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
+      });
+      await expect(watch.locator(".watch-current-price")).toHaveText("Free");
+      await expect(watch.locator('[data-field="target"]')).toContainText(
+        "$25.00",
+      );
+      if (scenario === "free") {
+        await expect(
+          watch.getByText("Free right now; nothing to wait for"),
+        ).toBeVisible();
+        await expect(
+          watch.getByRole("link", { name: "Get it free at Steam" }),
+        ).toBeVisible();
+        await expect(watch.locator(".watch-buy")).not.toHaveClass(/secondary/);
+        await expect(watch.locator('[data-field="target"]')).toBeHidden();
+        await expect(
+          watch.locator('.price-track [data-mark="target"]'),
+        ).toHaveCount(0);
+      } else {
+        await expect(
+          watch.getByText("Previously free; check the store", { exact: true }),
+        ).toBeVisible();
+        await expect(
+          watch.getByRole("link", { name: "Check price at Steam" }),
+        ).toBeVisible();
+        await expect(watch.locator(".watch-buy")).toHaveClass(/secondary/);
+      }
+    }
+  });
+}
 
 const sessionCookie = {
   name: "better-auth.session_token",
