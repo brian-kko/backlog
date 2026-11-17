@@ -1,0 +1,160 @@
+@layer components {
+  .page-heading {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px 32px;
+  }
+
+  .page-heading-content {
+    flex: 1 1 480px;
+    min-width: 0;
+    max-width: 640px;
+  }
+
+  .page-heading h1 {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 5.2vw, 40px);
+    font-weight: 700;
+    letter-spacing: 0.005em;
+    line-height: 1;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+  }
+
+  .cover-mosaic {
+    --masthead-hero-opacity: 0.22;
+    --masthead-word-opacity: 0.04;
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 360px;
+    height: 240px;
+    overflow: hidden;
+    isolation: isolate;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  :root.dark .cover-mosaic {
+    --masthead-hero-opacity: 0.35;
+    --masthead-word-opacity: 0.06;
+  }
+
+  .cover-mosaic-hero {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: var(--masthead-hero-opacity);
+    mask-image:
+      linear-gradient(to right, transparent, #000 55%),
+      linear-gradient(to bottom, #000 55%, transparent);
+    mask-composite: intersect;
+  }
+
+  .cover-mosaic-word {
+    position: absolute;
+    right: -8px;
+    bottom: 0;
+    color: var(--foreground);
+    font-family: var(--font-display);
+    font-size: 128px;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    opacity: var(--masthead-word-opacity);
+  }
+
+  .cover-mosaic-track {
+    position: absolute;
+    top: 48px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+  }
+
+  .cover-mosaic-track img {
+    flex: 0 0 88px;
+    width: 88px;
+    height: 132px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    object-fit: cover;
+  }
+
+  .cover-mosaic-track img + img {
+    margin-left: -12px;
+  }
+
+  .cover-mosaic-track img:first-child {
+    transform: rotate(-6deg);
+  }
+
+  .cover-mosaic-track img:nth-child(2) {
+    transform: rotate(0deg);
+  }
+
+  .cover-mosaic-track img:nth-child(3) {
+    transform: rotate(6deg);
+  }
+
+  @media (min-width: 768px) {
+    .page-heading h1 {
+      font-size: clamp(40px, 4vw, 48px);
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .page-heading {
+      min-height: 240px;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      /* Reserve the artwork and its gap even before game data arrives. */
+      padding: 24px 392px 24px 0;
+    }
+
+    .page-heading-content {
+      flex: none;
+      width: 100%;
+    }
+
+    .page-heading > .page-actions {
+      max-width: min(100%, 640px);
+    }
+
+    .page-heading h1 {
+      font-size: clamp(56px, 4.5vw, 64px);
+    }
+
+    .cover-mosaic {
+      display: block;
+      animation: masthead-art-in 220ms ease-out both;
+    }
+  }
+
+  @keyframes masthead-art-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover-mosaic {
+      animation: none;
+    }
+  }
+}

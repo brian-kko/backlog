@@ -17,7 +17,7 @@ import { cn } from "@acme/ui";
 
 import { useTRPC } from "~/trpc/react";
 import { useBacklog } from "./backlog-provider";
-import { money, OwnPrompt, TargetPrompt } from "./game-ui";
+import { OwnPrompt, price, TargetPrompt } from "./game-ui";
 
 function useDebounced(value: string, delay = 300) {
   const [debounced, setDebounced] = useState(value);
@@ -71,10 +71,16 @@ function ResultRow({
       )}
       <div className="min-w-0">
         <p className="search-result-title">{game.title}</p>
+        {(game.developer ?? game.releaseYear) && (
+          // Tells same-named games apart, e.g. "Deadlock" by Valve.
+          <p className="search-result-maker">
+            {[game.developer, game.releaseYear].filter(Boolean).join(" · ")}
+          </p>
+        )}
         <p className="search-result-meta">
           {game.price == null
             ? "Steam price not listed"
-            : `${money(game.price)} on Steam`}
+            : `${price(game.price)} on Steam`}
           {" · "}
           <Link
             className="text-link"
@@ -118,7 +124,7 @@ function ResultRow({
               })
             }
           >
-            Sample: keep it
+            Keep sample
           </button>
         ) : existing?.isOwned ? (
           <span className="collection-chip">✓ In library</span>
@@ -136,8 +142,9 @@ function ResultRow({
                 Wishlist
               </button>
             )}
+            {/* Secondary in every row; lime would make ten rows shout at once. */}
             <button
-              className="action compact"
+              className="action secondary compact"
               disabled={pending || isLoading}
               aria-label={`I own it: add ${game.title} to library`}
               onClick={() => void add(true)}
@@ -167,7 +174,13 @@ export function AddGameProvider({ children }: { children: React.ReactNode }) {
   const results = useQuery(
     trpc.backlog.searchGames.queryOptions(
       { query: term },
-      { enabled: open && term.length >= 2, staleTime: 5 * 60 * 1000 },
+      {
+        enabled: open && term.length >= 2,
+        // Cache real Steam results; never cache the offline fallback, so the
+        // next keystroke or "Try again" asks Steam again.
+        staleTime: (query) =>
+          query.state.data?.source === "catalog" ? 0 : 5 * 60 * 1000,
+      },
     ),
   );
   function close() {
@@ -339,6 +352,12 @@ export function AddGameButton({
       <span className="add-label" aria-hidden="true">
         {label}
       </span>
+      {/* Phones show "+ Add" in the crowded header instead of a bare "+". */}
+      {shortcut && (
+        <span className="add-label-short" aria-hidden="true">
+          Add
+        </span>
+      )}
       {shortcut && (
         <kbd className="kbd" aria-hidden="true">
           /

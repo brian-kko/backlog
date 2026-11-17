@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 
 const reducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -57,47 +57,4 @@ export function MotionRoot() {
     };
   }, []);
   return null;
-}
-
-const numberPattern = /\d[\d,]*(?:\.\d+)?/;
-
-/** Counts a number up to its value once, e.g. "$129.97" or "1 of 3". */
-export function CountUp({ value }: { value: string | number }) {
-  const text = String(value);
-  const [shown, setShown] = useState(text);
-  const previous = useRef(0);
-  useEffect(() => {
-    const match = numberPattern.exec(text);
-    let frame = 0;
-    if (!match || reducedMotion()) {
-      frame = requestAnimationFrame(() => setShown(text));
-      return () => cancelAnimationFrame(frame);
-    }
-    const target = Number(match[0].replace(/,/g, ""));
-    const decimals = match[0].includes(".")
-      ? match[0].length - match[0].indexOf(".") - 1
-      : 0;
-    const start = previous.current;
-    previous.current = target;
-    const began = performance.now();
-    const tick = (now: number) => {
-      const progress = Math.min(1, (now - began) / 450);
-      const eased = 1 - (1 - progress) ** 3;
-      const current = start + (target - start) * eased;
-      setShown(
-        progress === 1
-          ? text
-          : text.slice(0, match.index) +
-              current.toLocaleString("en-US", {
-                minimumFractionDigits: decimals,
-                maximumFractionDigits: decimals,
-              }) +
-              text.slice(match.index + match[0].length),
-      );
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [text]);
-  return <>{shown}</>;
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 import type { Platform, PurchaseStore } from "@acme/validators";
 import {
@@ -11,8 +12,15 @@ import {
 } from "@acme/validators";
 
 import type { BacklogItem } from "./backlog-provider";
+import { useTRPC } from "~/trpc/react";
 import { useBacklog } from "./backlog-provider";
-import { PriceField, RemoveGameButton, SampleTag } from "./game-ui";
+import {
+  FreePriceNotice,
+  PriceField,
+  RemoveGameButton,
+  SampleTag,
+  storeName,
+} from "./game-ui";
 
 export function BacklogEditor({
   steamAppId,
@@ -23,6 +31,18 @@ export function BacklogEditor({
   title: string;
   loading: boolean;
 }) {
+  const trpc = useTRPC();
+  // Observe the game page's existing request, including refreshes, without
+  // starting a second price/news request just for the editor.
+  const game = useQuery(
+    trpc.backlog.getGameDetails.queryOptions(
+      { steamAppId },
+      { enabled: false },
+    ),
+  );
+  const prices = game.data?.prices;
+  const free = prices?.currentPrice === 0;
+  const freeOffer = prices?.deals.find((deal) => deal.price === 0);
   const { items, save, isGuest, isLoading } = useBacklog();
   const item = items.find((value) => value.steamAppId === steamAppId);
   const [pending, setPending] = useState(0);
@@ -63,33 +83,53 @@ export function BacklogEditor({
               : "Not in your collection"}
         </span>
       </div>
-      <p className="text-muted-foreground text-sm">
-        {item
-          ? item.isOwned
-            ? "Track your progress and what you paid."
-            : "Set the price you’re willing to pay and we’ll flag it when a store hits it."
-          : "Add it to your library if you own it, or wishlist it to watch prices across stores."}
-      </p>
-      <div className="membership-picker" aria-label="Backlog membership">
+      {free && !item?.isOwned ? (
+        <FreePriceNotice
+          steamAppId={steamAppId}
+          saved={prices.source !== "cheapshark" && prices.source !== "steam"}
+          url={freeOffer?.url}
+          store={storeName(freeOffer?.storeID)}
+        />
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          {item
+            ? item.isOwned
+              ? "Track your progress and what you paid."
+              : "Set the price you’re willing to pay and we’ll flag it when a store hits it."
+            : "Add it to your library if you own it, or wishlist it to watch prices across stores."}
+        </p>
+      )}
+      <div className="membership-picker" aria-label="Collection membership">
+        {/* Labels say what a press does; the selected state reads as status. */}
         <button
           className="membership-option"
-          aria-label="In Library"
           aria-pressed={item?.isOwned === true}
           disabled={disabled}
           onClick={() => void update({ isOwned: true })}
         >
-          <strong>In Library</strong>
+          <strong>
+            {!item
+              ? "Add to library"
+              : item.isOwned
+                ? "In library"
+                : "Move to library"}
+          </strong>
           <span>I own it</span>
         </button>
         <button
           className="membership-option"
-          aria-label="On Wishlist"
           aria-pressed={item?.isOwned === false}
           disabled={disabled}
           onClick={() => void update({ isOwned: false })}
         >
-          <strong>On Wishlist</strong>
-          <span>Watch the price</span>
+          <strong>
+            {!item
+              ? "Add to wishlist"
+              : item.isOwned
+                ? "Move to wishlist"
+                : "On wishlist"}
+          </strong>
+          <span>{free ? "Keep it on your list" : "Watch the price"}</span>
         </button>
       </div>
       {item && (
@@ -100,7 +140,7 @@ export function BacklogEditor({
                 Status
                 <select
                   className="form-control mt-2 w-full"
-                  aria-label="Backlog completion status"
+                  aria-label="Completion status"
                   value={item.completionStatus ?? "backlog"}
                   disabled={disabled}
                   onChange={(event) =>
@@ -167,8 +207,7 @@ export function BacklogEditor({
                     }
                   >
                     <option value="">
-                      {platformNames[defaultPlatform(item.purchaseStore)]}{" "}
-                      (assumed)
+                      {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
                     </option>
                     {(Object.keys(platformNames) as Platform[]).map((key) => (
                       <option key={key} value={key}>
@@ -184,7 +223,7 @@ export function BacklogEditor({
                 </label>
               </div>
             </>
-          ) : (
+          ) : free ? null : (
             <>
               <PriceField
                 label="Target price"
@@ -195,7 +234,9 @@ export function BacklogEditor({
               />
             </>
           )}
-          <p className="filter-help">Changes save automatically.</p>
+          {(item.isOwned || !free) && (
+            <p className="filter-help">Changes save automatically.</p>
+          )}
           <div className="editor-footer">
             <Link
               className="text-link"

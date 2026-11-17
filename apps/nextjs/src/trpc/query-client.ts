@@ -11,6 +11,10 @@ export const createQueryClient = () =>
         // With SSR, we usually want to set some default staleTime
         // above 0 to avoid refetching immediately on the client
         staleTime: 30 * 1000,
+        // Fail fast: one quick retry, so outages show an error within a few
+        // seconds instead of a loading message behind backed-off retries.
+        retry: 1,
+        retryDelay: 1500,
       },
       dehydrate: {
         serializeData: SuperJSON.serialize,

@@ -1,8 +1,8 @@
 "use client";
 
 import type { QueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { onlineManager, QueryClientProvider } from "@tanstack/react-query";
 import {
   createTRPCClient,
   httpBatchStreamLink,
@@ -32,6 +32,14 @@ export const { useTRPC, useTRPCClient, TRPCProvider } =
 
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
+  // A page opened offline (served by the service worker) never gets an
+  // "offline" event, so adopt the browser's own online state. This runs
+  // after hydration on purpose: changing it before would make the first
+  // client render differ from the server HTML (React #418), which forces a
+  // full client re-render and drops the theme class from <html>.
+  useEffect(() => {
+    onlineManager.setOnline(navigator.onLine);
+  }, []);
 
   const [trpcClient] = useState(() =>
     createTRPCClient<AppRouter>({

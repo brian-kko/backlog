@@ -1,8 +1,8 @@
-# CLAUDE.md — AI Agent Architecture & Context Rules for Backlog
+# CLAUDE.md — AI Agent Architecture & Context Rules for Gemuzu
 
 ## 1. Project Overview
 
-**Backlog** is a PC game backlog, cross-store price watcher, spending tracker and patch-note digest, built inside a `create-t3-turbo` TypeScript monorepo (`pnpm` + Turborepo). It is a web app (installable PWA); a Tauri desktop companion is on the roadmap. The Expo app was cut.
+**Gemuzu** is a PC game backlog, cross-store price watcher, spending tracker and patch-note digest, built inside a `create-t3-turbo` TypeScript monorepo (`pnpm` + Turborepo). It is a web app (installable PWA); a Tauri desktop companion is on the roadmap. The Expo app was cut.
 
 ## 2. Hardware & Environment Constraints
 
@@ -28,12 +28,12 @@
 
 ## 4. Multi-Page Route Structure & Required `data-testid` Selectors
 
-Product intent, page specs and roadmap live in `PLAN.md`. Its section 0, "Why Backlog instead of just Steam?", is the test for every feature: if Steam already does it as well, it shouldn't lead. Every route must work in **Guest Mode** (logged out) with live public data and honest fallback states (offline, saved catalog data, partial outages), and persist to the database when signed in.
+Product intent, page specs and roadmap live in `PLAN.md`. Its section 0, "Why Gemuzu instead of just Steam?", is the test for every feature: if Steam already does it as well, it shouldn't lead. Every route must work in **Guest Mode** (logged out) with live public data and honest fallback states (offline, saved catalog data, partial outages), and persist to the database when signed in.
 
 - **Top Navbar (`src/components/navbar.tsx`)**: `data-testid="nav-home"` (`/`), `"nav-deals"`, `"nav-library"`, `"nav-wishlist"`, `"nav-updates"`. The shared Add game dialog is provided by `AddGameProvider` (`src/components/add-game.tsx`); open it with `useAddGame()(query)`; don't mount extra dialogs.
-- **`/` (Dashboard)**: metrics, guest/sample banner, Price watch, Play next, What changed.
+- **`/` (Home)**: metrics, guest/sample banner, Price watch, Play next, What changed.
 - **`/deals`**: search input `data-testid="deal-search-input"`, presets, store picker, More filters, batched Load more (12/24/60), one card per game with Steam comparison, `+ Wishlist` / `I own this`. Filter state persists in the URL.
-- **`/library`**: status filters (All, Playing, Unplayed, Completed), Cards/Table, Launch only for owned games that run in Steam (`steam://rungameid/<id>`), `Export Backlog JSON` (`data-testid="export-json-btn"`), spending & progress metrics.
+- **`/library`**: status filters (All, Playing, Unplayed, Completed), Cards/Table, Launch only for owned games that run in Steam (`steam://rungameid/<id>`), `Export Gemuzu JSON` (`data-testid="export-json-btn"`), spending & progress metrics.
 - **`/wishlist`**: price-watch cards with alert state (`data-alert-state` of `TARGET_MET`, `ALL_TIME_LOW`, `WAIT`, `UNKNOWN`), target editing, Buy at store.
 - **`/updates`**: collection game filter (`?game=`), tabs `data-testid="tab-patches"` / `"tab-events"`, Mark all as read.
 - **`/game/[appId]`**: `Launch in Steam` (`data-testid="launch-game-btn"`) only for owned Steam games, prices across stores with Steam as baseline, collection editor, game news.

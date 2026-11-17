@@ -17,7 +17,7 @@ import { useWishlistPrices } from "./price-ui";
 
 const links = [
   {
-    label: "Dashboard",
+    label: "Home",
     href: "/",
     id: "home",
     path: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
@@ -114,6 +114,7 @@ export function Navbar() {
       if (!current) return;
       element.style.setProperty("--ind-x", `${current.offsetLeft}px`);
       element.style.setProperty("--ind-w", `${current.offsetWidth}px`);
+      element.style.setProperty("--ind-s", String(current.offsetWidth / 100));
     };
     place();
     window.addEventListener("resize", place);
@@ -130,11 +131,11 @@ export function Navbar() {
   return (
     <header className="site-nav" data-scrolled={scrolled || undefined}>
       <div className="nav-shell">
-        <Link href="/" aria-label="Backlog home" className="brand">
+        <Link href="/" aria-label="Gemuzu home" className="brand">
           <span className="brand-emblem">
             <BrandMark />
           </span>
-          <span className="brand-name">Backlog</span>
+          <span className="brand-name">Gemuzu</span>
         </Link>
         <nav ref={nav} aria-label="Main navigation" className="nav-links">
           {links.map(({ label, href, id, path }) => {
@@ -194,7 +195,7 @@ export function Navbar() {
           {desktop && (
             <span
               className="companion-badge"
-              title="Launching through the Backlog desktop app"
+              title="Launching through the Gemuzu desktop app"
             >
               Desktop Connected
             </span>

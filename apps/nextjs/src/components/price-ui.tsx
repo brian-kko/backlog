@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
-import { evaluateDealAlert } from "@acme/validators";
+import { compareToSteam, evaluateDealAlert } from "@acme/validators";
 
 import type { BacklogItem } from "./backlog-provider";
 import { useTRPC } from "~/trpc/react";
-import { money, storeName } from "./game-ui";
+import { money, price, storeName } from "./game-ui";
 
 export type Prices = NonNullable<
   RouterOutputs["backlog"]["getGamePrices"]["prices"]
@@ -119,9 +119,11 @@ export function useWishlistPrices(items: BacklogItem[]) {
 export function AlertBadge({
   state,
   alert,
+  children,
 }: {
   state: PriceState;
   alert: AlertState;
+  children?: string;
 }) {
   const label =
     state === "checking"
@@ -145,8 +147,8 @@ export function AlertBadge({
       }
       data-stale={stale || undefined}
     >
-      {label}
-      {stale ? " (last known price)" : ""}
+      {children ?? label}
+      {!children && stale ? " (last known price)" : ""}
     </span>
   );
 }
@@ -188,10 +190,13 @@ export function offerSource(offer: NonNullable<ReturnType<typeof bestOffer>>) {
 export function steamDelta(prices: Prices | null | undefined) {
   if (prices?.currentPrice == null || prices.steamPrice == null) return null;
   if (priceState(prices, false) !== "live") return null;
-  const saving = prices.steamPrice - prices.currentPrice;
-  return saving >= 0.01
-    ? `${money(saving)} less than Steam`
-    : "Steam has the best price";
+  const comparison = compareToSteam(prices.currentPrice, prices.steamPrice);
+  if (!comparison) return null;
+  return comparison.kind === "cheaper"
+    ? `${money(comparison.savingCents / 100)} less than Steam`
+    : comparison.kind === "same"
+      ? "Steam matches the best price"
+      : "Steam is cheaper";
 }
 
 /** Plain-language distance between the best price and the user's target. */
@@ -200,14 +205,28 @@ export function targetGap(
   prices: Prices | null | undefined,
 ) {
   if (prices?.currentPrice == null) return null;
+  const cached = priceState(prices, false) === "cached";
+  // A free game has nothing to wait for, whatever the target.
+  if (prices.currentPrice === 0)
+    return cached
+      ? "Previously free; check the store for today’s price"
+      : "Free right now; nothing to wait for";
   if (item.targetPrice === undefined)
-    return prices.historicalLow == null
-      ? "No target set"
-      : `No target · ${lowLabel(prices).toLowerCase()} ${money(prices.historicalLow)}`;
-  const gap = prices.currentPrice - item.targetPrice;
-  return gap <= 0
-    ? `${money(-gap)} under your ${money(item.targetPrice)} target`
-    : `${money(gap)} above your ${money(item.targetPrice)} target`;
+    return !cached &&
+      prices.historicalLowSource === "cheapshark" &&
+      prices.historicalLow != null &&
+      compareToSteam(prices.currentPrice, prices.historicalLow)?.kind !==
+        "steam-cheaper"
+      ? "At its lowest ever; worth buying"
+      : "Set a target to watch for your price";
+  const comparison = compareToSteam(prices.currentPrice, item.targetPrice);
+  if (!comparison) return null;
+  const prefix = cached ? "Last known: " : "";
+  return comparison.kind === "cheaper"
+    ? `${prefix}${money(comparison.savingCents / 100)} under your target${cached ? "" : ", worth buying"}`
+    : comparison.kind === "same"
+      ? `${prefix}At your target${cached ? "" : ", worth buying"}`
+      : `${prefix}${money(comparison.extraCents / 100)} above your target`;
 }
 
 /** Label for a game's historical low, honest about where it came from. */
@@ -246,7 +265,9 @@ export function PriceTrack({
   const span = max - min || 1;
   const position = (value: number) =>
     max === min ? 50 : 6 + ((value - min) / span) * 88;
-  const met = target !== undefined && current <= target;
+  const met =
+    target !== undefined &&
+    compareToSteam(current, target)?.kind !== "steam-cheaper";
   return (
     <figure className="price-track" data-met={met || undefined}>
       <div className="price-track-rail" aria-hidden="true">
@@ -270,7 +291,7 @@ export function PriceTrack({
           <span key={mark.key} data-mark={mark.key}>
             <span className="price-track-key" aria-hidden="true" />
             {mark.label}
-            <span className="sr-only"> {money(mark.value)}</span>
+            <span className="sr-only"> {price(mark.value)}</span>
           </span>
         ))}
       </figcaption>

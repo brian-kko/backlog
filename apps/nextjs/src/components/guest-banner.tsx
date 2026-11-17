@@ -58,27 +58,20 @@ export function GuestBanner({ compact = false }: { compact?: boolean }) {
       </p>
     );
   return (
+    // A compact strip: the games, not the onboarding, should own the page.
     <aside className="guest-banner" aria-label="Guest mode">
-      <div className="space-y-1.5">
-        {isDemo && (
-          <p className="guest-tagline">
-            Compare stores. Set your price. Follow your games.
-          </p>
-        )}
+      <p className="guest-copy">
         <strong>
           {isDemo
             ? "You’re exploring with sample games"
             : "Your games are saved in this browser"}
         </strong>
-        <p>
+        <span className="max-sm:hidden">
           {isDemo
-            ? "Try things out, then clear them or keep the ones you own. "
-            : ""}
-          <span className="hidden sm:inline">
-            Sign in with Discord to keep your collection across devices.
-          </span>
-        </p>
-      </div>
+            ? " · keep the ones you own, or clear them and add yours."
+            : " · sign in with Discord to keep them across devices."}
+        </span>
+      </p>
       <div className="guest-actions">
         {isDemo && clear}
         {isDemo && keep}

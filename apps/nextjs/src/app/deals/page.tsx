@@ -8,8 +8,8 @@ import { SearchDealsInputSchema, storeNames } from "@acme/validators";
 
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
-import { DealCards, groupDeals } from "~/components/deal-cards";
-import { GameArt, money, PageHeading, plural } from "~/components/game-ui";
+import { DealCards, groupDeals, steamGap } from "~/components/deal-cards";
+import { GameArt, PageHeading, plural, price } from "~/components/game-ui";
 import {
   bestOffer,
   PricesChecked,
@@ -129,7 +129,7 @@ function WishlistOnSale() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {money(offer.price)}
+                  {price(offer.price)}
                   <span>at {offer.store} ↗</span>
                 </a>
               )}
@@ -257,6 +257,16 @@ export default function DealsPage() {
       { enabled: steamIds.length > 0, staleTime: 5 * 60 * 1000 },
     ),
   );
+  // Wait under every sort so the billboard and comparison order appear together.
+  const comparing =
+    steamIds.length > 0 &&
+    steamPrices.isPending &&
+    steamPrices.fetchStatus === "fetching";
+  const beatSteam = groups.filter(({ deal }) => {
+    const steam =
+      deal.steamAppId != null ? steamPrices.data?.[deal.steamAppId] : undefined;
+    return (steamGap(deal, steam) ?? 0) > 0;
+  }).length;
   const hidden = loaded.length - filtered.length;
   const moreActive =
     (filters.maxPrice !== undefined && filters.maxPrice !== 14.99) ||
@@ -266,7 +276,20 @@ export default function DealsPage() {
   const cached = Boolean(deals.data) && !deals.live;
   return (
     <main className="page-shell">
-      <PageHeading title="Deals">
+      <PageHeading
+        title="Deals"
+        stat={
+          groups.length && steamPrices.data ? (
+            <>
+              <strong>{beatSteam}</strong> of {groups.length} beat Steam’s own
+              price
+            </>
+          ) : null
+        }
+        art={groups
+          .map((group) => group.deal.steamAppId)
+          .filter((id): id is number => id != null)}
+      >
         Compare prices across {Object.keys(storeNames).length} PC stores, not
         just Steam. Prices in USD.
       </PageHeading>
@@ -487,18 +510,20 @@ export default function DealsPage() {
               {filters.query ? `Results for “${filters.query}”` : "Top deals"}
             </h2>
             <p className="result-count" aria-live="polite">
-              {deals.isPending
-                ? "Finding offers…"
-                : `${plural(groups.length, "game")} from ${plural(loaded.length, "offer")}${
-                    hidden ? ` · ${hidden} hidden by your filters` : ""
-                  }`}
+              {offline
+                ? "Waiting for a connection"
+                : deals.isPending
+                  ? "Finding offers…"
+                  : `${plural(groups.length, "game")} from ${plural(loaded.length, "offer")}${
+                      hidden ? ` · ${hidden} hidden by your filters` : ""
+                    }`}
             </p>
             {/* Saved snapshots carry their own date in the notice below. */}
             {!deals.isPending && deals.live && first?.dataUpdatedAt ? (
               <PricesChecked at={first.dataUpdatedAt} />
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="deal-sort flex flex-wrap items-center gap-3">
             <label className="inline-select">
               Sort
               <select
@@ -542,9 +567,20 @@ export default function DealsPage() {
           </div>
         </div>
         {offline ? (
-          <p className="source-notice" role="note">
-            You’re offline. Deals will load when you reconnect.
-          </p>
+          <div className="offline-panel" role="note">
+            <p>
+              <strong>Deals need a connection.</strong> Your library and
+              wishlist still work offline; deals load as soon as you reconnect.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link className="action secondary" href="/wishlist">
+                Open wishlist
+              </Link>
+              <Link className="action secondary" href="/library">
+                Open library
+              </Link>
+            </div>
+          </div>
         ) : cached ? (
           <p className="source-notice" role="note">
             Live store prices couldn’t be reached
@@ -558,6 +594,8 @@ export default function DealsPage() {
         ) : null}
         {offline ? null : deals.isPending ? (
           <p role="status">Loading deals…</p>
+        ) : comparing ? (
+          <p role="status">Comparing with Steam…</p>
         ) : deals.isError ? (
           <p role="alert">
             Couldn’t load deals.{" "}
@@ -566,15 +604,29 @@ export default function DealsPage() {
             </button>
           </p>
         ) : filtered.length ? (
-          <DealCards deals={filtered} steamPrices={steamPrices.data} />
+          <DealCards
+            deals={filtered}
+            steamPrices={steamPrices.data}
+            bestDeals={filters.sort === "deals"}
+          />
         ) : cached && !loaded.length ? null : (
           <div className="empty-state space-y-3">
             <p>
               {loaded.length
                 ? "None of the offers loaded so far match your filters."
-                : "No offers found."}
+                : filters.query
+                  ? `No store has a deal on “${filters.query}”${active ? " with these filters" : ""} right now.`
+                  : "No offers found."}
             </p>
             <div className="flex flex-wrap justify-center gap-4">
+              {filters.query && (
+                // Not on sale isn't the same as not existing: track it anyway.
+                <AddGameButton
+                  secondary
+                  label="Find it on Steam to track"
+                  initialQuery={filters.query}
+                />
+              )}
               {more && (
                 <button
                   className="text-link"

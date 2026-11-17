@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 import type { Platform, PurchaseStore } from "@acme/validators";
 import { cn } from "@acme/ui";
@@ -13,6 +14,7 @@ import {
   storeNames,
 } from "@acme/validators";
 
+import { useTRPC } from "~/trpc/react";
 import { getSteamLaunchUrl, launchGame } from "~/utils/launcher";
 import { useBacklog } from "./backlog-provider";
 
@@ -69,29 +71,104 @@ export function LaunchLink({
   );
 }
 
-/** After wishlisting, asks for an optional target price in place. */
+/** Free offers replace target entry without changing the saved target. */
+export function FreePriceNotice({
+  steamAppId,
+  saved,
+  checking = false,
+  url,
+  store = "Steam",
+}: {
+  steamAppId: number;
+  saved: boolean;
+  checking?: boolean;
+  url?: string;
+  store?: string;
+}) {
+  // Without an offer URL, the only known destination is Steam.
+  const destination = url ? store : "Steam";
+  return (
+    <div className="col-span-full min-h-28 space-y-2">
+      <p className="text-muted-foreground text-sm" role="status">
+        {checking
+          ? "Checking today’s price…"
+          : saved
+            ? "Previously free; check the store for today’s price"
+            : "Free right now; nothing to wait for"}
+      </p>
+      <a
+        className="action secondary compact"
+        href={url ?? `https://store.steampowered.com/app/${steamAppId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {saved || checking
+          ? `Check price at ${destination}`
+          : `Get it free at ${destination}`}
+        <span aria-hidden="true"> ↗</span>
+      </a>
+    </div>
+  );
+}
+
+/** After wishlisting, asks for a target only when there is a price to watch. */
 export function TargetPrompt({
   steamAppId,
   title,
   bestPrice,
   priceLabel = "Best now",
+  saved,
 }: {
   steamAppId: number;
   title: string;
   bestPrice?: number | null;
   priceLabel?: string;
+  /** Omit when the caller cannot verify the price's source. */
+  saved?: boolean;
 }) {
+  const trpc = useTRPC();
   const { items, save } = useBacklog();
   const item = items.find((value) => value.steamAppId === steamAppId);
+  // Search results do not pass their source; verify a zero before claiming free.
+  const verify = bestPrice === 0 && saved === undefined;
+  const check = useQuery(
+    trpc.backlog.getGamePrices.queryOptions(
+      { steamAppId },
+      { enabled: verify && !!item && !item.isOwned, retry: false },
+    ),
+  );
   if (!item || item.isOwned) return null;
+  const checkedPrices = verify ? check.data?.prices : undefined;
+  const currentPrice = checkedPrices?.currentPrice ?? bestPrice;
+  const currentLabel = checkedPrices
+    ? checkedPrices.source === "catalog"
+      ? "Saved price"
+      : "Best now"
+    : priceLabel;
+  if (currentPrice === 0) {
+    const offer = checkedPrices?.deals.find((deal) => deal.price === 0);
+    return (
+      <FreePriceNotice
+        steamAppId={steamAppId}
+        saved={
+          saved ??
+          (checkedPrices?.source !== "cheapshark" &&
+            checkedPrices?.source !== "steam")
+        }
+        checking={verify && check.isPending && check.fetchStatus !== "paused"}
+        url={offer?.url}
+        store={storeName(offer?.storeID)}
+      />
+    );
+  }
   return (
     <PriceField
       label="Your target price (optional)"
       ariaLabel={`Target price for ${title}`}
       value={item.targetPrice}
       hint={
-        bestPrice != null
-          ? `${priceLabel} ${money(bestPrice)}. Leave blank to be flagged at its lowest ever price.`
+        currentPrice != null
+          ? `${currentLabel} ${price(currentPrice)}. Leave blank to be flagged at its lowest ever price.`
           : "Leave blank to be flagged at its lowest ever price."
       }
       onSave={(targetPrice) =>
@@ -187,7 +264,7 @@ export function OwnPrompt({
             }).catch(() => undefined)
           }
         >
-          I paid {money(paid)}
+          {paid === 0 ? "I got it free" : `I paid ${price(paid)}`}
           {store ? ` at ${purchaseStoreNames[store]}` : ""}: use this
         </button>
       )}
@@ -237,7 +314,7 @@ export function OwnPrompt({
           }
         >
           <option value="">
-            {platformNames[defaultPlatform(item.purchaseStore)]} (assumed)
+            {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
           </option>
           {(Object.keys(platformNames) as Platform[]).map((key) => (
             <option key={key} value={key}>
@@ -324,6 +401,7 @@ export function TrackActions({
           title={title}
           bestPrice={price}
           priceLabel={saved ? "Saved price" : "Best now"}
+          saved={saved}
         />
       )}
       {justAdded === "owned" && (
@@ -379,6 +457,12 @@ export function GameArt({
     </div>
   );
 }
+
+/** Wide library hero art (1920×620) and the transparent title logo. */
+export const libraryHero = (appId: number) =>
+  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_hero.jpg`;
+export const gameLogo = (appId: number) =>
+  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/logo.png`;
 
 export const coverArt = (appId: number) =>
   `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg`;
@@ -532,18 +616,85 @@ export function GameLink({
   );
 }
 
+function MastheadHero({ appId }: { appId: number }) {
+  const [source, setSource] = useState<"hero" | "header" | "hidden">("hero");
+  return (
+    <Image
+      className="cover-mosaic-hero"
+      src={source === "hero" ? libraryHero(appId) : headerArt(appId)}
+      alt=""
+      width={360}
+      height={240}
+      sizes="360px"
+      style={{ visibility: source === "hidden" ? "hidden" : undefined }}
+      onError={() => setSource(source === "hero" ? "header" : "hidden")}
+    />
+  );
+}
+
+/** The page's own games, composed in a separate decorative art region. */
+export function CoverMosaic({
+  appIds,
+  title,
+}: {
+  appIds: number[];
+  title?: string;
+}) {
+  const lead = appIds[0];
+  if (lead === undefined) return null;
+  const covers = appIds.slice(1, 4);
+  return (
+    <div className="cover-mosaic" aria-hidden="true">
+      <MastheadHero key={lead} appId={lead} />
+      {title && <span className="cover-mosaic-word">{title}</span>}
+      <div className="cover-mosaic-track">
+        {covers.map((appId, index) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={`${appId}-${index}`}
+            src={coverArt(appId)}
+            alt=""
+            width={88}
+            height={132}
+            loading="lazy"
+            decoding="async"
+            onError={(event) => {
+              // Keep the reserved slot without showing a broken-image icon.
+              event.currentTarget.style.visibility = "hidden";
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Page masthead: a display title, one live stat about this page's data,
+ * and (optionally) artwork from the page's own games beside it.
+ */
 export function PageHeading({
   title,
   children,
   actions,
+  stat,
+  art,
 }: {
   title: string;
   children?: React.ReactNode;
   actions?: React.ReactNode;
+  /** One live number for this page, e.g. "5 of 18 beat Steam"; pass null
+   * while it loads to keep its line reserved. */
+  stat?: React.ReactNode;
+  /** Steam AppIDs whose covers form the masthead collage. */
+  art?: number[];
 }) {
   return (
     <header className="page-heading">
-      <div className="space-y-2">
+      {art && <CoverMosaic appIds={art} title={title} />}
+      <div className="page-heading-content space-y-2">
+        {/* null reserves the line while data loads, so nothing shifts. */}
+        {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}
         <h1>{title}</h1>
         {children && <p className="page-description">{children}</p>}
       </div>

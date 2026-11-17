@@ -4,6 +4,7 @@ import type { z } from "zod/v4";
 import {
   createContext,
   useContext,
+  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -227,7 +228,12 @@ function clearGuest() {
   window.dispatchEvent(new Event(changeEvent));
 }
 
+/** Cookie mirroring whether a guest still has the untouched sample games. */
+export const guestStateCookie = "backlog-guest";
+
 const BacklogContext = createContext<{
+  /** The server could tell this visitor sees the untouched sample games. */
+  pristineGuest: boolean;
   items: BacklogItem[];
   isGuest: boolean;
   isDemo: boolean;
@@ -247,8 +253,21 @@ const BacklogContext = createContext<{
   isSample: (steamAppId: number) => boolean;
 } | null>(null);
 
-export function BacklogProvider({ children }: { children: React.ReactNode }) {
+export function BacklogProvider({
+  children,
+  signedOut = false,
+  pristineGuest = false,
+}: {
+  children: React.ReactNode;
+  /** No session cookie was sent, so this visitor can't be signed in. */
+  signedOut?: boolean;
+  /** Signed out with the untouched samples: render them on the server. */
+  pristineGuest?: boolean;
+}) {
   const session = authClient.useSession();
+  // Without a session cookie there's nothing to wait for: render the guest
+  // collection straight away instead of a loading state that shifts layout.
+  const sessionPending = session.isPending && !signedOut;
   const trpc = useTRPC();
   const rpc = useTRPCClient();
   const client = useQueryClient();
@@ -288,6 +307,12 @@ export function BacklogProvider({ children }: { children: React.ReactNode }) {
     trpc.backlog.importGuestItems.mutationOptions(),
   );
 
+  // Tell the server (next visit) whether to render the samples directly.
+  useEffect(() => {
+    if (!isGuest || sessionPending) return;
+    document.cookie = `${guestStateCookie}=${guest.hasSaved ? "saved" : "pristine"}; path=/; max-age=31536000; samesite=lax`;
+  }, [isGuest, sessionPending, guest.hasSaved]);
+
   const items: BacklogItem[] = isGuest
     ? guestItems
     : (backlog.data ?? []).map((item) => ({
@@ -301,17 +326,18 @@ export function BacklogProvider({ children }: { children: React.ReactNode }) {
   return (
     <BacklogContext.Provider
       value={{
+        pristineGuest: signedOut && pristineGuest,
         items,
         isGuest,
         isDemo: isGuest && guest.isSample,
-        isLoading: session.isPending || (!isGuest && backlog.isPending),
+        isLoading: sessionPending || (!isGuest && backlog.isPending),
         error:
           !isGuest && backlog.isError
             ? "Unable to load your library. Please refresh to retry."
             : guest.error,
         save(item, options) {
           return enqueue(async () => {
-            if (session.isPending)
+            if (sessionPending)
               throw new Error("Please wait for your session to load.");
             item = BacklogExportSchema.shape.items.element.parse(item);
             if (isGuest) {
@@ -409,7 +435,7 @@ export function BacklogProvider({ children }: { children: React.ReactNode }) {
         },
         remove(steamAppId) {
           return enqueue(async () => {
-            if (session.isPending)
+            if (sessionPending)
               throw new Error("Please wait for your session to load.");
             const current: BacklogItem[] = isGuest
               ? getGuestSnapshot().items
@@ -457,7 +483,7 @@ export function BacklogProvider({ children }: { children: React.ReactNode }) {
         importItems(payload) {
           return enqueue(async () => {
             const backup = BacklogExportSchema.parse(payload);
-            if (session.isPending)
+            if (sessionPending)
               throw new Error("Please wait for your session to load.");
             if (isGuest) {
               const merged = new Map(
@@ -702,8 +728,11 @@ export function useBacklog() {
         ...context,
         items: demoItems,
         isGuest: true,
-        isLoading: true,
+        // A pristine guest's samples are exactly what the server rendered.
+        isLoading: !context.pristineGuest,
         isDemo: true,
+        isSample: (steamAppId: number) =>
+          demoItems.some((item) => item.steamAppId === steamAppId),
         error: null,
       };
 }

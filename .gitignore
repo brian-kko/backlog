@@ -70,3 +70,6 @@ dist/
 
 # tanstack
 .tanstack
+
+# UX audit output (screenshots, reports)
+apps/nextjs/ux/report/

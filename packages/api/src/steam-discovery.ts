@@ -18,7 +18,12 @@ const cacheTtlMs = 5 * 60 * 1000;
 
 // All upstream I/O, including reading JSON, has a deadline and fails closed into
 // the next provider. Provider outages must never become failed public tRPC calls.
-async function fetchJson(url: string): Promise<unknown> {
+async function fetchJson(
+  url: string,
+  // Background batches give up sooner, so one slow upstream can't stack
+  // seconds onto every row; a search the user is waiting on gets longer.
+  timeoutMs = 4000,
+): Promise<unknown> {
   const cached = jsonCache.get(url);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   jsonCache.delete(url);
@@ -28,11 +33,13 @@ async function fetchJson(url: string): Promise<unknown> {
 
   const request = (async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    // A cold first connection (DNS + TLS) can take over 3s on some hosts,
+    // e.g. WSL; later requests reuse it and take ~150ms.
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         signal: controller.signal,
-        headers: { "User-Agent": "BacklogApp/1.0" },
+        headers: { "User-Agent": "GemuzuApp/1.0" },
       });
       if (!response.ok) return null;
       const value: unknown = await response.json();
@@ -555,20 +562,31 @@ export async function searchGames(query: string): Promise<{
 }> {
   const response = await fetchJson(
     `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&l=english&cc=US`,
+    6000,
   );
   if (response !== null) {
     const results = parseSteamStoreSearch(response).slice(0, 10);
     // Steam's search lists soundtracks, tools and videos as "apps". Ask Steam
     // what each result is; keep games and DLC. Lookups that fail keep the row.
-    const kinds = await Promise.all(
-      results.map((game) => fetchAppType(game.steamAppId)),
+    // The same lookup also returns developer and release year, which tell
+    // same-named games apart ("Deadlock" by Valve vs. "DEADLOCK" by others).
+    const details = await Promise.all(
+      results.map((game) => fetchAppBasics(game.steamAppId)),
     );
     return {
       source: "steam",
-      results: results.filter((_, index) => {
-        const kind = kinds[index];
-        return kind == null || kind === "game" || kind === "dlc";
-      }),
+      results: results
+        .map((game, index) => ({
+          ...game,
+          // Free-to-play games have no Steam price at all; say "Free".
+          price: game.price ?? (details[index]?.isFree ? 0 : null),
+          developer: details[index]?.developer,
+          releaseYear: details[index]?.releaseYear,
+        }))
+        .filter((_, index) => {
+          const kind = details[index]?.type;
+          return kind == null || kind === "game" || kind === "dlc";
+        }),
     };
   }
   const needle = query.toLowerCase();
@@ -585,23 +603,39 @@ export async function searchGames(query: string): Promise<{
   };
 }
 
-const appTypeSchema = z.record(
+const appBasicsSchema = z.record(
   z.string(),
   z.object({
     success: z.boolean(),
-    data: z.object({ type: z.string() }).optional(),
+    data: z
+      .object({
+        type: z.string(),
+        is_free: z.boolean().optional(),
+        developers: z.array(z.string()).optional(),
+        release_date: z.object({ date: z.string() }).optional(),
+      })
+      .optional(),
   }),
 );
 
-/** Steam's own type for an app ("game", "dlc", "music", …), if known. */
-async function fetchAppType(steamAppId: number) {
-  const parsed = appTypeSchema.safeParse(
+/** Steam's own type ("game", "dlc", "music", …), developer and release year. */
+async function fetchAppBasics(steamAppId: number) {
+  const parsed = appBasicsSchema.safeParse(
     await fetchJson(
-      `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&filters=basic`,
+      `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&filters=basic,developers,release_date`,
     ),
   );
   const entry = parsed.success ? parsed.data[String(steamAppId)] : undefined;
-  return entry?.success ? (entry.data?.type ?? null) : null;
+  if (!entry?.success || !entry.data) return null;
+  const year = /\b(19|20)\d{2}\b/.exec(
+    entry.data.release_date?.date ?? "",
+  )?.[0];
+  return {
+    type: entry.data.type,
+    isFree: entry.data.is_free === true,
+    developer: entry.data.developers?.[0],
+    releaseYear: year ? Number(year) : undefined,
+  };
 }
 
 // Merges official posts across the user's games, newest first.

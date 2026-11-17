@@ -52,6 +52,16 @@ export default function UpdatesPage() {
       : games.find((game) => game.steamAppId === selected);
   const following = games.slice(0, maxFollowed);
   const feed = useCollectionFeed(following.map((game) => game.steamAppId));
+  // Posts per game in the last 30 days, shown beside each game in the filter.
+  const [monthAgo] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const patchesThisMonth = (feed.data?.items ?? []).filter(
+    (item) =>
+      item.category === "patch_note" && item.publishedAt.getTime() > monthAgo,
+  ).length;
+  const recent = new Map<number, number>();
+  for (const item of feed.data?.items ?? [])
+    if (item.publishedAt.getTime() > monthAgo)
+      recent.set(item.steamAppId, (recent.get(item.steamAppId) ?? 0) + 1);
   const unread =
     (newSince ?? 0) > 0 &&
     Boolean(
@@ -60,8 +70,19 @@ export default function UpdatesPage() {
       ),
     );
   return (
-    <main className="page-shell">
-      <PageHeading title="Updates">
+    <main className="page-shell updates-page">
+      <PageHeading
+        title="Updates"
+        stat={
+          feed.data ? (
+            <>
+              <strong>{patchesThisMonth}</strong>{" "}
+              {patchesThisMonth === 1 ? "patch" : "patches"} in the last 30 days
+            </>
+          ) : null
+        }
+        art={following.map((game) => game.steamAppId)}
+      >
         Official patch notes and events from the games you own and watch, in one
         feed. Store promotions are left out.
       </PageHeading>
@@ -74,60 +95,100 @@ export default function UpdatesPage() {
           <AddGameButton />
         </div>
       ) : (
-        <>
-          {games.length > 8 ? (
-            <label className="inline-select self-start">
-              Show news for
-              <select
-                className="form-control"
-                value={selected}
-                onChange={(event) =>
-                  choose(
-                    event.target.value === "all"
-                      ? "all"
-                      : Number(event.target.value),
-                  )
-                }
+        <div className="updates-layout">
+          <div className="updates-filter">
+            <p className="rail-label" aria-hidden="true">
+              Your games
+            </p>
+            {games.length <= 8 && (
+              <p className="updates-count-help">Posts in the last 30 days</p>
+            )}
+            {games.length > 8 ? (
+              <label className="inline-select self-start">
+                Show news for
+                <select
+                  className="form-control"
+                  value={selected}
+                  onChange={(event) =>
+                    choose(
+                      event.target.value === "all"
+                        ? "all"
+                        : Number(event.target.value),
+                    )
+                  }
+                >
+                  <option value="all">
+                    {games.length > maxFollowed
+                      ? `${maxFollowed} prioritized games`
+                      : "All my games"}
+                  </option>
+                  {games.map((game) => (
+                    <option key={game.steamAppId} value={game.steamAppId}>
+                      {game.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div
+                role="group"
+                aria-label="Show news for"
+                className="chip-scroller"
               >
-                <option value="all">
+                <button
+                  className="filter-pill"
+                  aria-pressed={selected === "all"}
+                  onClick={() => choose("all")}
+                >
                   {games.length > maxFollowed
                     ? `${maxFollowed} prioritized games`
                     : "All my games"}
-                </option>
-                {games.map((game) => (
-                  <option key={game.steamAppId} value={game.steamAppId}>
-                    {game.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <div
-              role="group"
-              aria-label="Show news for"
-              className="chip-scroller"
-            >
-              <button
-                className="filter-pill"
-                aria-pressed={selected === "all"}
-                onClick={() => choose("all")}
-              >
-                {games.length > maxFollowed
-                  ? `${maxFollowed} prioritized games`
-                  : "All my games"}
-              </button>
-              {games.map((game) => (
-                <button
-                  className="filter-pill"
-                  key={game.steamAppId}
-                  aria-pressed={selected === game.steamAppId}
-                  onClick={() => choose(game.steamAppId)}
-                >
-                  {game.title}
                 </button>
-              ))}
-            </div>
-          )}
+                {games.map((game) => {
+                  const count =
+                    feed.data &&
+                    !feed.data.unavailable.includes(game.steamAppId)
+                      ? (recent.get(game.steamAppId) ?? 0)
+                      : undefined;
+                  return (
+                    <button
+                      className="filter-pill"
+                      key={game.steamAppId}
+                      aria-labelledby={`updates-game-${game.steamAppId}`}
+                      aria-describedby={`updates-count-${game.steamAppId}`}
+                      aria-pressed={selected === game.steamAppId}
+                      onClick={() => choose(game.steamAppId)}
+                    >
+                      <span id={`updates-game-${game.steamAppId}`}>
+                        {game.title}
+                      </span>
+                      <span
+                        className="pill-count"
+                        aria-hidden="true"
+                        title="Posts in the last 30 days"
+                      >
+                        {count ?? "—"}
+                        <span className="updates-count-period">
+                          {" "}
+                          this month
+                        </span>
+                      </span>
+                      <span
+                        className="sr-only"
+                        id={`updates-count-${game.steamAppId}`}
+                      >
+                        {count === undefined
+                          ? feed.isPending && feed.fetchStatus !== "paused"
+                            ? "Loading post count"
+                            : "Post count unavailable"
+                          : `${count} ${count === 1 ? "post" : "posts"} in the last 30 days`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           {current ? (
             <section data-reveal className="space-y-4">
               <h2 className="text-xl font-semibold tracking-tight">
@@ -136,6 +197,7 @@ export default function UpdatesPage() {
               <BacklogFeed
                 key={current.steamAppId}
                 steamAppId={current.steamAppId}
+                level={2}
               />
             </section>
           ) : (
@@ -147,7 +209,11 @@ export default function UpdatesPage() {
                   above to see its news.
                 </p>
               )}
-              <CollectionFeed games={following} newSince={newSince ?? 0}>
+              <CollectionFeed
+                games={following}
+                newSince={newSince ?? 0}
+                level={2}
+              >
                 {unread && (
                   <button
                     type="button"
@@ -163,7 +229,7 @@ export default function UpdatesPage() {
               </CollectionFeed>
             </section>
           )}
-        </>
+        </div>
       )}
     </main>
   );

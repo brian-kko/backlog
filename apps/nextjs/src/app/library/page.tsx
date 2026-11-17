@@ -116,7 +116,7 @@ function PlatformSelect({
       }
     >
       <option value="">
-        {platformNames[defaultPlatform(item.purchaseStore)]} (assumed)
+        {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
       </option>
       {(Object.keys(platformNames) as Platform[]).map((key) => (
         <option key={key} value={key}>
@@ -157,7 +157,9 @@ function purchaseSummary(item: BacklogItem) {
   const paid =
     item.amountPaid === undefined
       ? "Price not recorded"
-      : `Paid ${money(item.amountPaid)}`;
+      : item.amountPaid === 0
+        ? "Got it free"
+        : `Paid ${money(item.amountPaid)}`;
   const from = item.purchaseStore
     ? ` at ${purchaseStoreNames[item.purchaseStore]}`
     : "";
@@ -167,7 +169,7 @@ function purchaseSummary(item: BacklogItem) {
     ? platform === "steam"
       ? ""
       : ` · plays on ${platformNames[platform]}`
-    : ` · ${platformNames[platform]} (assumed)`;
+    : ` · plays on ${platformNames[platform]} (unconfirmed)`;
   return `${paid}${from}${plays}`;
 }
 
@@ -331,12 +333,15 @@ function LibraryRow({ item }: { item: BacklogItem }) {
           <button
             type="button"
             className="cell-edit"
-            aria-label={`${platformNames[itemPlatform(item)]}${item.platform ? "" : " (assumed)"}: edit launcher for ${item.title}`}
+            aria-label={`${platformNames[itemPlatform(item)]}${item.platform ? "" : " (unconfirmed)"}: edit launcher for ${item.title}`}
             onClick={() => setEditingPlatform(true)}
           >
             {platformNames[itemPlatform(item)]}
             {!item.platform && (
-              <span className="text-muted-foreground text-xs"> (assumed)</span>
+              <span className="text-muted-foreground text-xs">
+                {" "}
+                (unconfirmed)
+              </span>
             )}
           </button>
         )}
@@ -408,7 +413,7 @@ function BackupPanel() {
       );
       const link = document.createElement("a");
       link.href = url;
-      link.download = `backlog-${backup.exportedAt.slice(0, 10)}.json`;
+      link.download = `gemuzu-${backup.exportedAt.slice(0, 10)}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -440,7 +445,7 @@ function BackupPanel() {
           disabled={busy || isLoading || Boolean(error && !isGuest)}
           onClick={() => void downloadBackup()}
         >
-          Export Backlog JSON
+          Export Gemuzu JSON
         </button>
         <label
           className={`action secondary ${busy || isLoading ? "opacity-50" : ""}`}
@@ -472,7 +477,7 @@ function BackupPanel() {
                 }
               } catch {
                 setMessage(
-                  "That file isn’t a valid Backlog backup. Choose another and try again.",
+                  "That file isn’t a valid Gemuzu backup. Choose another and try again.",
                 );
               } finally {
                 setBusy(false);
@@ -571,7 +576,24 @@ export default function LibraryPage() {
   if (reversed) owned.reverse();
   return (
     <main className="page-shell">
-      <PageHeading title="Library">
+      <PageHeading
+        title="Library"
+        stat={
+          ownedAll.length ? (
+            <>
+              <strong>
+                {
+                  ownedAll.filter(
+                    (item) => item.completionStatus === "completed",
+                  ).length
+                }
+              </strong>{" "}
+              of {ownedAll.length} finished
+            </>
+          ) : null
+        }
+        art={ownedAll.map((item) => item.steamAppId)}
+      >
         Every game you own, how far you’ve got, and what you paid at each store.
       </PageHeading>
       <GuestBanner compact />

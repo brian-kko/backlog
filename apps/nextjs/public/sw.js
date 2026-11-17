@@ -1,4 +1,4 @@
-// Backlog service worker: keeps the app shell available offline.
+// Gemuzu service worker: keeps the app shell available offline.
 // Guest collections live in localStorage, so a cached shell can show them.
 // API responses (prices, news) are never cached; the UI marks them
 // unavailable while offline.

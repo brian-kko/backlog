@@ -58,13 +58,21 @@ const fixPattern =
 const removedPattern = /\b(removed|disabled|deprecated|no longer available)\b/i;
 const newPattern =
   /^(added|new|introduc\w*)\b|\b(added|new (mode|map|weapon|item|character|feature|skin|event))\b/i;
+// Explicit verbs decide buff/nerf; comparatives alone ("more", "less") are
+// too ambiguous ("stacks diminish more aggressively"), so they only count as
+// a change in some direction, i.e. "adjusted".
 const upPattern =
-  /\b(increas\w*|rais\w*|buff\w*|improv\w*|boost\w*|higher|extend\w*|more)\b/i;
+  /\b(increas\w*|rais(e|ed|es|ing)|buff\w*|improv\w*|boost\w*|extend\w*)\b/i;
 const downPattern =
-  /\b(decreas\w*|reduc\w*|lower\w*|nerf\w*|less|shorter|weaken\w*)\b/i;
+  /\b(decreas\w*|reduc\w*|lowered|nerf\w*|weaken\w*|shortened)\b/i;
+const comparativePattern =
+  /\b(more|less|higher|lower|shorter|longer|faster|slower|diminish\w*)\b/i;
 // Stats where "more" is worse for the player, so an increase is a nerf.
 const costlyStat =
-  /\b(cool\s?downs?|costs?|recoil|spread|sway|delay|reload(ing)?( time)?|cast time|charge time|drop\s?off|price|heat|wind[- ]?up|spool[- ]?up|respawn time|ammo usage)\b/i;
+  /\b(cool\s?downs?|costs?|recoil|spread|sway|delay|reload(ing)?( time)?|cast time|charge time|drop\s?off|price|heat|wind[- ]?up|spool[- ]?up|respawn time|ammo usage|cycle time|interval|time between|channel(ing)? time|cast delay|startup|recovery( time)?|lockout|wait time|downtime)\b/i;
+// A line that describes new behaviour ("Pommel Hit now also disarms") is a
+// change even without an increase/decrease verb.
+const behaviourPattern = /\b(now|instead|anymore)\b/i;
 const adjustedPattern =
   /\b(chang\w*|adjust\w*|rework\w*|updat\w*|tweak\w*|rebalanc\w*)\b/i;
 const contextLabel =
@@ -89,7 +97,11 @@ export function classifyChange(text: string): ChangeKind {
     return up !== costly ? "buff" : "nerf";
   }
   if (up && down) return "adjusted";
-  return adjustedPattern.test(text) ? "adjusted" : "note";
+  return adjustedPattern.test(text) ||
+    comparativePattern.test(text) ||
+    behaviourPattern.test(text)
+    ? "adjusted"
+    : "note";
 }
 
 /** Group a subject by what its changes add up to. */
@@ -114,6 +126,13 @@ export function subjectGroup(
 export function patchVersion(title: string) {
   return versionPattern.exec(title)?.[1] ?? null;
 }
+
+/** "🔧 Fixes" → "Fixes": emoji don't belong in summaries or chip names. */
+const stripEmoji = (text: string) =>
+  text
+    .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const isShortLabel = (text: string) =>
   text.length > 0 && text.length <= 60 && text.split(/\s+/).length <= 8;
@@ -239,7 +258,7 @@ export function parsePatchNotes(contents: string, title = ""): ParsedPatch {
       pendingItem = false;
     }
     if (trimmed.startsWith("\u0001H ")) {
-      const heading = cleanSteamText(trimmed.slice(3));
+      const heading = stripEmoji(cleanSteamText(trimmed.slice(3)));
       if (!heading) continue;
       section = { title: heading, subjects: [] };
       sections.push(section);
@@ -264,7 +283,7 @@ export function parsePatchNotes(contents: string, title = ""): ParsedPatch {
           contextMode = true;
           continue;
         }
-        section = { title: text.slice(0, -1).trim(), subjects: [] };
+        section = { title: stripEmoji(text.slice(0, -1)), subjects: [] };
         sections.push(section);
         subject = null;
         contextMode = false;
@@ -274,7 +293,12 @@ export function parsePatchNotes(contents: string, title = ""): ParsedPatch {
         intro.push(text);
         continue;
       }
-      subject = { name: text, group: "adjusted", changes: [], context: [] };
+      subject = {
+        name: stripEmoji(text),
+        group: "adjusted",
+        changes: [],
+        context: [],
+      };
       section.subjects.push(subject);
       contextMode = false;
       continue;
@@ -379,13 +403,18 @@ export function summarizePatch(patch: ParsedPatch): PatchSummary {
       plural(counts.adjusted + counts.removed, "adjustment"),
     counts.fix && plural(counts.fix, "fix", "fixes"),
   ].filter(Boolean) as string[];
-  const areas = patch.sections.map((section) => section.title).slice(0, 3);
+  // Name real sections; a post without headings only has the default one,
+  // so say how many things changed instead of "across Patch notes".
+  const named = patch.sections
+    .map((section) => section.title)
+    .filter((title) => title && title !== "Patch notes");
+  const areas = named.length
+    ? new Intl.ListFormat("en", { type: "conjunction" }).format(
+        named.length > 3 ? [...named.slice(0, 3), "more"] : named,
+      )
+    : plural(subjects.length, "item");
   const headline = parts.length
-    ? `${new Intl.ListFormat("en", { type: "conjunction" }).format(parts)}${
-        areas.length
-          ? ` across ${new Intl.ListFormat("en", { type: "conjunction" }).format(areas)}`
-          : ""
-      }.`
+    ? `${new Intl.ListFormat("en", { type: "conjunction" }).format(parts)} across ${areas}.`
     : "A short update without itemised changes.";
   // Prefer balance and new content over fixes for highlights.
   const rank: Record<ChangeKind, number> = {

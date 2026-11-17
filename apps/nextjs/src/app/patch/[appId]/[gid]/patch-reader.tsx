@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
 import type { ChangeKind, SubjectGroup } from "@acme/validators";
 
+import { useAmbientTint } from "~/components/ambient";
+import { BackLink } from "~/components/back-link";
 import { featuredGames, useBacklog } from "~/components/backlog-provider";
 import { headerArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
@@ -18,15 +19,20 @@ const groups: Record<
   SubjectGroup,
   { label: string; one: string; icon: string; description: string }
 > = {
-  nerf: { label: "Nerfs", one: "Nerf", icon: "▼", description: "made weaker" },
+  nerf: {
+    label: "Mostly nerfed",
+    one: "Nerf",
+    icon: "▼",
+    description: "made weaker",
+  },
   buff: {
-    label: "Buffs",
+    label: "Mostly buffed",
     one: "Buff",
     icon: "▲",
     description: "made stronger",
   },
   adjusted: {
-    label: "Adjusted",
+    label: "Mixed or other",
     one: "Adjusted",
     icon: "↻",
     description: "reworked or mixed",
@@ -41,17 +47,19 @@ const groups: Record<
   fix: { label: "Fixes", one: "Fix", icon: "✓", description: "bug fixes" },
 };
 // Legend wording per bar segment: [singular, plural].
+// The legend counts individual lines; the groups below count items, so say
+// "changes" here to distinguish them from the entity counts below.
 const legendWords: Record<(typeof barKinds)[number], [string, string]> = {
   new: ["addition", "additions"],
-  nerf: ["nerf", "nerfs"],
-  buff: ["buff", "buffs"],
-  adjusted: ["change", "changes"],
+  nerf: ["nerf change", "nerf changes"],
+  buff: ["buff change", "buff changes"],
+  adjusted: ["other change", "other changes"],
   fix: ["fix", "fixes"],
 };
-// Two columns, as in a classic patch overview: balance left, the rest right.
+// Balance groups first, followed by additions, systems, and fixes.
 const columns: SubjectGroup[][] = [
   ["nerf", "buff", "adjusted"],
-  ["system", "new", "fix"],
+  ["new", "system", "fix"],
 ];
 
 const kinds: Record<ChangeKind, { label: string; icon: string }> = {
@@ -145,9 +153,11 @@ function Glance({
     })),
   );
   return (
+    // Only populated groups, flowing into as many columns as fit, so a
+    // short patch never leaves an empty column.
     <div className="glance-columns">
-      {columns.map((column, index) => (
-        <div key={index} className="glance-column">
+      {[columns.flat()].map((column, index) => (
+        <div key={index} className="contents">
           {column.map((group) => {
             const members = tiles.filter((tile) => tile.group === group);
             if (!members.length) return null;
@@ -224,7 +234,7 @@ function AiSummary({
   return (
     <section
       data-reveal
-      className="ai-summary"
+      className="ai-summary patch-ai-summary"
       aria-labelledby="ai-summary-title"
     >
       <div className="ai-summary-head">
@@ -237,7 +247,7 @@ function AiSummary({
         <div className="space-y-3">
           <p className="filter-help">
             A plain-language summary written by Claude from these patch notes.
-            It also sorts each change for the overview above.
+            It also sorts the hero and item groups below.
           </p>
           <button
             type="button"
@@ -268,11 +278,33 @@ function AiSummary({
           </ul>
           <p className="filter-help">
             Written by Claude from the patch notes. It can make mistakes; the
-            full notes below are the source.
+            Full patch notes view is the source.
           </p>
         </div>
       )}
     </section>
+  );
+}
+
+function ChangeText({ text }: { text: string }) {
+  // Only compact numeric tokens belong in the optional scanning column.
+  const comparison =
+    /\bfrom\s+([+−-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|[a-z]{1,3})?)\s+to\s+([+−-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|[a-z]{1,3})?)(?![\w%/+−-]|[.,]\d)/i.exec(
+      text,
+    );
+  const before = comparison?.[1];
+  const after = comparison?.[2];
+  return (
+    <>
+      <span className="patch-change-text">{text}</span>
+      {before && after && (
+        <span className="patch-change-values" aria-hidden="true">
+          <span>{before}</span>
+          <span> → </span>
+          <span>{after}</span>
+        </span>
+      )}
+    </>
   );
 }
 
@@ -285,19 +317,8 @@ function FullNotes({
 }) {
   return (
     <div className="patch-notes">
-      {data.patch.intro.length > 0 && (
-        <blockquote className="patch-intro">
-          {data.patch.intro.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </blockquote>
-      )}
       {data.patch.sections.map((section, sectionIndex) => (
-        <section
-          data-reveal
-          key={section.title + sectionIndex}
-          className="patch-section"
-        >
+        <section key={section.title + sectionIndex} className="patch-section">
           <h2>{section.title}</h2>
           {section.subjects.map((subject, subjectIndex) => {
             const group = groupOf(subject);
@@ -344,7 +365,7 @@ function FullNotes({
                           <span>{kinds[change.kind].label}</span>
                         </span>
                       )}
-                      <span>{change.text}</span>
+                      <ChangeText text={change.text} />
                     </li>
                   ))}
                 </ul>
@@ -353,6 +374,19 @@ function FullNotes({
           })}
         </section>
       ))}
+      {data.patch.intro.length > 0 && (
+        <details
+          className="patch-context patch-publisher-intro"
+          open={data.patch.sections.length === 0}
+        >
+          <summary>Publisher introduction</summary>
+          <blockquote className="patch-intro">
+            {data.patch.intro.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </blockquote>
+        </details>
+      )}
     </div>
   );
 }
@@ -365,11 +399,12 @@ export function PatchReader({
   gid: string;
 }) {
   const trpc = useTRPC();
+  useAmbientTint(steamAppId);
   const { items } = useBacklog();
   const patch = useQuery(
     trpc.backlog.getPatchNotes.queryOptions({ steamAppId, gid }),
   );
-  const [view, setView] = useState<"summary" | "notes">("summary");
+  const [view, setView] = useState<"summary" | "notes">("notes");
   const [aiGroups, setAiGroups] = useState<Map<string, SubjectGroup> | null>(
     null,
   );
@@ -395,7 +430,12 @@ export function PatchReader({
     setView("notes");
     requestAnimationFrame(() => {
       const target = document.getElementById(id);
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      target?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+        block: "start",
+      });
       target?.focus({ preventScroll: true });
     });
   }
@@ -409,9 +449,10 @@ export function PatchReader({
   if (patch.isError)
     return (
       <main className="page-shell space-y-4">
-        <Link className="back-link" href={`/updates?game=${steamAppId}`}>
-          ← Updates
-        </Link>
+        <BackLink
+          fallbackHref={`/updates?game=${steamAppId}`}
+          fallbackLabel="Updates"
+        />
         <p role="alert">
           {patch.error.data?.code === "NOT_FOUND"
             ? "This post is no longer in the game's recent Steam news."
@@ -433,9 +474,11 @@ export function PatchReader({
   });
   return (
     <main className="page-shell patch-page">
-      <Link className="back-link" href={`/updates?game=${steamAppId}`}>
-        ← {game} updates
-      </Link>
+      <BackLink
+        className="patch-back-link"
+        fallbackHref={`/updates?game=${steamAppId}`}
+        fallbackLabel={`${game} updates`}
+      />
       <header className="patch-hero">
         {/* eslint-disable-next-line @next/next/no-img-element -- remote Steam art, decorative */}
         <img
@@ -445,13 +488,17 @@ export function PatchReader({
         />
         <div className="patch-hero-copy">
           <p className="patch-game">{game}</p>
-          <h1>
-            {data.patch.version && (
-              <span className="patch-version">{data.patch.version}</span>
-            )}
-            <span className="patch-label">Patch notes</span>
-          </h1>
-          <p className="patch-title">{data.title}</p>
+          {data.patch.version ? (
+            <>
+              <h1>
+                <span className="patch-version">{data.patch.version}</span>
+                <span className="patch-label">Patch notes</span>
+              </h1>
+              <p className="patch-title">{data.title}</p>
+            </>
+          ) : (
+            <h1 className="patch-headline">{data.title}</h1>
+          )}
           <p className="patch-meta">
             <time dateTime={data.publishedAt.toISOString()}>{date}</time>
             {" · "}
@@ -467,7 +514,7 @@ export function PatchReader({
         className="patch-glance"
         aria-labelledby="glance-title"
       >
-        <div className="section-heading">
+        <div className="section-heading patch-count-heading">
           <h2 id="glance-title">Patch at a glance</h2>
           {aiGroups && (
             <span className="premium-badge">Sorted by AI summary</span>
@@ -493,9 +540,7 @@ export function PatchReader({
           ) : null;
         })()}
         <ProportionBar counts={summary.counts} />
-        {summary.groups.length ? (
-          <Glance data={data} groupOf={groupOf} onOpen={open} />
-        ) : (
+        {!summary.groups.length && (
           <p className="filter-help">
             This post has no itemised changes to chart.
           </p>
@@ -575,6 +620,16 @@ export function PatchReader({
           <FullNotes data={data} groupOf={groupOf} />
         )}
       </div>
+      {summary.groups.length > 0 && (
+        <details className="patch-browse">
+          <summary>Browse by hero / item</summary>
+          <p className="glance-note">
+            Each hero or item is grouped by the overall direction of its
+            changes. These counts describe items, not individual changes.
+          </p>
+          <Glance data={data} groupOf={groupOf} onOpen={open} />
+        </details>
+      )}
     </main>
   );
 }
