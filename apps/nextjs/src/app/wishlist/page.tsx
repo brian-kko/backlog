@@ -12,7 +12,6 @@ import { useBacklog } from "~/components/backlog-provider";
 import {
   GameArt,
   GameLink,
-  money,
   OwnPrompt,
   PageHeading,
   plural,
@@ -25,8 +24,6 @@ import { GuestBanner } from "~/components/guest-banner";
 import {
   AlertBadge,
   bestOffer,
-  lowLabel,
-  offerSource,
   priceLabel,
   PriceTrack,
   steamDelta,
@@ -58,6 +55,22 @@ function WatchCard({
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const offer = bestOffer(prices);
+  const verified = state === "live" || state === "steam-only";
+  const buyNow =
+    verified &&
+    (alert === "TARGET_MET" || alert === "ALL_TIME_LOW" || offer?.price === 0);
+  const source = pending
+    ? "Checking prices…"
+    : offer
+      ? `at ${offer.store}`
+      : "Couldn’t check";
+  const freshness = offer
+    ? state === "cached"
+      ? `Saved ${offer.checkedOn} · last known price`
+      : state === "steam-only"
+        ? "Other stores couldn’t be checked"
+        : `Checked ${offer.checkedOn} · ${plural(offer.stores, "store")} compared`
+    : "";
   async function update(change: Partial<BacklogItem>, done: string) {
     setSaving(true);
     try {
@@ -87,39 +100,69 @@ function WatchCard({
             </h2>
             <SampleTag item={item} />
           </div>
-          <AlertBadge state={state} alert={alert} />
         </div>
-        {/* One row: what it costs now, what you'll pay, and the floor. */}
-        <dl className="price-pair price-trio">
-          <div>
-            <dt>{priceLabel(prices)}</dt>
-            <dd className="deal-price">
-              {pending ? "…" : offer ? price(offer.price) : "—"}
-            </dd>
-            {!pending && !offer && (
-              <dd className="price-missing">Couldn’t check</dd>
+        <div className="watch-current">
+          <span className="sr-only">{priceLabel(prices)}</span>
+          <p className="watch-current-price">
+            {pending ? (
+              <span
+                className="watch-skeleton watch-skeleton-price"
+                aria-hidden="true"
+              />
+            ) : offer ? (
+              price(offer.price)
+            ) : (
+              "—"
             )}
-          </div>
+          </p>
+          <p className="watch-source" role="status">
+            <span title={source}>{source}</span>
+            <span title={freshness}>{freshness}</span>
+          </p>
+        </div>
+        <p className="gap-line watch-decision">
+          {pending ? (
+            <span
+              className="watch-skeleton watch-skeleton-decision"
+              aria-hidden="true"
+              data-alert-state="UNKNOWN"
+            />
+          ) : (
+            <AlertBadge state={state} alert={alert}>
+              {targetGap(item, prices) ??
+                "Your target is saved; try checking again."}
+            </AlertBadge>
+          )}
+        </p>
+        <dl className="price-pair watch-secondary">
           <div data-field="target">
             <dt>Your target</dt>
             <dd
-              className="deal-price muted"
+              className="watch-secondary-value"
               title={
                 item.targetPrice === undefined
                   ? "No target: flagged at its lowest ever price"
                   : undefined
               }
             >
-              {item.targetPrice === undefined
-                ? "None"
-                : money(item.targetPrice)}
+              {pending && (
+                <span
+                  className="watch-skeleton watch-skeleton-value"
+                  aria-hidden="true"
+                />
+              )}
+              <span className={pending ? "sr-only" : undefined}>
+                {item.targetPrice === undefined
+                  ? "None"
+                  : price(item.targetPrice)}
+              </span>
             </dd>
             <dd>
               <button
                 type="button"
                 className="quiet-button target-edit"
                 aria-expanded={editing}
-                aria-label={`${editing ? "Close" : "Edit"} target price for ${item.title}`}
+                aria-label={`Edit target price for ${item.title}`}
                 onClick={() => setEditing((value) => !value)}
               >
                 {editing
@@ -131,43 +174,53 @@ function WatchCard({
             </dd>
           </div>
           <div>
-            <dt>{lowLabel(prices)}</dt>
-            <dd className="deal-price muted">
-              {pending
-                ? "…"
-                : prices?.historicalLow == null
-                  ? "—"
-                  : money(prices.historicalLow)}
+            <dt>
+              {prices?.historicalLowSource === "cheapshark"
+                ? "Lowest ever"
+                : prices?.historicalLowSource === "catalog"
+                  ? "Lowest recorded"
+                  : "Price history"}
+            </dt>
+            <dd className="watch-secondary-value">
+              {pending ? (
+                <span
+                  className="watch-skeleton watch-skeleton-value"
+                  aria-hidden="true"
+                />
+              ) : (
+                price(prices?.historicalLow)
+              )}
             </dd>
-            {!pending && prices?.historicalLow == null && (
-              <dd className="price-missing">No history</dd>
-            )}
+            <dd className="price-missing watch-history-note">
+              {!pending &&
+                (prices?.historicalLow == null
+                  ? "No history"
+                  : prices.historicalLowSource === "catalog"
+                    ? `Saved ${prices.historicalLowAsOf ?? "catalog data"}`
+                    : null)}
+            </dd>
           </div>
         </dl>
-        <p className="price-pair-note">{offer ? offerSource(offer) : ""}</p>
-        {/* Placeholders hold the card's height while prices load. */}
-        {pending && <div className="price-track-skeleton" aria-hidden="true" />}
-        {!pending && (
-          <PriceTrack
-            current={offer?.price}
-            target={item.targetPrice}
-            low={
-              prices?.historicalLowSource === "cheapshark"
-                ? prices.historicalLow
-                : null
-            }
-          />
-        )}
-        {pending && (
-          <p className="gap-line text-muted-foreground">Checking prices…</p>
-        )}
-        {!pending && (
-          <p className="gap-line">
-            {targetGap(item, prices) ??
-              "Prices couldn’t be checked right now. Your target is saved."}
-            {delta && <span className="gap-line-note"> · {delta}</span>}
-          </p>
-        )}
+        {/* Keep the same footprint for loading, missing history and live data. */}
+        <div className="watch-track-slot">
+          {pending ? (
+            <div className="watch-track-placeholder" aria-hidden="true">
+              <span className="watch-skeleton watch-skeleton-rail" />
+              <span className="watch-skeleton watch-skeleton-legend" />
+            </div>
+          ) : (
+            <PriceTrack
+              current={offer?.price}
+              target={item.targetPrice}
+              low={
+                prices?.historicalLowSource === "cheapshark"
+                  ? prices.historicalLow
+                  : null
+              }
+            />
+          )}
+        </div>
+        <p className="watch-steam-comparison">{delta}</p>
         {editing && (
           <PriceField
             label="Target price"
@@ -179,17 +232,30 @@ function WatchCard({
             }}
           />
         )}
-        <div className="card-actions">
-          {offer && (
+        <div className="card-actions watch-actions">
+          {offer && !pending ? (
             <a
-              className="action"
+              className={
+                buyNow ? "action watch-buy" : "action watch-buy secondary"
+              }
               href={offer.url}
               target="_blank"
               rel="noopener noreferrer"
             >
-              Buy at {offer.store}
+              <span className="watch-buy-label">
+                {state === "cached"
+                  ? "Check price at"
+                  : offer.price === 0
+                    ? "Get it free at"
+                    : "Buy at"}{" "}
+                {offer.store}
+              </span>
               <span aria-hidden="true">↗</span>
             </a>
+          ) : (
+            <span className="watch-buy-placeholder" aria-hidden="true">
+              {pending && <span className="watch-skeleton" />}
+            </span>
           )}
           <button
             className="action secondary"

@@ -713,7 +713,9 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
     has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
   });
   await expect(watch.locator('[data-alert-state="TARGET_MET"]')).toBeVisible();
-  await expect(watch.getByText("$5.01 under your $25.00 target")).toBeVisible();
+  await expect(
+    watch.getByText("$5.01 under your target, worth buying"),
+  ).toBeVisible();
   await expect(watch.getByText("$5.00 less than Steam")).toBeVisible();
   await expect(
     watch.getByRole("link", { name: "Buy at Steam" }),
