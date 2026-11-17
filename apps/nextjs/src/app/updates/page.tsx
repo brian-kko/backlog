@@ -70,7 +70,7 @@ export default function UpdatesPage() {
       ),
     );
   return (
-    <main className="page-shell">
+    <main className="page-shell updates-page">
       <PageHeading
         title="Updates"
         stat={
@@ -100,6 +100,9 @@ export default function UpdatesPage() {
             <p className="rail-label" aria-hidden="true">
               Your games
             </p>
+            {games.length <= 8 && (
+              <p className="updates-count-help">Posts in the last 30 days</p>
+            )}
             {games.length > 8 ? (
               <label className="inline-select self-start">
                 Show news for
@@ -141,25 +144,48 @@ export default function UpdatesPage() {
                     ? `${maxFollowed} prioritized games`
                     : "All my games"}
                 </button>
-                {games.map((game) => (
-                  <button
-                    className="filter-pill"
-                    key={game.steamAppId}
-                    aria-pressed={selected === game.steamAppId}
-                    onClick={() => choose(game.steamAppId)}
-                  >
-                    {game.title}
-                    {recent.get(game.steamAppId) ? (
+                {games.map((game) => {
+                  const count =
+                    feed.data &&
+                    !feed.data.unavailable.includes(game.steamAppId)
+                      ? (recent.get(game.steamAppId) ?? 0)
+                      : undefined;
+                  return (
+                    <button
+                      className="filter-pill"
+                      key={game.steamAppId}
+                      aria-labelledby={`updates-game-${game.steamAppId}`}
+                      aria-describedby={`updates-count-${game.steamAppId}`}
+                      aria-pressed={selected === game.steamAppId}
+                      onClick={() => choose(game.steamAppId)}
+                    >
+                      <span id={`updates-game-${game.steamAppId}`}>
+                        {game.title}
+                      </span>
                       <span
                         className="pill-count"
                         aria-hidden="true"
                         title="Posts in the last 30 days"
                       >
-                        {recent.get(game.steamAppId)}
+                        {count ?? "—"}
+                        <span className="updates-count-period">
+                          {" "}
+                          this month
+                        </span>
                       </span>
-                    ) : null}
-                  </button>
-                ))}
+                      <span
+                        className="sr-only"
+                        id={`updates-count-${game.steamAppId}`}
+                      >
+                        {count === undefined
+                          ? feed.isPending && feed.fetchStatus !== "paused"
+                            ? "Loading post count"
+                            : "Post count unavailable"
+                          : `${count} ${count === 1 ? "post" : "posts"} in the last 30 days`}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -171,6 +197,7 @@ export default function UpdatesPage() {
               <BacklogFeed
                 key={current.steamAppId}
                 steamAppId={current.steamAppId}
+                level={2}
               />
             </section>
           ) : (
