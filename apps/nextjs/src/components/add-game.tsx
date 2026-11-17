@@ -352,6 +352,12 @@ export function AddGameButton({
       <span className="add-label" aria-hidden="true">
         {label}
       </span>
+      {/* Phones show "+ Add" in the crowded header instead of a bare "+". */}
+      {shortcut && (
+        <span className="add-label-short" aria-hidden="true">
+          Add
+        </span>
+      )}
       {shortcut && (
         <kbd className="kbd" aria-hidden="true">
           /

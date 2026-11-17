@@ -685,7 +685,9 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
   ).toBeVisible();
   // Editing a sample made it the user's own and dropped its invented price.
   await expect(
-    page.getByText("Price not recorded at GOG · GOG Galaxy (assumed)"),
+    page.getByText(
+      "Price not recorded at GOG · plays on GOG Galaxy (unconfirmed)",
+    ),
   ).toBeVisible();
 });
 
@@ -977,7 +979,9 @@ test("library search, removal undo, and owning a wishlist game keep purchase dat
   await page.getByTestId("nav-library").click();
   await page.getByLabel("Find in your library", { exact: true }).fill("Hades");
   await expect(
-    page.getByText("Price not recorded · Steam (assumed)", { exact: true }),
+    page.getByText("Price not recorded · plays on Steam (unconfirmed)", {
+      exact: true,
+    }),
   ).toBeVisible();
   await page.getByTestId("nav-home").click();
   await expect(

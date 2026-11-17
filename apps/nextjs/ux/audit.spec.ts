@@ -5,7 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 /*
- * Backlog UX audit. Produces ux/report/{report.md,report.json,shots/*.png}
+ * Gemuzu UX audit. Produces ux/report/{report.md,report.json,shots/*.png}
  * for reviewers to score against ux/RUBRIC.md. Run with:
  *   pnpm --filter @acme/nextjs ux:audit
  * Live Steam/CheapShark data is used, so prices vary between runs.
@@ -584,6 +584,19 @@ test("states: loading, outage and offline", async ({ browser }) => {
         .locator("main h1")
         .isVisible()
         .catch(() => false);
+      // The cached shell must hydrate cleanly: a mismatch makes React
+      // re-render the whole page and drop the theme class.
+      const darkKept = await page.evaluate(() =>
+        document.documentElement.classList.contains("dark"),
+      );
+      const hydrationErrors = log.consoleErrors.filter((text) =>
+        /Hydration|#418|didn't match/i.test(text),
+      ).length;
+      checks.push({
+        name: `${viewport}: offline reload hydrates cleanly and keeps the theme`,
+        pass: darkKept && hydrationErrors === 0,
+        detail: `dark theme kept=${darkKept}, hydration errors=${hydrationErrors}`,
+      });
       checks.push({
         name: `${viewport}: offline reload still shows the app shell and collection`,
         pass: shellLoaded,
@@ -775,7 +788,7 @@ test.afterAll(() => {
       .map((check) => check.name),
   };
   const lines = [
-    "# Backlog UX audit",
+    "# Gemuzu UX audit",
     "",
     `Generated ${new Date().toISOString()} · ${pages.length} page captures · ${checks.length} interaction checks. Score against \`ux/RUBRIC.md\`.`,
     "",

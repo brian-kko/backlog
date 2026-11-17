@@ -116,7 +116,7 @@ function PlatformSelect({
       }
     >
       <option value="">
-        {platformNames[defaultPlatform(item.purchaseStore)]} (assumed)
+        {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
       </option>
       {(Object.keys(platformNames) as Platform[]).map((key) => (
         <option key={key} value={key}>
@@ -169,7 +169,7 @@ function purchaseSummary(item: BacklogItem) {
     ? platform === "steam"
       ? ""
       : ` · plays on ${platformNames[platform]}`
-    : ` · ${platformNames[platform]} (assumed)`;
+    : ` · plays on ${platformNames[platform]} (unconfirmed)`;
   return `${paid}${from}${plays}`;
 }
 
@@ -333,12 +333,15 @@ function LibraryRow({ item }: { item: BacklogItem }) {
           <button
             type="button"
             className="cell-edit"
-            aria-label={`${platformNames[itemPlatform(item)]}${item.platform ? "" : " (assumed)"}: edit launcher for ${item.title}`}
+            aria-label={`${platformNames[itemPlatform(item)]}${item.platform ? "" : " (unconfirmed)"}: edit launcher for ${item.title}`}
             onClick={() => setEditingPlatform(true)}
           >
             {platformNames[itemPlatform(item)]}
             {!item.platform && (
-              <span className="text-muted-foreground text-xs"> (assumed)</span>
+              <span className="text-muted-foreground text-xs">
+                {" "}
+                (unconfirmed)
+              </span>
             )}
           </button>
         )}

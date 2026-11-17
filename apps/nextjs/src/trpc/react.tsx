@@ -1,7 +1,7 @@
 "use client";
 
 import type { QueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { onlineManager, QueryClientProvider } from "@tanstack/react-query";
 import {
   createTRPCClient,
@@ -22,10 +22,7 @@ const getQueryClient = () => {
     // Server: always make a new query client
     return createQueryClient();
   } else {
-    // Browser: use singleton pattern to keep the same query client.
-    // A page opened offline (served by the service worker) never gets an
-    // "offline" event, so start from the browser's own online state.
-    if (!clientQueryClientSingleton) onlineManager.setOnline(navigator.onLine);
+    // Browser: use singleton pattern to keep the same query client
     return (clientQueryClientSingleton ??= createQueryClient());
   }
 };
@@ -35,6 +32,14 @@ export const { useTRPC, useTRPCClient, TRPCProvider } =
 
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
+  // A page opened offline (served by the service worker) never gets an
+  // "offline" event, so adopt the browser's own online state. This runs
+  // after hydration on purpose: changing it before would make the first
+  // client render differ from the server HTML (React #418), which forces a
+  // full client re-render and drops the theme class from <html>.
+  useEffect(() => {
+    onlineManager.setOnline(navigator.onLine);
+  }, []);
 
   const [trpcClient] = useState(() =>
     createTRPCClient<AppRouter>({

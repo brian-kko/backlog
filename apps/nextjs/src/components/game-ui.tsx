@@ -237,7 +237,7 @@ export function OwnPrompt({
           }
         >
           <option value="">
-            {platformNames[defaultPlatform(item.purchaseStore)]} (assumed)
+            {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
           </option>
           {(Object.keys(platformNames) as Platform[]).map((key) => (
             <option key={key} value={key}>

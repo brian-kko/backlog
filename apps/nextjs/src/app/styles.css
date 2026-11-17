@@ -527,6 +527,26 @@
   .metric-card:nth-child(2n) {
     @apply max-lg:border-r-0;
   }
+  /* In the two-column layout every row starts flush left, not just the first. */
+  .metric-card:nth-child(2n + 1) {
+    @apply max-lg:pl-0;
+  }
+  /* A three-metric rail is one row from tablet up, never 2 + 1. */
+  .metrics-rail:has(> .metric-card:nth-child(3):last-child) {
+    @apply md:grid-cols-3;
+  }
+  .metrics-rail:has(> .metric-card:nth-child(3):last-child)
+    .metric-card:nth-child(-n + 2) {
+    @apply md:border-b-0;
+  }
+  .metrics-rail:has(> .metric-card:nth-child(3):last-child)
+    .metric-card:nth-child(2) {
+    @apply md:border-r;
+  }
+  .metrics-rail:has(> .metric-card:nth-child(3):last-child)
+    .metric-card:nth-child(3) {
+    @apply md:pl-5;
+  }
   .metric-card:last-child {
     @apply border-r-0;
   }
@@ -536,7 +556,15 @@
   .metric-card dt {
     font-family: var(--font-display);
     color: var(--subtle);
+
     @apply text-sm font-semibold tracking-[0.1em] uppercase;
+  }
+  /* Where labels can wrap ("Paid for, never played"), reserve two lines so
+     the values in a row stay aligned. */
+  @media (max-width: 1279px) {
+    .metric-card dt {
+      min-height: 2lh;
+    }
   }
   .metric-card dd {
     @apply mt-1.5 font-mono text-2xl font-medium tabular-nums sm:text-[28px] sm:leading-8;
@@ -1792,6 +1820,9 @@
   .nav-links[data-indicator="off"]::after {
     opacity: 0;
   }
+  .add-label-short {
+    display: none;
+  }
   .kbd {
     @apply ml-1 hidden rounded-sm border px-1.5 font-mono text-[12px] leading-5 font-medium lg:inline-block;
     border-color: color-mix(in srgb, currentColor 35%, transparent);
@@ -1960,6 +1991,9 @@
   }
   .nav-add .add-label {
     display: none;
+  }
+  .nav-add .add-label-short {
+    display: inline;
   }
   .card-grid {
     @apply gap-4;
@@ -2241,7 +2275,6 @@
     rgb(var(--ambient-tint) / var(--ambient-tint-alpha)),
     transparent 70%
   );
-  transition: background 0.6s ease-out;
 }
 /* A sampled artwork colour is a little stronger than the default lime. */
 :root[style*="--ambient-tint"] {
@@ -2305,8 +2338,9 @@
   inset: 0;
   z-index: 100;
   display: grid;
-  place-items: center;
-  pointer-events: none;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
   background: #121411;
   animation: boot-out 0.26s ease-in 0.72s forwards;
 }
@@ -2382,4 +2416,30 @@
 }
 :root[data-boot="skip"] .boot {
   display: none;
+}
+.boot-skip {
+  @apply min-h-11 rounded-md px-4 text-sm font-semibold;
+  color: #b6bcad;
+  border: 1px solid #2c3227;
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot {
+    display: none !important;
+  }
+}
+
+/* Over a game hero (always a dark poster) the transparent nav must use dark
+   tokens too, or light theme puts dark text on dark art. Once scrolled the
+   nav has its own background again and returns to the page theme. */
+:root.light body:has(.game-hero) .site-nav:not([data-scrolled]) {
+  --background: #121411;
+  --foreground: #f2f4eb;
+  --muted: #252a22;
+  --muted-foreground: #c3c9ba;
+  --border: #2c3227;
+  --control-border: #77816c;
+  --primary: #c8ed78;
+  --primary-foreground: #141a0c;
+  --signal: #c8ed78;
+  color: var(--foreground);
 }

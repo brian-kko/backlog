@@ -318,7 +318,22 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           <p
             className={cn("hero-description", item?.isOwned && "max-sm:hidden")}
           >
-            {description ? sentenceCase(description, title) : "\u00a0"}
+            {description ? (
+              sentenceCase(description, title)
+            ) : game.isError ? (
+              // Said once, in the hero's reserved slot, not as a stray line.
+              <span role="alert">
+                Steam details didn’t load.{" "}
+                <button
+                  className="text-link"
+                  onClick={() => void game.refetch()}
+                >
+                  Try again
+                </button>
+              </span>
+            ) : (
+              "\u00a0"
+            )}
           </p>
           <div className="hero-actions flex flex-wrap items-center gap-3">
             {canLaunch(item) ? (
@@ -359,14 +374,6 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           )}
         </div>
       </section>
-      {game.isError && (
-        <p role="alert">
-          Game details are unavailable right now.{" "}
-          <button className="text-link" onClick={() => void game.refetch()}>
-            Try again
-          </button>
-        </p>
-      )}
       <section data-reveal className="hub-grid">
         {/* Prices lead for every game: that's what Gemuzu adds over Steam. */}
         <div className="panel space-y-4">
