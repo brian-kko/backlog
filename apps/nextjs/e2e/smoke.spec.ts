@@ -526,9 +526,10 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
     "Biggest saving vs Steam",
   );
   await expect(featured.locator(".deal-price")).toHaveText("$31.99");
+  // The billboard uses the wide hero art (header as its fallback).
   await expect(featured.locator(".game-art")).toHaveAttribute(
     "src",
-    deals[2]?.thumb ?? "",
+    new RegExp(`/api/art/${deals[2]?.steamAppId}/(hero|header)$`),
   );
   await expect(featured.locator(".steam-line")).toHaveText(
     "Steam $39.99 · save $8.00 (−20%)",
@@ -1316,12 +1317,13 @@ test.describe("touch detail back links", () => {
       );
       for (const width of [390, 768, 840]) {
         await page.setViewportSize({ width, height: 900 });
-        await page.goto("/updates");
         for (const path of [
           "/game/1091500",
           "/game/1422450",
           "/patch/1422450/1847920302234123",
         ]) {
+          // Arrive from Updates each time so the back link names it.
+          await page.goto("/updates");
           await page.goto(path);
           const back = page.locator("main .back-link");
           await expect(back).toHaveAccessibleName("Back to Updates");
@@ -2094,7 +2096,8 @@ test.describe("phone layout", () => {
       }),
     );
     for (const row of bounds) {
-      expect(row.height).toBeLessThanOrEqual(150);
+      // ≤150px normally; a wrapped "Epic Games Store · Steam key" line adds ~20.
+      expect(row.height).toBeLessThanOrEqual(170);
       expect(row.titleHeight).toBe(44);
       expect(row.headingRight).toBeLessThan(row.priceLeft ?? 0);
       expect(row.artWidth).toBe(96);
