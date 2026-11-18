@@ -167,3 +167,11 @@ e2e (61).
 added before the workers branched. Workers launched 2026-11-17 (outputs in
 `../gemuzu-wt/specs7/out-<task>.md`). Next: merge workers, verify, re-audit,
 round-7 reviews.
+
+**Round 7 (2026-11-17): all four workers are merged.** Also landed, at the
+owner's request: top-aligned mastheads, a 68px nav on wide screens, and the
+cover fan on hover. Checks: validators 190, typecheck, e2e 71/71, and the
+audit with every gate passing. The astra and Opus round-7 reviews are
+running (packet `council/r7` in the session scratchpad). Next: save the
+reviews as `ux/reviews/*-r7.md`, then dispatch their blocking fixes.
+
