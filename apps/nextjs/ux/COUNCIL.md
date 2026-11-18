@@ -83,6 +83,7 @@ KEEP (what must not regress)
 | 2     | 8.7   | 7.8  | Gates mostly pass; Opus asked for a bolder visual direction                                     |
 | 3     | 8.7   | 8.4  | Mastheads, cinematic heroes, spotlight, Gemuzu rename, boot animation                           |
 | 4     | 9.1   | 8.7  | Codex workers: masthead art, deals billboard, wishlist cards, updates, patch reader; gate fixes |
+| 5     | 9.0 (9.2 capped) | 8.9 | All round-4 fixes in; astra capped by honesty (free follow-up store) and stability (art 404s) |
 
 ## Status and open items
 
@@ -137,7 +138,26 @@ or a fix lands, so a fresh context can resume without the conversation.
   reports `is_free: false` (invite-only), so the honest "No store is listing
   a price" stays.
 
-**Next:** round-5 audit + reviews (astra and Opus), then a PR for
-`feat/ui-council-5`.
+**Round 5 (2026-11-17):** astra 9.0 (9.2 weighted, capped by gates), Opus 8.9.
+Full reviews: `ux/reviews/opus-r5.md`, `ux/reviews/astra-r5.md`. PR 8 merged.
 
-**Still open:** nothing from round 4; see the round-5 reviews.
+**Round-6 workers running** (branch `feat/ui-council-6`, worktrees in
+`/home/brian/projects/gemuzu-wt/<task>`, specs/outputs/logs in
+`/home/brian/projects/gemuzu-wt/specs6/`):
+- deals: Opus 1, 2, 6 and astra 1. Edition rows share one column grid; the
+  billboard price line is fixed; the count is "N of M with a Steam price";
+  the free follow-up names the real store.
+- heroes: Opus 3 and astra 2. HeroTitle evaluates the logo after hydration;
+  the back link has its own spacing; light-theme patch heroes are readable.
+- wishlist: Opus 4 and astra 5. Local dates; one freshness line; honest
+  offline copy.
+- updates: Opus 5 and astra 4. The server computes the digest from the full
+  notes; no zero chips; one chip line; greeting leads are skipped.
+- art-audit: astra 3. `/api/art/<appId>/<kind>` returns fallback art
+  (no 404s); the audit exemption is removed; empty states are isolated;
+  logo assertion.
+
+Next: review and commit each worker, merge into `feat/ui-council-6`, run the
+verification commands and the audit, then round 6 reviews.
+
+**Still open:** see the round-5 reviews (the workers above cover every blocking fix).
