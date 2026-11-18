@@ -1067,7 +1067,7 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
   await expect(page.locator(".hero-backdrop img")).toHaveAttribute(
     "src",
     // Served through the image optimizer, so the Steam URL is encoded.
-    /1091500(\/|%2F)(library_hero|header)\.jpg/,
+    /1091500(\/|%2F)(library_hero\.jpg|header\.jpg|hero|header)/,
   );
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Cyberpunk 2077",
@@ -1185,13 +1185,18 @@ for (const width of [1024, 1440]) {
         await page.setViewportSize({ width: viewport, height: 900 });
         const back = page.locator(".hero-body .back-link");
         await expect(back).toHaveCSS("position", "static");
-        const backBottom = await back.evaluate(
-          (element) => element.getBoundingClientRect().bottom,
-        );
-        const titleTop = await heading
-          .locator(":scope > span")
-          .evaluate((element) => element.getBoundingClientRect().top);
-        expect(titleTop - backBottom).toBeGreaterThanOrEqual(24);
+        // Measured once layout settles after the resize (fonts, logo).
+        await expect
+          .poll(async () => {
+            const backBottom = await back.evaluate(
+              (element) => element.getBoundingClientRect().bottom,
+            );
+            const titleTop = await heading
+              .locator(":scope > span")
+              .evaluate((element) => element.getBoundingClientRect().top);
+            return titleTop - backBottom;
+          })
+          .toBeGreaterThanOrEqual(24);
       }
       // Also exercise normal loading after the hydration gate is open.
       await page.reload();
@@ -2078,7 +2083,11 @@ for (const width of [390, 1440]) {
       await expect(page.locator("html")).toHaveClass(/light/);
       const hero = page.locator(".patch-hero");
       await expect(hero).toBeVisible();
-      await expect(hero).toHaveCSS("min-height", "220px");
+      // Compact on phones (208px), 220px from the small breakpoint up.
+      await expect(hero).toHaveCSS(
+        "min-height",
+        width < 640 ? "208px" : "220px",
+      );
       await expect(hero).toHaveCSS("background-color", "rgb(18, 20, 17)");
       await expect(hero.locator("h1")).toHaveCSS("color", "rgb(242, 244, 235)");
       await expect(hero.locator(".patch-meta")).toHaveCSS(

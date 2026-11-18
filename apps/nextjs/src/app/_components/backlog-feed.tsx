@@ -36,8 +36,12 @@ function PatchSummary({ item }: { item: NewsItem }) {
   if (counts.nerf + counts.buff + changes === 0) return null;
   const neutralLabel =
     counts.nerf + counts.buff === 0 && counts.fix > changes / 2
-      ? "fix"
-      : "change";
+      ? changes === 1
+        ? "fix"
+        : "fixes"
+      : changes === 1
+        ? "change"
+        : "changes";
   return (
     <Link
       className="news-patch-summary"
@@ -58,7 +62,6 @@ function PatchSummary({ item }: { item: NewsItem }) {
       {changes > 0 && (
         <span className="news-patch-count" data-kind="adjusted">
           <span aria-hidden="true">↻</span> {changes} {neutralLabel}
-          {changes === 1 ? "" : "s"}
         </span>
       )}
       <span className="sr-only">: Read patch notes for {item.title}</span>

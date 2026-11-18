@@ -183,11 +183,13 @@ describe("stripNewsIntro", () => {
     );
   });
 
-  it("preserves ordinary announcements and handles an empty remainder", () => {
+  it("preserves ordinary announcements and never empties a greeting-only post", () => {
     expect(stripNewsIntro("Join us for the festival! Details tomorrow.")).toBe(
       "Join us for the festival! Details tomorrow.",
     );
-    expect(stripNewsIntro("Greetings, Helldivers!")).toBe("");
+    expect(stripNewsIntro("Greetings, Helldivers!")).toBe(
+      "Greetings, Helldivers!",
+    );
     expect(stripNewsIntro("")).toBe("");
   });
 });

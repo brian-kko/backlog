@@ -51,7 +51,8 @@ function isIntro(text: string) {
 export function stripNewsIntro(text: string): string {
   const parts = sentences(text);
   while (parts[0] && isIntro(parts[0])) parts.shift();
-  return parts.join(" ");
+  // A post that is only a greeting keeps it; an empty excerpt says less.
+  return parts.length ? parts.join(" ") : text;
 }
 
 function shortChange(sentence: string): string | null {
