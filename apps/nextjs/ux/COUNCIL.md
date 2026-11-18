@@ -163,6 +163,7 @@ e2e (61).
   aren't changes, bounded fallback excerpt, phone topic separator (astra 2,
   Opus 5).
 
-`isFallbackArt` (game-ui.tsx) and the `X-Gemuzu-Art: fallback` header were
-added before the workers branched. Next: merge workers, verify, re-audit,
+`isFallbackArt`, `GameArt onMissing` (game-ui.tsx) and the `X-Gemuzu-Art: fallback` header were
+added before the workers branched. Workers launched 2026-11-17 (outputs in
+`../gemuzu-wt/specs7/out-<task>.md`). Next: merge workers, verify, re-audit,
 round-7 reviews.
