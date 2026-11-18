@@ -12,13 +12,7 @@ import {
 } from "@acme/validators";
 
 import { useAddGame } from "./add-game";
-import {
-  GameArt,
-  libraryHero,
-  price,
-  storeName,
-  TrackActions,
-} from "./game-ui";
+import { GameArt, price, storeName, TrackActions } from "./game-ui";
 
 type Deal = RouterOutputs["backlog"]["searchDeals"]["offers"][number];
 export interface DealGroup {
@@ -293,22 +287,24 @@ function DealCard({
   featured?: boolean;
 }) {
   const { deal } = group;
+  const [noArt, setNoArt] = useState(false);
   const gap = steamGap(deal, steam);
   return (
     <article
-      className={cn("game-card deal-card", featured && "deal-featured")}
+      className={cn(
+        "game-card deal-card",
+        featured && "deal-featured",
+        featured && noArt && "no-art",
+      )}
       data-testid="deal-card"
     >
       <div className="deal-art">
         <GameArt
           appId={deal.steamAppId}
           title={deal.title}
-          src={
-            featured && deal.steamAppId
-              ? libraryHero(deal.steamAppId)
-              : deal.thumb
-          }
+          src={deal.thumb}
           priority={featured}
+          onMissing={featured ? () => setNoArt(true) : undefined}
         />
       </div>
       <div className="deal-content">

@@ -526,6 +526,10 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
     "Biggest saving vs Steam",
   );
   await expect(featured.locator(".deal-price")).toHaveText("$31.99");
+  await expect(featured.locator(".game-art")).toHaveAttribute(
+    "src",
+    deals[2]?.thumb ?? "",
+  );
   await expect(featured.locator(".steam-line")).toHaveText(
     "Steam $39.99 · save $8.00 (−20%)",
   );
@@ -673,6 +677,84 @@ for (const width of [1024, 1440]) {
     await expect(page).toHaveURL(/price=14\.99/);
   });
 }
+
+for (const width of [768, 840, 1024, 1440]) {
+  test(`a singleton matched deal stays compact at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const offers = deals.slice(1, 3).map((deal, index) => ({
+      ...deal,
+      title: index === 0 ? "SULFUR" : "Featured saving",
+      cheapestPrice: index === 0 ? 28.78 : 25.54,
+      normalPrice: 49.98,
+      storeId: index === 0 ? "1" : "3",
+    }));
+    await mockDealResults(page, offers, { 1001: 28.78, 1002: 31.49 });
+    await page.goto("/deals");
+    const card = page.locator(".deal-grid-pair > .deal-card:only-child");
+    await expect(card.getByRole("heading")).toHaveText("SULFUR");
+    await expect(card.locator(".deal-best-note")).toHaveText(
+      "Steam has the best price",
+    );
+    await expect(
+      card.getByRole("button", { name: "+ Wishlist", exact: true }),
+    ).toBeHidden();
+    const bounds = await card.evaluate((element) => {
+      const buy = element.querySelector(".deal-buy")?.getBoundingClientRect();
+      const track = element
+        .querySelector(".track-toggle-button")
+        ?.getBoundingClientRect();
+      return {
+        height: element.getBoundingClientRect().height,
+        width: element.getBoundingClientRect().width,
+        gridWidth: element.parentElement?.getBoundingClientRect().width,
+        ledgerWidth: element
+          .querySelector(".deal-ledger")
+          ?.getBoundingClientRect().width,
+        buyCenter: buy ? buy.top + buy.height / 2 : undefined,
+        trackCenter: track ? track.top + track.height / 2 : undefined,
+        buyRight: buy?.right,
+        trackLeft: track?.left,
+      };
+    });
+    expect(bounds.height).toBeLessThanOrEqual(160);
+    expect(bounds.width).toBe(bounds.gridWidth);
+    expect(bounds.ledgerWidth).toBeLessThanOrEqual(300);
+    expect(bounds.buyCenter).toBe(bounds.trackCenter);
+    expect(bounds.buyRight).toBeLessThan(bounds.trackLeft ?? 0);
+    await card.getByRole("button", { name: "Track ▾" }).click();
+    await expect(
+      card.getByRole("button", { name: "+ Wishlist", exact: true }),
+    ).toBeVisible();
+  });
+}
+
+test("a featured deal without real artwork keeps its price and Steam saving", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.route("**/api/art/**", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64"/>',
+    }),
+  );
+  const offers = deals.slice(2, 3).map((deal) => ({ ...deal, thumb: "" }));
+  await mockDealResults(page, offers, { 1002: 39.99 });
+  await page.goto("/deals");
+  const featured = page.locator(".deal-featured");
+  await expect(featured).toHaveClass(/\bno-art\b/);
+  await expect(featured.locator(".deal-art")).toBeHidden();
+  await expect(featured.getByRole("heading")).toHaveText("Featured Game 2");
+  await expect(featured.locator(".deal-price")).toHaveText("$31.99");
+  await expect(featured.locator(".steam-line")).toHaveText(
+    "Steam $39.99 · save $8.00 (−20%)",
+  );
+  const bounds = await featured.boundingBox();
+  expect(bounds?.height).toBeGreaterThanOrEqual(180);
+  expect(bounds?.height).toBeLessThanOrEqual(220);
+});
 
 for (const scenario of ["epic", "steam", "cached-zero", "unknown"] as const) {
   test(`free deal follow-up preserves ${scenario} availability`, async ({
@@ -1833,6 +1915,66 @@ for (const signedIn of [false, true]) {
 
 test.describe("phone layout", () => {
   test.use({ viewport: { width: 390, height: 844 } });
+
+  test("edition rows wrap linked titles and keep prices beside them", async ({
+    page,
+  }) => {
+    const offers = deals.slice(1, 3).map((deal, index) => ({
+      ...deal,
+      title:
+        index === 0
+          ? "LEGO Star Wars: The Skywalker Saga Deluxe Edition"
+          : "Need for Speed Heat Deluxe Edition",
+      steamAppId: index === 0 ? 1001 : null,
+      storeId: "3",
+      cheapestPrice: index === 0 ? 6.99 : 0,
+      normalPrice: 3.99,
+    }));
+    await mockDealResults(page, offers, {});
+    await page.goto("/deals");
+    const rows = page.locator(".deal-row");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first().getByRole("heading")).toHaveText(
+      offers[0]?.title ?? "",
+    );
+    await expect(rows.nth(1).locator(".deal-price")).toHaveText("Free");
+    const bounds = await rows.evaluateAll((elements) =>
+      elements.map((element) => {
+        const title = element.querySelector(".deal-title");
+        const titleLink = title?.querySelector("a");
+        const heading = element
+          .querySelector(".deal-row-heading")
+          ?.getBoundingClientRect();
+        const price = element
+          .querySelector(".deal-row-price")
+          ?.getBoundingClientRect();
+        const art = element
+          .querySelector(".deal-row-art")
+          ?.getBoundingClientRect();
+        return {
+          height: element.getBoundingClientRect().height,
+          titleHeight: title?.getBoundingClientRect().height,
+          titleLinkDisplay: titleLink
+            ? getComputedStyle(titleLink).display
+            : null,
+          headingRight: heading?.right,
+          priceLeft: price?.left,
+          artWidth: art?.width,
+          actionsHeight: element
+            .querySelector(".deal-buy")
+            ?.getBoundingClientRect().height,
+        };
+      }),
+    );
+    for (const row of bounds) {
+      expect(row.height).toBeLessThanOrEqual(150);
+      expect(row.titleHeight).toBe(44);
+      expect(row.headingRight).toBeLessThan(row.priceLeft ?? 0);
+      expect(row.artWidth).toBe(96);
+      expect(row.actionsHeight).toBeGreaterThanOrEqual(44);
+    }
+    expect(bounds[0]?.titleLinkDisplay).toBe("inline");
+  });
 
   test("deal rows keep tracking behind Track and show where the price buys", async ({
     page,

@@ -302,11 +302,99 @@
     }
   }
 
-  @media (width >= 1024px) {
+  @media (width >= 768px) {
     .deal-results .deal-grid-pair {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .deal-grid-pair > .deal-card:only-child {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 200px minmax(0, 1fr);
+      align-items: center;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-art,
+    .deal-grid-pair > .deal-card:only-child .game-art {
+      width: 200px;
+      height: 112px;
+    }
+
+    .deal-results .deal-grid-pair > .deal-card:only-child .deal-content {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto auto;
+      align-items: center;
+      gap: 4px 12px;
+      padding: 12px;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-heading {
+      grid-column: 1 / -1;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-ledger {
+      grid-column: 1;
+      grid-row: 2 / 4;
+      align-self: center;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-content > .deal-price-meta {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    .deal-results .deal-grid-pair > .deal-card:only-child .deal-actions {
+      grid-column: 2;
+      grid-row: 3;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-buy,
+    .deal-grid-pair > .deal-card:only-child .track-toggle {
+      width: auto;
+      min-width: 0;
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .track-toggle-button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding-inline: 8px;
+    }
+
+    .deal-grid-pair
+      > .deal-card:only-child
+      .track-toggle:not([data-open])
+      .track-toggle-body {
+      display: none;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-ledger > .price-link,
+    .deal-grid-pair > .deal-card:only-child .deal-ledger > .steam-line {
+      padding: 8px;
+    }
+
+    /* Opening tracking can grow the strip without squeezing its price ledger. */
+    .deal-grid-pair > .deal-card:only-child .track-toggle[data-open] {
+      flex-basis: 100%;
+    }
+
+    .deal-grid-pair
+      > .deal-card:only-child:has(.track-toggle[data-open])
+      .deal-actions {
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (width >= 1024px) {
     .deal-results .deal-grid-pair > .deal-card {
       display: grid;
       grid-template-columns: 240px minmax(0, 1fr);
@@ -336,9 +424,37 @@
     .deal-grid-pair .track-toggle {
       width: 100%;
     }
+  }
 
+  @media (width >= 960px) {
     .deal-grid-pair > .deal-card:only-child {
-      grid-column: 1 / -1;
+      grid-template-columns: 240px minmax(0, 1fr);
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-art,
+    .deal-grid-pair > .deal-card:only-child .game-art {
+      width: 240px;
+      height: 135px;
+    }
+
+    .deal-results .deal-grid-pair > .deal-card:only-child .deal-content {
+      grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+      gap: 8px 16px;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-heading {
+      grid-column: 1;
+      grid-row: 1 / 3;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-content > .deal-price-meta {
+      grid-column: 1;
+      grid-row: 3;
+    }
+
+    .deal-grid-pair > .deal-card:only-child .deal-ledger {
+      grid-column: 2;
+      grid-row: 1 / 3;
     }
   }
 
@@ -350,7 +466,7 @@
       --signal: #c8ed78;
       position: relative;
       display: block;
-      min-height: 280px;
+      min-height: 220px;
       isolation: isolate;
       background: var(--deal-art-ink);
     }
@@ -391,21 +507,26 @@
 
     .deal-results .deal-featured .deal-content {
       position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      max-width: 740px;
-      min-height: 280px;
-      gap: 8px;
-      padding: 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) max-content;
+      grid-template-rows: auto auto;
+      align-content: center;
+      max-width: none;
+      min-height: 218px;
+      gap: 8px 24px;
+      padding: 16px 24px;
       color: var(--deal-art-text);
     }
 
     .deal-featured .deal-heading {
+      grid-column: 1;
+      grid-row: 1;
       min-height: 0;
     }
 
     .deal-featured .deal-ledger {
+      grid-column: 1;
+      grid-row: 2;
       align-self: stretch;
     }
 
@@ -415,8 +536,8 @@
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
       font-family: var(--font-display);
-      font-size: 48px;
-      line-height: 48px;
+      font-size: 40px;
+      line-height: 40px;
       text-wrap: balance;
     }
 
@@ -437,8 +558,8 @@
 
     .deal-results .deal-featured .deal-price {
       color: var(--deal-art-text);
-      font-size: 40px;
-      line-height: 48px;
+      font-size: 32px;
+      line-height: 40px;
     }
 
     .deal-featured .ledger-label,
@@ -492,11 +613,12 @@
     }
 
     .deal-featured .deal-actions {
-      flex-direction: row;
-      flex-wrap: wrap;
+      grid-column: 2;
+      grid-row: 1 / 3;
+      flex-direction: column;
       align-items: start;
       gap: 12px;
-      margin-top: 4px;
+      margin: 0;
     }
 
     .deal-featured .deal-buy {
@@ -540,7 +662,7 @@
     /* Tracking forms expand on user action, never when artwork loads. */
     .deal-results .deal-featured:has(.field-label, .own-prompt) {
       height: auto;
-      min-height: 280px;
+      min-height: 220px;
     }
 
     .deal-featured .track-actions:has(.field-label, .own-prompt) {
@@ -553,6 +675,34 @@
 
     .deal-featured .deal-actions:has(.field-label, .own-prompt) .track-toggle {
       flex-basis: 100%;
+    }
+
+    .deal-featured.no-art {
+      --deal-art-text: var(--foreground);
+      --signal: var(--ring);
+      background: var(--card);
+    }
+
+    .deal-featured.no-art .deal-content {
+      border-top: 3px solid var(--signal);
+    }
+
+    .deal-featured.no-art .track-actions .action.secondary {
+      border-color: var(--control-border);
+    }
+  }
+
+  .deal-featured.no-art > .deal-art {
+    display: none;
+  }
+
+  .deal-featured.no-art .deal-heading {
+    grid-column: 1 / -1;
+  }
+
+  @media (width >= 768px) {
+    .deal-featured.no-art .deal-heading {
+      grid-column: 1;
     }
   }
 
@@ -601,18 +751,34 @@
     }
 
     .deal-results .deal-row {
-      grid-template-columns: 120px minmax(0, 1fr);
-      gap: 8px 12px;
+      grid-template-columns: 96px minmax(0, 1fr) auto;
+      gap: 8px;
       padding: 12px;
     }
 
+    .deal-row-art,
+    .deal-row-art .game-art {
+      width: 96px;
+      height: 45px;
+    }
+
+    .deal-row .deal-title {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      white-space: normal;
+    }
+
+    .deal-row .deal-title > a {
+      /* The global coarse-pointer heading rule otherwise prevents wrapping. */
+      display: inline !important;
+    }
+
     .deal-row-price {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 4px 12px;
+      grid-column: 3;
+      grid-row: 1;
+      display: block;
+      max-width: 88px;
     }
 
     .deal-row .deal-actions {
