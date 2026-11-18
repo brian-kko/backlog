@@ -1,4 +1,43 @@
 @layer components {
+  .news-patch-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    max-width: 100%;
+    border-radius: 4px;
+    color: var(--muted-foreground);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .news-patch-summary:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .news-patch-summary:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+  }
+
+  .news-patch-count {
+    padding: 1px 5px;
+    border: 1px solid color-mix(in srgb, var(--kind) 40%, transparent);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--kind) 8%, var(--background));
+    /* Mix with the theme's text ink to keep 13px labels legible in light mode. */
+    color: color-mix(in srgb, var(--kind) 60%, var(--foreground));
+    white-space: nowrap;
+  }
+
+  @media (pointer: coarse) {
+    .news-patch-summary {
+      min-height: 44px;
+    }
+  }
+
   .news-entry .news-topics {
     display: flex;
     flex-wrap: wrap;
@@ -69,6 +108,7 @@
 
   .updates-page .updates-count-period {
     display: none;
+    margin-left: 0.3em;
   }
 
   @media (min-width: 840px) and (max-width: 1199px) {

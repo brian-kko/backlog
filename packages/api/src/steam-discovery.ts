@@ -6,8 +6,10 @@ import {
   cleanSteamText,
   DealItemSchema,
   isPromotionalNews,
+  parsePatchNotes,
   parseSteamStoreSearch,
   SearchDealsInputSchema,
+  summarizePatch,
 } from "@acme/validators";
 
 import { catalogVerifiedAt, curatedGames } from "./curated-games";
@@ -131,15 +133,23 @@ export async function fetchSteamFeed(steamAppId: number) {
             .filter((item) => !isOfficial(item))
             .slice(0, 4 - official.length),
         ];
-  const items = selected.map((item) => ({
-    id: item.gid,
-    steamAppId,
-    title: cleanSteamText(item.title),
-    official: isOfficial(item),
-    url: item.url,
-    publishedAt: new Date(item.date * 1000),
-    ...classifyAndCleanSteamNews(item),
-  }));
+  const items = selected.map((item) => {
+    const news = classifyAndCleanSteamNews(item);
+    return {
+      id: item.gid,
+      steamAppId,
+      title: cleanSteamText(item.title),
+      official: isOfficial(item),
+      url: item.url,
+      publishedAt: new Date(item.date * 1000),
+      ...news,
+      // Only the counts travel to the client, not the full notes.
+      patchCounts:
+        news.category === "patch_note"
+          ? summarizePatch(parsePatchNotes(item.contents, item.title)).counts
+          : null,
+    };
+  });
   return {
     available,
     patchNotes: items.filter((item) => item.category === "patch_note"),
