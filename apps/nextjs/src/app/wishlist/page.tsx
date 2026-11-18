@@ -6,7 +6,7 @@ import Link from "next/link";
 import { isRiotGame, purchaseStoreFromDeal } from "@acme/validators";
 
 import type { BacklogItem } from "~/components/backlog-provider";
-import type { AlertState, Prices, PriceState } from "~/components/price-ui";
+import type { Prices } from "~/components/price-ui";
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { EmptyArt } from "~/components/empty-art";
@@ -25,6 +25,7 @@ import { GuestBanner } from "~/components/guest-banner";
 import {
   AlertBadge,
   bestOffer,
+  lastChecked,
   priceLabel,
   PriceTrack,
   steamDelta,
@@ -34,49 +35,37 @@ import {
 } from "~/components/price-ui";
 
 function WatchCard({
-  item,
-  prices,
-  state,
-  alert,
+  row: { item, prices, state, alert, free, buyNow, checkedAt },
   offline,
   onOwned,
   moveBusy,
 }: {
-  item: BacklogItem;
-  prices: Prices | undefined;
-  state: PriceState;
-  alert: AlertState;
+  row: ReturnType<typeof useWishlistPrices>["rows"][number];
   offline: boolean;
   onOwned: (item: BacklogItem, prices: Prices | undefined) => void;
   /** Another move is in flight; one at a time keeps the panel coherent. */
   moveBusy: boolean;
 }) {
-  const pending = !offline && state === "checking";
-  const delta = steamDelta(prices);
+  const pending = state === "checking";
+  const delta = steamDelta(prices, state);
   const [editing, setEditing] = useState(false);
   const { save } = useBacklog();
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const offer = bestOffer(prices);
   const verified = state === "live" || state === "steam-only";
-  const free = verified && offer?.price === 0;
-  const buyNow =
-    verified &&
-    (alert === "TARGET_MET" || alert === "ALL_TIME_LOW" || offer?.price === 0);
-  const source = offline
-    ? null
-    : offer
-      ? `at ${offer.store}`
-      : "Couldn’t check";
-  const freshness = offline
+  const showHistory = pending || verified;
+  const source =
+    state === "cached" && prices
+      ? lastChecked(checkedAt)
+      : offer
+        ? `at ${offer.store} · ${state === "steam-only" ? "Other stores couldn’t be checked" : `${plural(offer.stores, "store")} compared`}`
+        : null;
+  const outage = offline
     ? "Checks when you’re back online"
-    : offer
-      ? state === "cached"
-        ? `Saved ${offer.checkedOn} · last known price`
-        : state === "steam-only"
-          ? "Other stores couldn’t be checked"
-          : `${plural(offer.stores, "store")} compared`
-      : "Try checking again in a moment";
+    : `Prices didn’t load${item.targetPrice === undefined ? "" : ` · your ${price(item.targetPrice)} target is saved`}`;
+  const decision =
+    state === "unavailable" ? outage : targetGap(item, prices, state, alert);
   async function update(change: Partial<BacklogItem>, done: string) {
     setSaving(true);
     try {
@@ -113,7 +102,7 @@ function WatchCard({
         </div>
         <div className="watch-price-group">
           <div className="watch-current">
-            <span className="sr-only">{priceLabel(prices)}</span>
+            <span className="sr-only">{priceLabel(state)}</span>
             <p className="watch-current-price">
               {pending ? (
                 <span
@@ -128,7 +117,7 @@ function WatchCard({
             </p>
             <p className="watch-source" role="status">
               {pending ? (
-                <>
+                <span className="w-full">
                   <span className="sr-only">Checking prices…</span>
                   <span
                     className="watch-skeleton watch-skeleton-store"
@@ -138,17 +127,9 @@ function WatchCard({
                     className="watch-skeleton watch-skeleton-freshness"
                     aria-hidden="true"
                   />
-                </>
+                </span>
               ) : (
-                <>
-                  {source && (
-                    <>
-                      <span>{source}</span>
-                      {" · "}
-                    </>
-                  )}
-                  <span title={freshness}>{freshness}</span>
-                </>
+                source
               )}
             </p>
           </div>
@@ -158,25 +139,18 @@ function WatchCard({
                 className="watch-skeleton watch-skeleton-comparison"
                 aria-hidden="true"
               />
-            ) : !offline && offer ? (
+            ) : verified && offer ? (
               (delta ?? "No live Steam comparison")
             ) : null}
           </p>
         </div>
-        <p className="gap-line watch-decision">
-          <AlertBadge state={state} alert={alert}>
-            {offline
-              ? item.targetPrice === undefined
-                ? "Prices refresh when you reconnect."
-                : `Target ${price(item.targetPrice)} saved`
-              : pending
-                ? "Checking prices…"
-                : (targetGap(item, prices) ??
-                  (item.targetPrice === undefined
-                    ? "Try checking prices again."
-                    : "Your target is saved; try checking again."))}
-          </AlertBadge>
-        </p>
+        {(pending || decision) && (
+          <p className="gap-line watch-decision">
+            <AlertBadge state={state} alert={alert}>
+              {decision ?? undefined}
+            </AlertBadge>
+          </p>
+        )}
         <dl className="price-pair watch-secondary">
           <div data-field="target" hidden={free}>
             <dt>Your target</dt>
@@ -210,61 +184,62 @@ function WatchCard({
               </button>
             </dd>
           </div>
-          <div>
-            <dt>
-              {!pending && prices?.historicalLow == null
-                ? "History unavailable"
-                : prices?.historicalLowSource === "cheapshark"
-                  ? "Lowest ever"
-                  : prices?.historicalLowSource === "catalog"
-                    ? "Lowest recorded"
-                    : "Price history"}
-            </dt>
-            <dd className="watch-secondary-value">
-              {pending ? (
-                <span
-                  className="watch-skeleton watch-skeleton-value"
-                  aria-hidden="true"
-                />
-              ) : (
-                <>
-                  {price(prices?.historicalLow)}
-                  {prices?.historicalLow != null &&
-                    prices.historicalLowSource === "catalog" && (
-                      <span
-                        className="watch-history-note"
-                        title={`Saved ${prices.historicalLowAsOf ?? "catalog data"}`}
-                      >
-                        {" "}
-                        · saved
-                      </span>
-                    )}
-                </>
-              )}
-            </dd>
-          </div>
-        </dl>
-        {/* Keep the same footprint for loading, missing history and live data. */}
-        <div className="watch-track-slot">
-          {pending ? (
-            <div className="watch-track-placeholder" aria-hidden="true">
-              <span className="watch-skeleton watch-skeleton-rail" />
-              <span className="watch-skeleton watch-skeleton-legend" />
+          {showHistory && (
+            <div>
+              <dt>
+                {!pending && prices?.historicalLow == null
+                  ? "History unavailable"
+                  : prices?.historicalLowSource === "cheapshark"
+                    ? "Lowest ever"
+                    : prices?.historicalLowSource === "catalog"
+                      ? "Lowest recorded"
+                      : "Price history"}
+              </dt>
+              <dd className="watch-secondary-value">
+                {pending ? (
+                  <span
+                    className="watch-skeleton watch-skeleton-value"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <>
+                    {price(prices?.historicalLow)}
+                    {prices?.historicalLow != null &&
+                      prices.historicalLowSource === "catalog" && (
+                        <span
+                          className="watch-history-note"
+                          title={`Saved ${prices.historicalLowAsOf ?? "catalog data"}`}
+                        >
+                          {" "}
+                          · saved
+                        </span>
+                      )}
+                  </>
+                )}
+              </dd>
             </div>
-          ) : offer?.price == null && !offline ? (
-            <p className="watch-track-unavailable">Price track unavailable</p>
-          ) : offer?.price != null ? (
-            <PriceTrack
-              current={offer.price}
-              target={free ? undefined : item.targetPrice}
-              low={
-                prices?.historicalLowSource === "cheapshark"
-                  ? prices.historicalLow
-                  : null
-              }
-            />
-          ) : null}
-        </div>
+          )}
+        </dl>
+        {showHistory && (
+          <div className="watch-track-slot">
+            {pending ? (
+              <div className="watch-track-placeholder" aria-hidden="true">
+                <span className="watch-skeleton watch-skeleton-rail" />
+                <span className="watch-skeleton watch-skeleton-legend" />
+              </div>
+            ) : offer?.price != null ? (
+              <PriceTrack
+                current={offer.price}
+                target={free ? undefined : item.targetPrice}
+                low={
+                  prices?.historicalLowSource === "cheapshark"
+                    ? prices.historicalLow
+                    : null
+                }
+              />
+            ) : null}
+          </div>
+        )}
         {editing && !free && (
           <PriceField
             label="Target price"
@@ -297,15 +272,17 @@ function WatchCard({
               <span aria-hidden="true">↗</span>
             </a>
           ) : (
-            <span className="watch-buy-placeholder" aria-hidden="true">
-              {pending ? "Checking stores…" : "Store unavailable"}
-            </span>
+            pending && (
+              <span className="watch-buy-placeholder" aria-hidden="true">
+                Checking stores…
+              </span>
+            )
           )}
           <button
-            className="action secondary"
+            className={`action secondary${!offer && !pending ? "col-span-full" : ""}`}
             disabled={saving || moveBusy}
             data-own-button={item.steamAppId}
-            onClick={() => onOwned(item, prices)}
+            onClick={() => onOwned(item, verified ? prices : undefined)}
           >
             I own this
           </button>
@@ -378,7 +355,8 @@ export default function WishlistPage() {
     checkedAt,
     refresh,
     refreshing,
-  } = useWishlistPrices(items.filter((item) => !isRiotGame(item.steamAppId)));
+  } = useWishlistPrices(items);
+  const targetsMet = alerts.filter((row) => row.alert === "TARGET_MET").length;
   const wishlist = [
     ...rows,
     ...following.map((item) => ({ item, prices: undefined })),
@@ -513,12 +491,16 @@ export default function WishlistPage() {
               "Prices unavailable"
             ) : unchecked.length ? (
               <>
-                <strong>{alerts.length}</strong> at your price ·{" "}
-                {unchecked.length} unchecked
+                {targetsMet === alerts.length
+                  ? `${targetsMet} at your price`
+                  : plural(alerts.length, "price alert")}{" "}
+                · {unchecked.length} unchecked
               </>
             ) : (
               <>
-                <strong>{alerts.length}</strong> of {rows.length} at your price
+                {targetsMet === alerts.length
+                  ? `${targetsMet} of ${rows.length} at your price`
+                  : plural(alerts.length, "price alert")}
               </>
             )
           ) : null
@@ -693,10 +675,7 @@ export default function WishlistPage() {
               "state" in row ? (
                 <WatchCard
                   key={row.item.steamAppId}
-                  item={row.item}
-                  prices={row.prices}
-                  state={row.state}
-                  alert={row.alert}
+                  row={row}
                   offline={offline}
                   moveBusy={moveBusy}
                   onOwned={(owned, ownedPrices) =>

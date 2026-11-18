@@ -28,12 +28,19 @@ import {
   storeName,
 } from "~/components/game-ui";
 import {
+  alertFor,
   bestOffer,
+  hasFreshPrices,
+  lastChecked,
   lowLabel,
   priceLabel,
+  priceRefetchOptions,
   PricesChecked,
+  priceState,
   steamDelta,
   targetGap,
+  useGamePriceOptions,
+  usePriceConnection,
 } from "~/components/price-ui";
 import { useTRPC } from "~/trpc/react";
 import { BacklogFeed } from "../../_components/backlog-feed";
@@ -122,10 +129,12 @@ const sentenceCase = (text: string, title: string) => {
 function StorePrices({
   prices,
   steamUrl,
+  live,
   collapsed = false,
 }: {
   prices: Prices;
   steamUrl: string;
+  live: boolean;
   /** Owned games tuck the comparison away behind a toggle. */
   collapsed?: boolean;
 }) {
@@ -156,10 +165,7 @@ function StorePrices({
           </li>
         )}
         {visible.map((deal) => {
-          const comparison =
-            prices.source === "catalog"
-              ? null
-              : compareToSteam(deal.price, steam);
+          const comparison = live ? compareToSteam(deal.price, steam) : null;
           return (
             <li key={deal.dealID}>
               <a href={deal.url} target="_blank" rel="noreferrer">
@@ -172,10 +178,10 @@ function StorePrices({
                     −{price(comparison.savingCents / 100)}
                   </span>
                 )}
-                {deal.retailPrice > deal.price && (
+                {live && deal.retailPrice > deal.price && (
                   <s>
                     <span className="sr-only">was </span>
-                    {money(deal.retailPrice)}
+                    {price(deal.retailPrice)}
                   </s>
                 )}
                 <strong>{price(deal.price)}</strong>
@@ -306,8 +312,16 @@ function HeroTitle({
 export function GameHub({ steamAppId }: { steamAppId: number }) {
   const trpc = useTRPC();
   useAmbientTint(steamAppId);
+  const connection = usePriceConnection();
+  const gamePriceOptions = useGamePriceOptions();
+  const input = { steamAppId };
   const game = useQuery(
-    trpc.backlog.getGameDetails.queryOptions({ steamAppId }),
+    trpc.backlog.getGameDetails.queryOptions(input, priceRefetchOptions),
+  );
+  // The initial request includes prices and news. Give each source its own retry.
+  const priceCheck = useQuery(gamePriceOptions(steamAppId, false));
+  const feedCheck = useQuery(
+    trpc.backlog.getSteamFeed.queryOptions(input, { enabled: false }),
   );
   const { items } = useBacklog();
   const item = items.find((value) => value.steamAppId === steamAppId);
@@ -319,7 +333,18 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
         game.data?.prices?.title ??
         `Steam app ${steamAppId}`,
     );
-  const prices = game.data?.prices ?? undefined;
+  const usingPriceCheck =
+    !!priceCheck.data?.prices &&
+    (priceCheck.dataUpdatedAt > game.dataUpdatedAt || !game.data?.prices);
+  const prices = usingPriceCheck ? priceCheck.data?.prices : game.data?.prices;
+  const priceQuery = usingPriceCheck ? priceCheck : game;
+  const state = priceState(prices, {
+    fresh: hasFreshPrices(priceQuery, connection),
+    pending:
+      connection.online &&
+      (game.fetchStatus === "fetching" ||
+        priceCheck.fetchStatus === "fetching"),
+  });
   const offer = bestOffer(prices);
   const description = game.data?.metadata?.short_description
     ?.replace(/<[^>]*>/g, "")
@@ -327,6 +352,33 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
   const steamUrl = `https://store.steampowered.com/app/${steamAppId}/`;
   // Riot's games live on Riot's site, are free, and aren't sold in PC stores.
   const riot = riotGame(steamAppId);
+  const feed = feedCheck.data?.available
+    ? feedCheck.data
+    : (game.data?.feed ?? feedCheck.data);
+  const detailsFailed = game.isError || (game.isSuccess && !game.data.metadata);
+  const pricesFailed =
+    priceQuery.isError ||
+    (state === "unavailable" && detailsFailed) ||
+    (state === "cached" && prices?.source === "catalog");
+  const newsFailed =
+    !feed?.available && (feedCheck.isError || feed?.available === false);
+  const combinedOutage =
+    !riot &&
+    connection.online &&
+    [detailsFailed, pricesFailed, newsFailed].filter(Boolean).length >= 2;
+  const retrying =
+    game.isFetching || priceCheck.isFetching || feedCheck.isFetching;
+  const gap =
+    item && !item.isOwned
+      ? targetGap(item, prices, state, alertFor(item, prices))
+      : null;
+  const checkedAt =
+    prices?.source === "catalog" ? prices.verifiedAt : priceQuery.dataUpdatedAt;
+  const patches = feed?.patchNotes ?? [];
+  const events = feed?.events ?? [];
+  // Community posts only count when the feed's checkbox is selected.
+  const patchCount = patches.some((post) => post.official !== false);
+  const eventCount = events.some((post) => post.official !== false);
   const back = item?.isOwned
     ? { href: "/library", label: "Library" }
     : item
@@ -354,8 +406,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           >
             {description ? (
               sentenceCase(description, title)
-            ) : game.isError ? (
-              // Said once, in the hero's reserved slot, not as a stray line.
+            ) : detailsFailed && !combinedOutage ? (
               <span role="alert">
                 Steam details didn’t load.{" "}
                 <button
@@ -392,7 +443,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {offer.state === "cached"
+                {state === "cached"
                   ? `Check price at ${offer.store}`
                   : offer.price === 0
                     ? `Get it free at ${offer.store}`
@@ -418,7 +469,31 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           )}
         </div>
       </section>
-      <section data-reveal className="hub-grid">
+      {combinedOutage && (
+        <aside className="offline-panel" aria-live="polite">
+          <p>
+            Steam isn’t responding. Prices, details and news will load when it
+            does.
+          </p>
+          <button
+            className="action secondary"
+            disabled={retrying}
+            onClick={() =>
+              void Promise.all([
+                game.refetch(),
+                priceCheck.refetch(),
+                feedCheck.refetch(),
+              ])
+            }
+          >
+            {retrying ? "Trying again…" : "Try again"}
+          </button>
+        </aside>
+      )}
+      <section
+        data-reveal
+        className="hub-grid lg:grid-rows-[auto_1fr] lg:[&>.backlog-editor]:col-start-2 lg:[&>.backlog-editor]:row-span-2 lg:[&>.backlog-editor]:row-start-1"
+      >
         {/* Prices lead for every game: that's what Gemuzu adds over Steam. */}
         <div className="panel space-y-4">
           <div className="section-heading">
@@ -432,11 +507,27 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
                 stores, so there are no prices to compare.
               </p>
             </div>
-          ) : game.fetchStatus === "paused" ? (
+          ) : !offer &&
+            (!connection.online || game.fetchStatus === "paused") ? (
             <p role="status" className="filter-help">
               You’re offline. Prices will load when you reconnect.
             </p>
-          ) : game.isPending ? (
+          ) : pricesFailed && !offer ? (
+            <p className="price-status text-sm">
+              Couldn’t check store prices
+              {!combinedOutage && (
+                <>
+                  .{" "}
+                  <button
+                    className="text-link"
+                    onClick={() => void game.refetch()}
+                  >
+                    Try again
+                  </button>
+                </>
+              )}
+            </p>
+          ) : state === "checking" ? (
             <p role="status" className="price-status">
               Checking stores…
             </p>
@@ -444,32 +535,50 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
             <>
               <div className="space-y-1">
                 <p className="text-muted-foreground text-xs font-medium">
-                  {priceLabel(prices)}
+                  {priceLabel(state)}
                 </p>
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <p className="hub-price">{price(offer.price)}</p>
                   <p className="text-sm font-medium">
-                    {steamDelta(prices) ?? `at ${offer.store}`}
+                    {steamDelta(prices, state) ?? `at ${offer.store}`}
                   </p>
                 </div>
-                <p className="text-muted-foreground text-sm">
-                  {lowLabel(prices)}{" "}
-                  {prices.historicalLow == null
-                    ? "not recorded"
-                    : price(prices.historicalLow)}
-                  {item && !item.isOwned ? ` · ${targetGap(item, prices)}` : ""}
-                </p>
+                {state !== "cached" &&
+                  (prices.historicalLow != null || gap) && (
+                    <p className="text-muted-foreground text-sm">
+                      {[
+                        prices.historicalLow != null
+                          ? `${lowLabel(prices)} ${price(prices.historicalLow)}`
+                          : null,
+                        gap,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
               </div>
-              {offer.state !== "cached" && game.dataUpdatedAt ? (
-                <PricesChecked at={game.dataUpdatedAt} />
+              {state !== "cached" ? (
+                <PricesChecked at={priceQuery.dataUpdatedAt} />
               ) : null}
-              {offer.state === "cached" && (
+              {state === "cached" && (
                 <p className="price-source-note">
-                  Live prices couldn’t be reached. Saved prices from{" "}
-                  {offer.checkedOn}; check the store before buying.
+                  {combinedOutage && "Couldn’t check store prices · "}
+                  {lastChecked(checkedAt)}
+                  {connection.online && !combinedOutage && pricesFailed && (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <button
+                        className="text-link"
+                        onClick={() => void game.refetch()}
+                      >
+                        Try again
+                      </button>
+                    </>
+                  )}
                 </p>
               )}
-              {offer.state === "steam-only" && (
+              {state === "steam-only" && (
                 <p className="price-source-note">
                   Other stores couldn’t be checked right now; this is Steam’s
                   price.
@@ -478,26 +587,10 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
               <StorePrices
                 prices={prices}
                 steamUrl={steamUrl}
+                live={state !== "cached"}
                 collapsed={item?.isOwned}
               />
             </>
-          ) : game.isError ? (
-            // A failed check is not the same as "nobody sells it".
-            <p role="alert" className="price-status text-sm">
-              Store prices couldn’t be checked right now.{" "}
-              <button className="text-link" onClick={() => void game.refetch()}>
-                Try again
-              </button>{" "}
-              ·{" "}
-              <a
-                className="text-link"
-                href={steamUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Steam store page ↗
-              </a>
-            </p>
           ) : (
             <p className="text-muted-foreground text-sm">
               No store is listing a price for this game right now.{" "}
@@ -518,26 +611,40 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           title={title}
           loading={game.isPending && game.fetchStatus !== "paused" && !item}
         />
-      </section>
-      <section data-reveal className="space-y-5">
-        <div className="section-heading">
-          <h2>Patch notes &amp; events</h2>
-        </div>
-        {game.fetchStatus === "paused" ? (
-          <p role="status" className="filter-help">
-            You’re offline. News will load when you reconnect.
-          </p>
-        ) : game.isPending ? (
-          <p role="status">
-            {riot ? "Loading Riot news…" : "Loading Steam news…"}
-          </p>
-        ) : (
-          <BacklogFeed
-            key={steamAppId}
-            steamAppId={steamAppId}
-            initialFeed={game.data?.feed ?? undefined}
-          />
-        )}
+        <section
+          className={cn(
+            "space-y-5 md:col-span-2 lg:col-span-1 lg:col-start-1",
+            !patches.length && "[&_#tab-patches_.tab-count]:hidden",
+            !events.length && "[&_#tab-events_.tab-count]:hidden",
+            !patchCount &&
+              "[&:not(:has(input:checked))_#tab-patches_.tab-count]:hidden",
+            !eventCount &&
+              "[&:not(:has(input:checked))_#tab-events_.tab-count]:hidden",
+          )}
+        >
+          <div className="section-heading">
+            <h2>Patch notes &amp; events</h2>
+          </div>
+          {game.fetchStatus === "paused" ? (
+            <p role="status" className="filter-help">
+              You’re offline. News will load when you reconnect.
+            </p>
+          ) : game.isPending ? (
+            <p role="status">
+              {riot ? "Loading Riot news…" : "Loading Steam news…"}
+            </p>
+          ) : combinedOutage && !feed?.available ? (
+            <p className="text-muted-foreground text-sm">
+              News couldn’t be loaded.
+            </p>
+          ) : (
+            <BacklogFeed
+              key={steamAppId}
+              steamAppId={steamAppId}
+              initialFeed={feed}
+            />
+          )}
+        </section>
       </section>
     </main>
   );

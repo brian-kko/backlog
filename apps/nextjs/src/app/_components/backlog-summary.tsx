@@ -3,11 +3,11 @@
 import Link from "next/link";
 
 import { cn } from "@acme/ui";
-import { purchaseStoreNames } from "@acme/validators";
+import { purchaseStoreNames, toCents } from "@acme/validators";
 
 import type { BacklogItem } from "~/components/backlog-provider";
 import { useBacklog } from "~/components/backlog-provider";
-import { money, plural } from "~/components/game-ui";
+import { plural, price } from "~/components/game-ui";
 import { useWishlistPrices } from "~/components/price-ui";
 
 interface Metric {
@@ -26,7 +26,7 @@ function storeBreakdown(paid: BacklogItem[]) {
     const store = item.purchaseStore
       ? purchaseStoreNames[item.purchaseStore]
       : "store not set";
-    totals.set(store, (totals.get(store) ?? 0) + (item.amountPaid ?? 0));
+    totals.set(store, (totals.get(store) ?? 0) + toCents(item.amountPaid ?? 0));
   }
   if (totals.size < 2) return undefined;
   return [...totals]
@@ -34,57 +34,61 @@ function storeBreakdown(paid: BacklogItem[]) {
     .slice(0, 3)
     .map(
       ([store, total]) =>
-        `${money(total)} ${store === "store not set" ? "unassigned" : `on ${store}`}`,
+        `${price(total / 100)} ${store === "store not set" ? "unassigned" : `on ${store}`}`,
     )
     .join(" · ");
+}
+
+function spending(items: BacklogItem[]) {
+  const recorded = items.filter((item) => item.amountPaid != null);
+  const cents = recorded.reduce(
+    (sum, item) => sum + toCents(item.amountPaid ?? 0),
+    0,
+  );
+  const coverage = !recorded.length
+    ? "No purchase price recorded"
+    : recorded.length < items.length
+      ? `${recorded.length} of ${items.length} prices recorded`
+      : undefined;
+  return {
+    recorded,
+    cents,
+    value: recorded.length ? price(cents / 100) : "—",
+    coverage,
+  };
 }
 
 export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
   const { items, isLoading } = useBacklog();
   const owned = items.filter((item) => item.isOwned);
-  const paid = owned.filter((item) => item.amountPaid !== undefined);
-  const totalSpent = paid.reduce(
-    (sum, item) => sum + (item.amountPaid ?? 0),
-    0,
-  );
+  const total = spending(owned);
   const byStatus = (value: NonNullable<BacklogItem["completionStatus"]>) =>
     owned.filter((item) => (item.completionStatus ?? "backlog") === value);
   const unplayed = byStatus("backlog");
-  const unplayedSpend = unplayed.reduce(
-    (sum, item) => sum + (item.amountPaid ?? 0),
-    0,
-  );
+  const unplayedSpend = spending(unplayed);
   const prices = useWishlistPrices(ledger ? [] : items);
-  const unplayedRecorded = unplayed.filter(
-    (item) => item.amountPaid !== undefined,
-  ).length;
-  const unplayedCoverage =
-    unplayedRecorded < unplayed.length
-      ? `${unplayedRecorded} of ${unplayed.length} recorded`
-      : undefined;
-  const coverage =
-    paid.length < owned.length
-      ? `${paid.length} of ${owned.length} purchases recorded`
-      : undefined;
+  const paid = total.recorded;
+  const unplayedNote =
+    unplayedSpend.coverage ??
+    `across ${plural(unplayed.length, "unplayed game")}`;
   const metrics: Metric[] = ledger
     ? [
         {
           label: "Total spent",
-          value: money(totalSpent),
+          value: total.value,
           href: "/library",
           note:
-            [coverage, storeBreakdown(paid)].filter(Boolean).join(" · ") ||
-            undefined,
-          essential: Boolean(coverage),
+            [total.coverage, storeBreakdown(paid)]
+              .filter(Boolean)
+              .join(" · ") || undefined,
+          essential: Boolean(total.coverage),
         },
         {
           label: "Paid for, never played",
-          value: money(unplayedSpend),
+          value: unplayedSpend.value,
           href: "/library?status=backlog",
-          note: unplayedCoverage
-            ? `${unplayedCoverage} · ${plural(unplayed.length, "unplayed game")}`
-            : `across ${plural(unplayed.length, "unplayed game")}`,
-          essential: Boolean(unplayedCoverage),
+          note: unplayedNote,
+          essential: Boolean(unplayedSpend.coverage),
         },
         {
           label: "Completed",
@@ -95,11 +99,13 @@ export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
         },
         {
           label: "Average paid",
-          value: paid.length ? money(totalSpent / paid.length) : "—",
+          value: paid.length
+            ? price(Math.round(total.cents / paid.length) / 100)
+            : "—",
           href: "/library",
           note: paid.length
             ? `per game, ${plural(paid.length, "purchase")} recorded`
-            : "no purchases recorded",
+            : "No purchase price recorded",
           essential: paid.length < owned.length,
         },
       ]
@@ -113,21 +119,22 @@ export function BacklogSummary({ ledger = false }: { ledger?: boolean }) {
           note:
             !prices.pending && prices.unchecked.length
               ? `${plural(prices.unchecked.length, "game")} couldn’t be checked`
-              : "at target or lowest ever",
+              : "free, at target or lowest ever",
           essential: !prices.pending && prices.unchecked.length > 0,
         },
         {
           label: "Total spent",
-          value: money(totalSpent),
+          value: total.value,
           href: "/library",
-          note: coverage,
-          essential: Boolean(coverage),
+          note: total.coverage,
+          essential: Boolean(total.coverage),
         },
         {
           label: "Paid, never played",
-          value: money(unplayedSpend),
+          value: unplayedSpend.value,
           href: "/library?status=backlog",
-          note: `across ${plural(unplayed.length, "unplayed game")}`,
+          note: unplayedNote,
+          essential: Boolean(unplayedSpend.coverage),
         },
       ];
   // Nothing owned yet: one useful line beats a row of $0.00 blocks.
