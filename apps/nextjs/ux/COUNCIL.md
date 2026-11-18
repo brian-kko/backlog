@@ -85,6 +85,8 @@ KEEP (what must not regress)
 | 4     | 9.1   | 8.7  | Codex workers: masthead art, deals billboard, wishlist cards, updates, patch reader; gate fixes |
 | 5     | 9.0 (9.2 capped) | 8.9 | All round-4 fixes in; astra capped by honesty (free follow-up store) and stability (art 404s) |
 | 6     | 9.4   | 9.1  | All gates pass; open: hashed Steam art, singleton deal card, nav/back link over hero, digest "would" bug, phone edition rows |
+| 7     | —     | 9.2  | astra hit the Codex limit; Opus: AA over art, billboard art, patch counts, singleton was-price |
+| 8     | 9.0 (9.31 capped) | 9.0 (9.2 capped) | Deck everywhere, Riot games, aurora; capped by Deals placeholder overflow (both), deck a11y, −$0.00 ledger, Riot editor (astra) |
 
 ## Status and open items
 
@@ -180,4 +182,15 @@ before writing anything; Codex resets at 2026-11-18 02:59. To resume, rerun
 astra on `council/r7`:
 `codex exec -m gpt-6.2-astra -s read-only --skip-git-repo-check -o ../astra-r7.md - < prompt.md`
 from the `r7` folder. Rebuild the packet first if the scratchpad was cleared.
+
+**Round 8 (2026-11-18): astra 6.2 9.0 (9.31 capped), Opus 9.0 (9.2 capped).**
+Reviews: `ux/reviews/astra-r8.md` and `ux/reviews/opus-r8.md` (with deck
+verdicts, QoL, competitor features and modernisation lists). Round-9 workers
+on `gpt-6.2-sol` (specs in `../gemuzu-wt/specs9/`):
+- `r9-fixes`: Deals placeholder overflow, cents-safe game ledger, instant
+  colour changes, Steam-comparable deals first.
+- `r9-riot`: Riot games get no target controls and no Steam launch.
+
+The masthead deck (keyboard access, the 1024px overlap, and the per-page
+verdicts) waits for the owner's per-page decision.
 
