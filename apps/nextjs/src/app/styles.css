@@ -1005,7 +1005,9 @@
   }
   .hero-eyebrow {
     font-family: var(--font-display);
-    @apply mb-3 block text-sm font-semibold tracking-[0.14em] uppercase;
+    /* 20px line + 12px gap + the logo slot = the title's min-height, so the
+       logo loading (or giving way to the name) never moves the page. */
+    @apply mb-3 block text-sm leading-5 font-semibold tracking-[0.14em] uppercase;
     color: #d8f08a;
   }
   .hero-name {
@@ -1013,7 +1015,7 @@
     @apply block text-5xl leading-none font-bold uppercase sm:text-6xl;
   }
   .hero-logo {
-    @apply block h-auto max-h-24 w-auto max-w-[min(360px,80%)] object-contain object-left sm:max-h-32;
+    @apply block h-24 w-auto max-w-[min(360px,80%)] object-contain object-left sm:h-32;
   }
   .hub-art {
     @apply w-full shrink-0 rounded-lg md:max-w-[44%];

@@ -486,6 +486,12 @@ test("states: empty collection, filters, views, dialogs", async ({
       .getByText("Loading deals…")
       .waitFor({ state: "hidden", timeout: 20000 })
       .catch(() => undefined);
+    // The filtered list can render after the loading text clears.
+    await page
+      .locator("[data-testid=deal-card] .deal-price")
+      .first()
+      .waitFor({ timeout: 20000 })
+      .catch(() => undefined);
     const prices = await page
       .locator("[data-testid=deal-card] .deal-price")
       .allInnerTexts();

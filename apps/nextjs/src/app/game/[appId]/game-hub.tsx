@@ -266,7 +266,11 @@ function HeroTitle({
   }, [evaluate]);
   return (
     <h1 className={cn("hero-title", mode === "logo" && "has-logo")}>
-      <span className={mode === "logo" ? "hero-eyebrow" : "hero-name"}>
+      {/* Keyed so the swap inserts a new node rather than moving one. */}
+      <span
+        key={mode}
+        className={mode === "logo" ? "hero-eyebrow" : "hero-name"}
+      >
         {title}
       </span>
       {mode === "logo" && (
