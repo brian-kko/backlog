@@ -5,10 +5,12 @@ import {
   classifyAndCleanSteamNews,
   cleanSteamText,
   DealItemSchema,
+  digestNews,
   isPromotionalNews,
   parsePatchNotes,
   parseSteamStoreSearch,
   SearchDealsInputSchema,
+  stripNewsIntro,
   summarizePatch,
 } from "@acme/validators";
 
@@ -135,6 +137,10 @@ export async function fetchSteamFeed(steamAppId: number) {
         ];
   const items = selected.map((item) => {
     const news = classifyAndCleanSteamNews(item);
+    const patch =
+      news.category === "patch_note"
+        ? parsePatchNotes(item.contents, item.title)
+        : undefined;
     return {
       id: item.gid,
       steamAppId,
@@ -143,11 +149,10 @@ export async function fetchSteamFeed(steamAppId: number) {
       url: item.url,
       publishedAt: new Date(item.date * 1000),
       ...news,
-      // Only the counts travel to the client, not the full notes.
-      patchCounts:
-        news.category === "patch_note"
-          ? summarizePatch(parsePatchNotes(item.contents, item.title)).counts
-          : null,
+      cleanSummary: stripNewsIntro(news.cleanSummary),
+      // Only the digest and counts travel to the client, not the full notes.
+      digest: digestNews(cleanSteamText(item.contents), item.title, patch),
+      patchCounts: patch ? summarizePatch(patch).counts : null,
     };
   });
   return {

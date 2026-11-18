@@ -180,11 +180,18 @@ export default function UpdatesPage() {
                       </span>
                       <span
                         className="pill-count"
+                        data-empty={count === undefined || count === 0}
                         aria-hidden="true"
                         title={`${countLabel} in the last 30 days`}
                       >
-                        {count ?? "—"}
-                        <span className="updates-count-period">in 30 days</span>
+                        {count !== undefined && count > 0 && (
+                          <>
+                            {count}
+                            <span className="updates-count-period">
+                              in 30 days
+                            </span>
+                          </>
+                        )}
                       </span>
                       <span
                         className="sr-only"
