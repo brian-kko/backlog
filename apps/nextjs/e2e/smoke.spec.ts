@@ -180,18 +180,28 @@ async function mockDealResults(
   offers: ((typeof deals)[number] & {
     source?: "cheapshark" | "steam" | "catalog";
   })[],
-  steamPrices: Record<number, number>,
+  steamPrices: Record<number, number> | (() => Promise<Record<number, number>>),
   live = true,
 ) {
   const t = initTRPC.create({ transformer: SuperJSON });
   const router = t.router({
     backlog: t.router({
-      searchDeals: t.procedure.input(SearchDealsInputSchema).query(() => ({
-        offers,
-        live,
-        snapshotAt: live ? null : "2026-10-29",
-      })),
-      getSteamPrices: t.procedure.input(z.unknown()).query(() => steamPrices),
+      searchDeals: t.procedure
+        .input(SearchDealsInputSchema)
+        .query(({ input }) => {
+          const size = input?.pageSize ?? 60;
+          const start = (input?.page ?? 0) * size;
+          return {
+            offers: offers.slice(start, start + size),
+            live,
+            snapshotAt: live ? null : "2026-10-29",
+          };
+        }),
+      getSteamPrices: t.procedure
+        .input(z.unknown())
+        .query(() =>
+          typeof steamPrices === "function" ? steamPrices() : steamPrices,
+        ),
       getGamePrices: t.procedure
         .input(z.object({ steamAppId: z.number() }))
         .query(({ input }) => ({ prices: fixturePrices(input.steamAppId) })),
@@ -515,6 +525,7 @@ test("guest dashboard previews and persistent navigation cover all main routes",
     page.getByRole("heading", { name: "Price watch" }),
   ).toBeVisible();
   await expect(page.locator(".watch-row")).toHaveCount(2);
+  await expect(page.locator(".page-stat")).toHaveText("1 price alert");
   await expect(
     page.locator(".watch-row").first().locator(".watch-row-meta"),
   ).toContainText("less than Steam");
@@ -980,9 +991,81 @@ for (const width of [1024, 1440]) {
       "No Steam prices to compare",
     );
     await expect(page.getByTestId("deal-card")).toHaveCount(4);
+    await expect(page.locator(".deal-divider")).toHaveText(
+      "No live Steam price to compare for these editions",
+    );
     await expect(page).toHaveURL(/price=14\.99/);
   });
 }
+
+test("Deals ranks the first 60 offers before picking a display batch", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const offers = Array.from({ length: 61 }, (_, index) => ({
+    id: `pool-${index}`,
+    steamAppId: index >= 55 && index < 58 ? 2000 + index : null,
+    title: `Pool offer ${index}`,
+    cheapestPrice: 10 + index / 100,
+    normalPrice: 40,
+    savingsPercent: 75,
+    storeId: "25",
+    steamRedeemable: false,
+    url: "https://example.com/offer",
+    thumb: "",
+  }));
+  await mockDealResults(page, offers, { 2055: 30, 2056: 50, 2057: 40 });
+  await page.goto("/deals");
+
+  const cards = page.getByTestId("deal-card");
+  await expect(page.locator(".deal-featured h2")).toHaveText("Pool offer 56");
+  await expect(page.locator(".deal-grid .deal-title")).toHaveText([
+    "Pool offer 57",
+    "Pool offer 55",
+  ]);
+  await expect(cards).toHaveCount(24);
+  const loadMore = page.getByRole("button", { name: "Load more deals" });
+  await loadMore.click();
+  await expect(cards).toHaveCount(48);
+  await loadMore.click();
+  await expect(cards).toHaveCount(61);
+  await expect(loadMore).toHaveCount(0);
+});
+
+test("Deals shows store offers during a Steam request and can retry a missing baseline", async ({
+  page,
+}) => {
+  let release: () => void = () => undefined;
+  const initialSteam = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let checks = 0;
+  await mockDealResults(page, deals.slice(2, 3), () =>
+    ++checks === 1
+      ? initialSteam.then(() => ({}))
+      : Promise.resolve({ 1002: 39.99 }),
+  );
+  await page.goto("/deals");
+  const card = page.getByTestId("deal-card");
+  try {
+    await expect(card.locator(".deal-price")).toHaveText("$31.99");
+    await expect(
+      card.getByText("Checking Steam…", { exact: true }),
+    ).toBeVisible();
+  } finally {
+    release();
+  }
+  await expect(card).toContainText("Steam price unavailable · Retry");
+  await expect(card.getByText("Checking Steam…")).toHaveCount(0);
+  await card.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(card.locator(".steam-line")).toContainText("save $8.00");
+  await expect(
+    card.getByRole("button", { name: "Retry", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Under $15", exact: true }).click();
+  await expect(page.getByTestId("deal-card")).toHaveCount(0);
+  await expect(page.locator(".page-stat")).toHaveText("");
+});
 
 for (const width of [390, 840, 1024]) {
   test(`deals contain missing-art thumbnails at ${width}px`, async ({
@@ -1010,7 +1093,10 @@ for (const width of [390, 840, 1024]) {
     await mockDealResults(page, offers, {});
     await page.goto("/deals");
     const rows = page.locator(".deal-row");
-    await expect(rows.getByRole("heading")).toHaveText(editionTitles);
+    await expect(rows.getByRole("heading")).toHaveText([
+      editionTitles[1] ?? "",
+      editionTitles[0] ?? "",
+    ]);
     for (const title of editionTitles) {
       const row = rows.filter({
         has: page.getByRole("heading", { name: title, exact: true }),
@@ -1620,6 +1706,100 @@ test("game store prices compare whole cents and show a free historical low", asy
   ).toBeVisible();
 });
 
+test("Game Hub consolidates an outage and retries details, prices and news", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  let available = false;
+  const checked = new Set<string>();
+  const t = initTRPC.create({ transformer: SuperJSON });
+  const feed = () => ({
+    available,
+    patchNotes: [],
+    events: available ? steamFeed(1091500).events : [],
+  });
+  const router = t.router({
+    backlog: t.router({
+      getCollectionFeed: t.procedure
+        .input(z.unknown())
+        .query(() => ({ items: [], unavailable: [] })),
+      getGamePrices: t.procedure
+        .input(z.object({ steamAppId: z.number() }))
+        .query(({ input }) => {
+          checked.add("prices");
+          return { prices: available ? fixturePrices(input.steamAppId) : null };
+        }),
+      getSteamFeed: t.procedure.input(SteamFeedInputSchema).query(() => {
+        checked.add("news");
+        return feed();
+      }),
+      getGameDetails: t.procedure
+        .input(z.object({ steamAppId: z.number() }))
+        .query(({ input }) => {
+          checked.add("details");
+          return {
+            steamAppId: input.steamAppId,
+            metadata: available
+              ? {
+                  name: "Cyberpunk 2077",
+                  short_description: "A world waiting to be explored.",
+                }
+              : null,
+            prices: available ? fixturePrices(input.steamAppId) : null,
+            feed: feed(),
+          };
+        }),
+    }),
+  });
+  await page.route("**/api/trpc/**", async (route) => {
+    const response = await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      router,
+      createContext: () => ({}),
+      req: new Request(route.request().url()),
+    });
+    await route.fulfill({
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
+    });
+  });
+  await page.goto("/game/1091500");
+  const retry = page.getByRole("button", { name: "Try again", exact: true });
+  await expect(page.getByText(/Steam isn’t responding/)).toBeVisible();
+  await expect(retry).toHaveCount(1);
+  await expect(
+    page.getByText("Couldn’t check store prices", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Steam store page", exact: true }),
+  ).toHaveCount(1);
+  const prices = await page
+    .getByText("Couldn’t check store prices")
+    .boundingBox();
+  const news = await page
+    .getByRole("heading", { name: "Patch notes & events" })
+    .boundingBox();
+  expect(news?.x).toBeLessThanOrEqual(prices?.x ?? 0);
+  expect(news?.y).toBeLessThan((prices?.y ?? 0) + 140);
+
+  checked.clear();
+  available = true;
+  await retry.click();
+  await expect
+    .poll(() => [...checked].sort())
+    .toEqual(["details", "news", "prices"]);
+  await expect(page.getByText("A world waiting to be explored.")).toBeVisible();
+  await expect(page.getByText("$5.00 less than Steam")).toBeVisible();
+  await expect(
+    page.getByTestId("tab-patches").locator(".tab-count"),
+  ).toBeHidden();
+  await expect(
+    page.getByTestId("tab-events").locator(".tab-count"),
+  ).toBeVisible();
+  await expect(retry).toHaveCount(0);
+});
+
 for (const width of [1024, 1440]) {
   for (const { appId, title, logoWidth, logoHeight, hasLogo } of [
     {
@@ -1927,6 +2107,7 @@ for (const scenario of [
   "unavailable",
   "offline",
   "partial",
+  "lowest",
   "free",
   "cached-free",
 ] as const) {
@@ -1946,21 +2127,28 @@ for (const scenario of [
               scenario === "offline" ||
               (scenario === "partial" && input.steamAppId === 1145360)
                 ? null
-                : scenario === "partial"
-                  ? fixturePrices(input.steamAppId)
-                  : {
+                : scenario === "lowest" && input.steamAppId === 553850
+                  ? {
                       ...fixturePrices(input.steamAppId),
-                      currentPrice: 0,
-                      historicalLow: null,
-                      historicalLowSource: null,
-                      source: scenario === "free" ? "steam" : "catalog",
-                      deals: fixturePrices(input.steamAppId).deals.map(
-                        (deal) => ({
-                          ...deal,
-                          price: 0,
-                        }),
-                      ),
-                    },
+                      currentPrice: 25.57,
+                      historicalLow: 25.57,
+                      steamPrice: 39.99,
+                    }
+                  : scenario === "partial" || scenario === "lowest"
+                    ? fixturePrices(input.steamAppId)
+                    : {
+                        ...fixturePrices(input.steamAppId),
+                        currentPrice: 0,
+                        historicalLow: null,
+                        historicalLowSource: null,
+                        source: scenario === "free" ? "steam" : "catalog",
+                        deals: fixturePrices(input.steamAppId).deals.map(
+                          (deal) => ({
+                            ...deal,
+                            price: 0,
+                          }),
+                        ),
+                      },
           })),
       }),
     });
@@ -1998,11 +2186,11 @@ for (const scenario of [
       const watch = cards.filter({
         has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
       });
-      await expect(watch.locator(".watch-source")).toHaveText(
+      await expect(watch.locator(".watch-decision")).toHaveText(
         "Checks when you’re back online",
       );
-      await expect(watch.locator(".watch-decision")).toHaveText(
-        "Target $25.00 saved",
+      await expect(watch.locator('[data-field="target"]')).toContainText(
+        "$25.00",
       );
       await expect(watch.locator(".watch-steam-comparison")).toBeEmpty();
       await expect(watch).not.toContainText(/try checking|Couldn’t check/i);
@@ -2037,17 +2225,32 @@ for (const scenario of [
           : cards.filter({
               has: page.getByRole("heading", { name: "Hades", exact: true }),
             });
+      await expect(unchecked.getByText("History unavailable")).toHaveCount(0);
       await expect(
-        unchecked.getByText("History unavailable", { exact: true }),
-      ).toBeVisible();
+        unchecked.locator(".watch-track-slot, .watch-buy-placeholder"),
+      ).toHaveCount(0);
+      await expect(unchecked.locator('[data-field="target"]')).toBeVisible();
       await expect(
-        unchecked.getByText("Couldn’t check", { exact: true }),
-      ).toBeVisible();
+        unchecked.getByRole("button", { name: "I own this" }),
+      ).toHaveClass(/col-span-full/);
+      await expect(unchecked.locator(".watch-decision")).toContainText(
+        "Prices didn’t load",
+      );
       await expect(unchecked.locator(".watch-current-price")).toHaveText("—");
       await expect(unchecked.locator(".watch-steam-comparison")).toBeEmpty();
       await expect(
         unchecked.locator('[data-alert-state="UNKNOWN"]'),
       ).toBeVisible();
+    } else if (scenario === "lowest") {
+      const watch = cards.filter({ hasText: "Helldivers 2" });
+      await expect(page.locator(".page-stat")).toHaveText("1 price alert");
+      await expect(
+        watch.locator('[data-alert-state="ALL_TIME_LOW"]'),
+      ).toHaveText("Lowest ever · $0.57 above your target");
+      await page.getByTestId("nav-home").click();
+      await expect(
+        page.locator(".watch-row").filter({ hasText: "Helldivers 2" }),
+      ).toContainText("Lowest ever · $0.57 above your target");
     } else {
       const watch = cards.filter({
         has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
@@ -2058,7 +2261,7 @@ for (const scenario of [
       );
       if (scenario === "free") {
         await expect(
-          watch.getByText("Free right now; nothing to wait for"),
+          watch.getByText("Free right now", { exact: true }),
         ).toBeVisible();
         await expect(
           watch.getByRole("link", { name: "Get it free at Steam" }),
@@ -2068,10 +2271,16 @@ for (const scenario of [
         await expect(
           watch.locator('.price-track [data-mark="target"]'),
         ).toHaveCount(0);
-      } else {
+        await page.getByTestId("nav-home").click();
+        const row = page
+          .locator(".watch-row")
+          .filter({ hasText: "Helldivers 2" });
         await expect(
-          watch.getByText("Previously free; check the store", { exact: true }),
-        ).toBeVisible();
+          row.getByText("Free right now", { exact: true }),
+        ).toHaveCount(1);
+        await expect(row.getByText("Waiting for a drop")).toHaveCount(0);
+      } else {
+        await expect(watch.getByText(/^Last checked /)).toBeVisible();
         await expect(
           watch.getByRole("link", { name: "Check price at Steam" }),
         ).toBeVisible();
@@ -2080,6 +2289,96 @@ for (const scenario of [
     }
   });
 }
+
+test("retained prices stay stale until a successful refresh after reconnect", async ({
+  page,
+}) => {
+  let available = true;
+  let checks = 0;
+  const t = initTRPC.create({ transformer: SuperJSON });
+  const router = t.router({
+    backlog: t.router({
+      getCollectionFeed: t.procedure
+        .input(z.unknown())
+        .query(() => ({ items: [], unavailable: [] })),
+      getGamePrices: t.procedure
+        .input(z.object({ steamAppId: z.number() }))
+        .query(({ input }) => {
+          const prices = fixturePrices(input.steamAppId);
+          if (input.steamAppId !== 553850) return { prices };
+          checks += 1;
+          return {
+            prices: available
+              ? {
+                  ...prices,
+                  currentPrice: 32.99,
+                  historicalLow: 32.99,
+                  steamPrice: 39.99,
+                  deals: prices.deals.map((deal) => ({
+                    ...deal,
+                    price: 32.99,
+                  })),
+                }
+              : null,
+          };
+        }),
+    }),
+  });
+  await page.route("**/api/trpc/**getGamePrices**", async (route) => {
+    const response = await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      router,
+      createContext: () => ({}),
+      req: new Request(route.request().url()),
+    });
+    await route.fulfill({
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
+    });
+  });
+  const setOnline = (online: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(navigator, "onLine", { configurable: true, value });
+      window.dispatchEvent(new Event(value ? "online" : "offline"));
+    }, online);
+
+  await page.goto("/");
+  const home = page.locator(".watch-row").filter({ hasText: "Helldivers 2" });
+  await expect(home).toContainText("$7.00 less than Steam");
+  await expect(home.locator('[data-alert-state="ALL_TIME_LOW"]')).toBeVisible();
+  await setOnline(false);
+  await expect(home).toContainText("$32.99");
+  await expect(home.getByText(/^Last checked /)).toBeVisible();
+  const checked = await home.getByText(/^Last checked /).textContent();
+  await expect(home).not.toContainText("less than Steam");
+
+  await page.getByTestId("nav-wishlist").click();
+  const watch = page.locator(".watch-card").filter({ hasText: "Helldivers 2" });
+  await expect(watch.locator(".watch-source")).toHaveText(checked ?? "");
+  await expect(
+    watch.getByRole("link", { name: "Check price at Steam" }),
+  ).toBeVisible();
+  await expect(
+    watch.locator(
+      '[data-alert-state="TARGET_MET"], [data-alert-state="ALL_TIME_LOW"]',
+    ),
+  ).toHaveCount(0);
+  available = false;
+  const beforeReconnect = checks;
+  await setOnline(true);
+  await expect.poll(() => checks).toBeGreaterThan(beforeReconnect);
+  const refresh = page.getByRole("button", { name: "Check prices now" });
+  await expect(refresh).toBeEnabled();
+  await expect(watch.locator(".watch-source")).toHaveText(checked ?? "");
+  await expect(watch.locator(".watch-steam-comparison")).toBeEmpty();
+
+  available = true;
+  await refresh.click();
+  await expect(watch.locator(".watch-steam-comparison")).toHaveText(
+    "$7.00 less than Steam",
+  );
+});
 
 const sessionCookie = {
   name: "better-auth.session_token",
@@ -2290,6 +2589,59 @@ test("Game Hub ownership, completion and prices persist across pages with live n
   ).toContainText("1 unplayed game");
 });
 
+test("Home and Library share purchase-price coverage and count a recorded zero", async ({
+  page,
+}) => {
+  const items: Backup["items"] = [
+    { steamAppId: 1091500, title: "Cyberpunk 2077", isOwned: true },
+    { steamAppId: 1245620, title: "Elden Ring", isOwned: true },
+    { steamAppId: 1086940, title: "Baldur's Gate 3", isOwned: true },
+  ];
+  await page.addInitScript((games) => {
+    if (localStorage.getItem("backlog-guest-v1")) return;
+    localStorage.setItem(
+      "backlog-guest-v1",
+      JSON.stringify({
+        version: 1,
+        exportedAt: "2026-10-22T12:00:00.000Z",
+        items: games,
+      }),
+    );
+  }, items);
+
+  await page.goto("/");
+  const spent = page.locator(".metric-card").filter({ hasText: "Total spent" });
+  const unplayed = page
+    .locator(".metric-card")
+    .filter({ hasText: /Paid.*never played/ });
+  for (const destination of ["nav-home", "nav-library"]) {
+    await page.getByTestId(destination).click();
+    for (const metric of [spent, unplayed]) {
+      await expect(metric.getByRole("link")).toHaveText("—");
+      await expect(metric).toContainText("No purchase price recorded");
+    }
+  }
+  for (const [appId, amount] of [
+    [1091500, "0"],
+    [1245620, "12.34"],
+  ] as const) {
+    await page.goto(`/game/${appId}`);
+    const field = page.getByLabel("Amount paid", { exact: true });
+    await field.fill(amount);
+    await field.press("Tab");
+    await expect(page.locator(".save-feedback")).toHaveText("Saved.");
+  }
+  await page.getByTestId("nav-library").click();
+  await expect(page.getByText(/Got it free/)).toBeVisible();
+  for (const destination of ["nav-library", "nav-home"]) {
+    await page.getByTestId(destination).click();
+    for (const metric of [spent, unplayed]) {
+      await expect(metric.getByRole("link")).toHaveText("$12.34");
+      await expect(metric).toContainText("2 of 3 prices recorded");
+    }
+  }
+});
+
 test("library search, removal undo, and owning a wishlist game keep purchase data honest", async ({
   page,
 }) => {
@@ -2331,7 +2683,7 @@ test("library search, removal undo, and owning a wishlist game keep purchase dat
   ).toContainText("$129.97");
   await expect(
     page.locator(".metric-card").filter({ hasText: "Total spent" }),
-  ).toContainText("3 of 4 purchases recorded");
+  ).toContainText("3 of 4 prices recorded");
 });
 
 test("deal filters survive refresh and more batches load on demand", async ({
@@ -2350,10 +2702,7 @@ test("deal filters survive refresh and more batches load on demand", async ({
   await expect(page.getByTestId("deal-card")).toHaveCount(12);
   await page.getByLabel("Offers per page", { exact: true }).selectOption("12");
   await expect(page.getByText("12 games from 12 offers")).toBeVisible();
-  await page
-    .getByRole("button", { name: "Load more deals", exact: true })
-    .click();
-  // The fixture has no second batch, so nothing more is offered.
+  // The wider request already found the end of the fixture catalog.
   await expect(
     page.getByRole("button", { name: "Load more deals", exact: true }),
   ).toHaveCount(0);
@@ -2457,7 +2806,7 @@ test.describe("phone layout", () => {
       ...deal,
       title:
         index === 0
-          ? "LEGO Star Wars: The Skywalker Saga Deluxe Edition"
+          ? "LEGO Star Wars: The Skywalker Saga Galactic Edition"
           : "Need for Speed Heat Deluxe Edition",
       steamAppId: index === 0 ? 1001 : null,
       storeId: "3",
@@ -2486,8 +2835,8 @@ test.describe("phone layout", () => {
           .querySelector(".deal-row-art")
           ?.getBoundingClientRect();
         return {
-          height: element.getBoundingClientRect().height,
           titleHeight: title?.getBoundingClientRect().height,
+          titleIsUnclipped: title && title.scrollHeight <= title.clientHeight,
           titleLinkDisplay: titleLink
             ? getComputedStyle(titleLink).display
             : null,
@@ -2501,13 +2850,12 @@ test.describe("phone layout", () => {
       }),
     );
     for (const row of bounds) {
-      // ≤150px normally; a wrapped "Epic Games Store · Steam key" line adds ~20.
-      expect(row.height).toBeLessThanOrEqual(170);
-      expect(row.titleHeight).toBe(44);
+      expect(row.titleIsUnclipped).toBe(true);
       expect(row.headingRight).toBeLessThan(row.priceLeft ?? 0);
       expect(row.artWidth).toBe(96);
       expect(row.actionsHeight).toBeGreaterThanOrEqual(44);
     }
+    expect(bounds[0]?.titleHeight).toBeGreaterThan(44);
     expect(bounds[0]?.titleLinkDisplay).toBe("inline");
   });
 
@@ -3037,6 +3385,25 @@ test("imported Riot wishlist entries follow updates without price targets or Ste
     "Backup restored.",
   );
 
+  const priceRequests: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.url().includes("/api/trpc/") &&
+      request.url().includes("getGamePrices")
+    )
+      priceRequests.push(request.url());
+  });
+  await page.getByTestId("nav-home").click();
+  const alerts = page
+    .locator(".metric-card")
+    .filter({ hasText: "Price alerts" });
+  await expect(alerts.getByRole("link")).toHaveText("0");
+  await expect(alerts).not.toContainText("couldn’t be checked");
+  await page.getByTestId("nav-updates").click();
+  await expect(
+    page.getByRole("button", { name: "VALORANT", exact: true }),
+  ).toBeVisible();
+
   await page.goto("/wishlist");
   const card = page.getByRole("article").filter({
     has: page.getByRole("heading", { name: "VALORANT", exact: true }),
@@ -3054,6 +3421,7 @@ test("imported Riot wishlist entries follow updates without price targets or Ste
   await expect(page.getByRole("button", { name: /target price/i })).toHaveCount(
     0,
   );
+  expect(priceRequests).toEqual([]);
   await expect(page.locator('a[href^="steam://"]')).toHaveCount(0);
 
   await card.getByRole("link", { name: "VALORANT", exact: true }).click();

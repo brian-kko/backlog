@@ -25,6 +25,7 @@ import { useNewsSeen } from "~/components/news-seen";
 import {
   AlertBadge,
   bestOffer,
+  lastChecked,
   steamDelta,
   targetGap,
   useWishlistPrices,
@@ -41,8 +42,7 @@ function PriceWatch() {
   const { items } = useBacklog();
   const { rows } = useWishlistPrices(items);
   const rank = (row: (typeof rows)[number]) =>
-    (row.state === "live" || row.state === "steam-only") &&
-    (row.alert === "ALL_TIME_LOW" || row.alert === "TARGET_MET")
+    row.buyNow
       ? 0
       : row.state === "checking" || row.state === "unavailable"
         ? 2
@@ -61,9 +61,20 @@ function PriceWatch() {
     );
   return (
     <ul className="watch-list">
-      {sorted.map(({ item, prices, state, alert }) => {
+      {sorted.map(({ item, prices, state, alert, free, checkedAt }) => {
         const offer = bestOffer(prices);
-        const delta = steamDelta(prices);
+        const delta = steamDelta(prices, state);
+        const gap = targetGap(item, prices, state, alert);
+        const status = free
+          ? "Free right now"
+          : state === "cached" && prices
+            ? lastChecked(checkedAt)
+            : alert === "ALL_TIME_LOW"
+              ? (gap ?? undefined)
+              : undefined;
+        const meta = [status ? null : gap, delta].filter(
+          (part) => part != null,
+        );
         return (
           <li key={item.steamAppId} className="watch-row">
             <GameArt appId={item.steamAppId} title={item.title} />
@@ -71,20 +82,18 @@ function PriceWatch() {
               <h3>
                 <Link href={`/game/${item.steamAppId}`}>{item.title}</Link>
               </h3>
-              <AlertBadge state={state} alert={alert} />
-              <p className="watch-row-meta">
-                {state === "checking"
-                  ? "Comparing stores…"
-                  : state === "unavailable"
-                    ? "Prices couldn’t be checked right now"
-                    : [targetGap(item, prices), delta]
-                        .filter(Boolean)
-                        .map((part) => (
-                          <span key={part} className="meta-part">
-                            {part}
-                          </span>
-                        ))}
-              </p>
+              <AlertBadge state={state} alert={alert}>
+                {status}
+              </AlertBadge>
+              {meta.length > 0 && (
+                <p className="watch-row-meta">
+                  {meta.map((part) => (
+                    <span key={part} className="meta-part">
+                      {part}
+                    </span>
+                  ))}
+                </p>
+              )}
             </div>
             <div className="watch-row-price">
               {offer ? (
@@ -97,11 +106,7 @@ function PriceWatch() {
                     </span>
                   </a>
                   <span>
-                    {offer.state === "cached"
-                      ? "last known"
-                      : offer.state === "steam-only"
-                        ? "on Steam"
-                        : `at ${offer.store}`}
+                    {state === "steam-only" ? "on Steam" : `at ${offer.store}`}
                   </span>
                 </>
               ) : (
@@ -414,19 +419,18 @@ export default function HomePage() {
         steamAppId,
         title,
       }));
-  const wished = items.filter((item) => !item.isOwned).length;
+  const { alerts, rows, pending, unchecked } = useWishlistPrices(items);
   return (
     <main className="page-shell home-page">
       <div className="dash-hero">
         <PageHeading
           title="Home"
           stat={
-            !isLoading && wished > 0 ? (
-              <>
-                <strong>{wished}</strong> {wished === 1 ? "game" : "games"} on
-                your wishlist
-              </>
-            ) : null
+            !isLoading && !pending && rows.length > unchecked.length
+              ? alerts.length
+                ? plural(alerts.length, "price alert")
+                : "No price alerts right now"
+              : null
           }
           actions={<CollectionCounts />}
           deck={dashboardDeck}

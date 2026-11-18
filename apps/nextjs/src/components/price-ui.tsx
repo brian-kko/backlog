@@ -1,13 +1,19 @@
 "use client";
 
+import type { QueryFunctionContext } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQueries } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
-import { compareToSteam, evaluateDealAlert } from "@acme/validators";
+import {
+  compareToSteam,
+  evaluateDealAlert,
+  isRiotGame,
+  toCents,
+} from "@acme/validators";
 
 import type { BacklogItem } from "./backlog-provider";
-import { useTRPC } from "~/trpc/react";
+import { useTRPC, useTRPCClient } from "~/trpc/react";
 import { money, price, storeName } from "./game-ui";
 
 export type Prices = NonNullable<
@@ -18,7 +24,7 @@ export type Prices = NonNullable<
  * How much to trust a price:
  * - live: compared across stores just now
  * - steam-only: only Steam's own price could be checked
- * - cached: a saved catalog price, possibly stale
+ * - cached: a retained offer or a saved catalog price
  * - unavailable / checking: no usable price yet
  */
 export type PriceState =
@@ -29,21 +35,55 @@ export type PriceState =
   | "unavailable";
 export type AlertState = "ALL_TIME_LOW" | "TARGET_MET" | "WAIT" | null;
 
-function subscribeOnline(onChange: () => void) {
-  window.addEventListener("online", onChange);
-  window.addEventListener("offline", onChange);
-  return () => {
-    window.removeEventListener("online", onChange);
-    window.removeEventListener("offline", onChange);
+// Keep the connection change across route changes and query observers.
+let connectionChangedAt = 0;
+
+export const priceRefetchOptions = {
+  refetchOnReconnect: "always",
+  refetchOnMount: (query: { state: { dataUpdatedAt: number } }) =>
+    query.state.dataUpdatedAt <= connectionChangedAt ? "always" : true,
+} as const;
+
+function subscribeConnection(onChange: () => void) {
+  const onConnectionChange = () => {
+    connectionChangedAt = Date.now();
+    onChange();
   };
+  window.addEventListener("online", onConnectionChange);
+  window.addEventListener("offline", onConnectionChange);
+  return () => {
+    window.removeEventListener("online", onConnectionChange);
+    window.removeEventListener("offline", onConnectionChange);
+  };
+}
+
+export function usePriceConnection() {
+  const connection = useSyncExternalStore(
+    subscribeConnection,
+    () => (navigator.onLine ? connectionChangedAt : -1),
+    () => 0,
+  );
+  return { online: connection >= 0, changedAt: connection };
+}
+
+export function hasFreshPrices(
+  query: { isSuccess: boolean; dataUpdatedAt: number; fetchStatus: string },
+  connection: ReturnType<typeof usePriceConnection>,
+) {
+  return (
+    connection.online &&
+    query.fetchStatus !== "paused" &&
+    query.isSuccess &&
+    query.dataUpdatedAt > connection.changedAt
+  );
 }
 
 export function priceState(
   prices: Prices | null | undefined,
-  pending: boolean,
+  { pending = false, fresh = true } = {},
 ): PriceState {
-  if (pending) return "checking";
-  if (prices?.currentPrice == null) return "unavailable";
+  if (prices?.currentPrice == null) return pending ? "checking" : "unavailable";
+  if (!fresh) return "cached";
   return prices.source === "cheapshark"
     ? "live"
     : prices.source === "steam"
@@ -58,76 +98,106 @@ export function alertFor(
   if (prices?.currentPrice == null) return null;
   const result = evaluateDealAlert({
     isOwned: item.isOwned,
-    currentPrice: prices.currentPrice,
-    targetPrice: item.targetPrice ?? null,
+    currentPrice: toCents(prices.currentPrice),
+    targetPrice:
+      item.targetPrice === undefined ? null : toCents(item.targetPrice),
     // "Lowest ever" needs live price history; a saved catalog low can't
     // support that claim, though targets still count.
     historicalLow:
-      prices.historicalLowSource === "cheapshark"
-        ? (prices.historicalLow ?? -1)
+      prices.source === "cheapshark" &&
+      prices.historicalLowSource === "cheapshark" &&
+      prices.historicalLow != null
+        ? toCents(prices.historicalLow)
         : -1,
   });
   return result.reason ?? "WAIT";
 }
 
+export function useGamePriceOptions() {
+  const trpc = useTRPC();
+  const client = useTRPCClient();
+  return (steamAppId: number, enabled = true) => {
+    const input = { steamAppId };
+    const options = trpc.backlog.getGamePrices.queryOptions(input, {
+      enabled,
+      retry: false,
+      staleTime: 5 * 60 * 1000,
+      ...priceRefetchOptions,
+    });
+    return {
+      ...options,
+      queryFn: async ({ client: cache, signal }: QueryFunctionContext) => {
+        const result = await client.backlog.getGamePrices.query(input, {
+          signal,
+        });
+        const previous = cache.getQueryData(options.queryKey)?.prices;
+        // Keep the prior check time if the provider can't verify today's price.
+        if (
+          !result.prices ||
+          (result.prices.source === "catalog" &&
+            previous &&
+            previous.source !== "catalog")
+        ) {
+          throw new Error("Prices didn’t load");
+        }
+        return result;
+      },
+    };
+  };
+}
+
 /** Prices for each wishlist game. Only fresh prices count as alerts. */
 export function useWishlistPrices(items: BacklogItem[]) {
-  const trpc = useTRPC();
-  const online = useSyncExternalStore(
-    subscribeOnline,
-    () => navigator.onLine,
-    () => true,
+  const gamePriceOptions = useGamePriceOptions();
+  const connection = usePriceConnection();
+  const wishlist = items.filter(
+    (item) => !item.isOwned && !isRiotGame(item.steamAppId),
   );
-  const wishlist = items.filter((item) => !item.isOwned);
   const queries = useQueries({
-    queries: wishlist.map((item) =>
-      trpc.backlog.getGamePrices.queryOptions(
-        { steamAppId: item.steamAppId },
-        { retry: false, staleTime: 5 * 60 * 1000 },
-      ),
-    ),
+    queries: wishlist.map((item) => gamePriceOptions(item.steamAppId)),
   });
   const rows = wishlist.map((item, index) => {
     const query = queries[index];
-    const prices = query?.isError
-      ? undefined
-      : (query?.data?.prices ?? undefined);
-    // Offline queries pause rather than fail; treat them as unavailable.
-    const state = priceState(
-      prices,
-      (query?.isPending ?? false) && query?.fetchStatus !== "paused",
-    );
+    const prices = query?.data?.prices ?? undefined;
+    const state = priceState(prices, {
+      pending: connection.online && query?.fetchStatus === "fetching",
+      fresh: query !== undefined && hasFreshPrices(query, connection),
+    });
+    const verified = state === "live" || state === "steam-only";
+    const alert = verified ? alertFor(item, prices) : null;
+    const free = verified && prices?.currentPrice === 0;
     return {
       item,
       prices,
       state,
-      alert: state === "checking" ? null : alertFor(item, prices),
+      alert,
+      free,
+      buyNow: free || alert === "ALL_TIME_LOW" || alert === "TARGET_MET",
+      checkedAt:
+        prices?.source === "catalog"
+          ? prices.verifiedAt
+          : (query?.dataUpdatedAt ?? 0),
     };
   });
-  const verified = (row: (typeof rows)[number]) =>
-    row.state === "live" || row.state === "steam-only";
   return {
     rows,
-    pending: queries.some(
-      (query) => query.isPending && query.fetchStatus !== "paused",
-    ),
-    offline: !online || queries.some((query) => query.fetchStatus === "paused"),
+    pending: rows.some((row) => row.state === "checking"),
+    offline:
+      !connection.online ||
+      queries.some((query) => query.fetchStatus === "paused"),
     refreshing: queries.some((query) => query.isFetching),
     /** Most recent check that reached live stores, in ms. */
     checkedAt: Math.max(
       0,
       ...queries.map((query) =>
-        query.data?.prices?.source === "cheapshark" ? query.dataUpdatedAt : 0,
+        query.data?.prices?.source === "cheapshark" ||
+        query.data?.prices?.source === "steam"
+          ? query.dataUpdatedAt
+          : 0,
       ),
     ),
     refresh: () => Promise.all(queries.map((query) => query.refetch())),
-    alerts: rows.filter(
-      (row) =>
-        verified(row) &&
-        (row.alert === "ALL_TIME_LOW" ||
-          row.alert === "TARGET_MET" ||
-          row.prices?.currentPrice === 0),
-    ),
+    alerts: rows.filter((row) => row.buyNow),
     unchecked: rows.filter(
       (row) => row.state === "unavailable" || row.state === "cached",
     ),
@@ -153,20 +223,16 @@ export function AlertBadge({
           : alert === "TARGET_MET"
             ? "Target met"
             : "Waiting for a drop";
-  const stale =
-    state === "cached" && (alert === "ALL_TIME_LOW" || alert === "TARGET_MET");
   return (
     <span
       className="watch-state"
       data-alert-state={
-        state === "checking" || state === "unavailable"
+        state === "checking" || state === "unavailable" || state === "cached"
           ? "UNKNOWN"
           : (alert ?? "WAIT")
       }
-      data-stale={stale || undefined}
     >
       {children ?? label}
-      {!children && stale ? " (last known price)" : ""}
     </span>
   );
 }
@@ -180,37 +246,37 @@ export function bestOffer(prices: Prices | null | undefined) {
     store: storeName(deal.storeID),
     url: deal.url,
     stores: new Set(prices.deals.map((value) => value.storeID)).size,
-    state: priceState(prices, false),
-    checkedOn: new Date(prices.verifiedAt).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    }),
   };
 }
 
+export function lastChecked(at: string | number) {
+  const dayOnly = typeof at === "string" && /^\d{4}-\d{2}-\d{2}$/.test(at);
+  const date = new Date(at);
+  return `Last checked ${date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(dayOnly ? { timeZone: "UTC" } : { hour: "numeric", minute: "2-digit" }),
+  })}`;
+}
+
 /** Label for the headline price, honest about how it was obtained. */
-export function priceLabel(prices: Prices | null | undefined) {
-  const state = priceState(prices, false);
+export function priceLabel(state: PriceState) {
   return state === "steam-only"
     ? "Steam price"
     : state === "cached"
       ? "Last known price"
-      : "Best price";
-}
-
-/** One line describing where the price came from. */
-export function offerSource(offer: NonNullable<ReturnType<typeof bestOffer>>) {
-  if (offer.state === "steam-only") return "Other stores couldn’t be checked";
-  if (offer.state === "cached") return `Saved ${offer.checkedOn}`;
-  return offer.stores > 1
-    ? `at ${offer.store} · ${offer.stores} stores compared`
-    : `at ${offer.store}`;
+      : state === "live"
+        ? "Best price"
+        : "Store price";
 }
 
 /** The saving versus Steam, the price most people would otherwise pay. */
-export function steamDelta(prices: Prices | null | undefined) {
+export function steamDelta(
+  prices: Prices | null | undefined,
+  state: PriceState,
+) {
   if (prices?.currentPrice == null || prices.steamPrice == null) return null;
-  if (priceState(prices, false) !== "live") return null;
+  if (state !== "live") return null;
   const comparison = compareToSteam(prices.currentPrice, prices.steamPrice);
   if (!comparison) return null;
   return comparison.kind === "cheaper"
@@ -224,30 +290,23 @@ export function steamDelta(prices: Prices | null | undefined) {
 export function targetGap(
   item: BacklogItem,
   prices: Prices | null | undefined,
+  state: PriceState,
+  alert: AlertState = null,
 ) {
   if (prices?.currentPrice == null) return null;
-  const cached = priceState(prices, false) === "cached";
-  // A free game has nothing to wait for, whatever the target.
-  if (prices.currentPrice === 0)
-    return cached
-      ? "Previously free; check the store"
-      : "Free right now; nothing to wait for";
+  if (state === "cached") return null;
+  if (prices.currentPrice === 0) return "Free right now";
   if (item.targetPrice === undefined)
-    return !cached &&
-      prices.historicalLowSource === "cheapshark" &&
-      prices.historicalLow != null &&
-      compareToSteam(prices.currentPrice, prices.historicalLow)?.kind !==
-        "steam-cheaper"
+    return alert === "ALL_TIME_LOW"
       ? "At its lowest ever; worth buying"
       : "Set a target to watch for your price";
   const comparison = compareToSteam(prices.currentPrice, item.targetPrice);
   if (!comparison) return null;
-  const prefix = cached ? "Last known: " : "";
   return comparison.kind === "cheaper"
-    ? `${prefix}${money(comparison.savingCents / 100)} under your target${cached ? "" : ", worth buying"}`
+    ? `${money(comparison.savingCents / 100)} under your target, worth buying`
     : comparison.kind === "same"
-      ? `${prefix}At your target${cached ? "" : ", worth buying"}`
-      : `${prefix}${money(comparison.extraCents / 100)} above your target`;
+      ? "At your target, worth buying"
+      : `${alert === "ALL_TIME_LOW" ? "Lowest ever · " : ""}${money(comparison.extraCents / 100)} above your target`;
 }
 
 /** Label for a game's historical low, honest about where it came from. */

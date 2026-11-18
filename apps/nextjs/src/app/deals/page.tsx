@@ -2,20 +2,28 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 
 import { SearchDealsInputSchema, storeNames } from "@acme/validators";
 
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
-import { DealCards, groupDeals, steamGap } from "~/components/deal-cards";
+import {
+  DealCards,
+  groupDeals,
+  rankDeals,
+  steamGap,
+} from "~/components/deal-cards";
 import { EmptyArt } from "~/components/empty-art";
 import { GameArt, PageHeading, plural, price } from "~/components/game-ui";
 import {
   bestOffer,
+  hasFreshPrices,
+  priceRefetchOptions,
   PricesChecked,
   steamDelta,
   targetGap,
+  usePriceConnection,
   useWishlistPrices,
 } from "~/components/price-ui";
 import { useTRPC } from "~/trpc/react";
@@ -108,7 +116,7 @@ function WishlistOnSale() {
         </Link>
       </div>
       <ul>
-        {live.map(({ item, prices }) => {
+        {live.map(({ item, prices, state, alert }) => {
           const offer = bestOffer(prices);
           return (
             <li key={item.steamAppId}>
@@ -118,7 +126,10 @@ function WishlistOnSale() {
                   {item.title}
                 </Link>
                 <p className="strip-meta">
-                  {[targetGap(item, prices), steamDelta(prices)]
+                  {[
+                    targetGap(item, prices, state, alert),
+                    steamDelta(prices, state),
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
@@ -183,6 +194,7 @@ export default function DealsPage() {
   usePickerMenus();
   const trpc = useTRPC();
   const { items, isLoading } = useBacklog();
+  const connection = usePriceConnection();
   const [filters, setFilters] = useState(defaults);
   // Owned games hidden by "Hide games I already own", snapshotted so a game
   // marked owned during this visit stays put until the filters change.
@@ -210,13 +222,18 @@ export default function DealsPage() {
   }, []);
   // Batches of offers loaded so far; filters apply across all of them.
   const [batches, setBatches] = useState(1);
+  const [displayBatches, setDisplayBatches] = useState(1);
   function change(patch: Partial<Filters>) {
     const value = { ...filters, ...patch };
     setFilters(value);
     setBatches(1);
+    setDisplayBatches(1);
     setHiddenOwned(ownedNow());
     writeFilters(value);
   }
+  const bestDeals = filters.sort === "deals";
+  const widePool = bestDeals && !filters.query && !filters.storeIds.length;
+  const requestSize = widePool ? 60 : filters.pageSize;
   const pages = useQueries({
     queries: Array.from({ length: batches }, (_, page) =>
       trpc.backlog.searchDeals.queryOptions(
@@ -227,17 +244,28 @@ export default function DealsPage() {
           steamOnly: filters.steamOnly,
           sort: filters.sort,
           page,
-          pageSize: filters.pageSize,
+          pageSize: requestSize,
         }),
-        { enabled: ready },
+        { enabled: ready, ...priceRefetchOptions },
       ),
     ),
   });
   const first = pages[0];
   const last = pages[pages.length - 1];
   const fetching = pages.some((page) => page.isFetching);
-  const loaded = pages.flatMap((page) => page.data?.offers ?? []);
-  const offline = first?.fetchStatus === "paused";
+  const loaded = pages.flatMap((page) =>
+    (page.data?.offers ?? []).map((offer) =>
+      hasFreshPrices(page, connection)
+        ? offer
+        : {
+            ...offer,
+            lastCheckedAt:
+              (offer.source === "catalog" ? page.data?.snapshotAt : null) ??
+              page.dataUpdatedAt,
+          },
+    ),
+  );
+  const offline = !connection.online || first?.fetchStatus === "paused";
   const deals = {
     data: first?.data ? loaded : undefined,
     live: first?.data?.live ?? true,
@@ -250,11 +278,11 @@ export default function DealsPage() {
   const failedBatch = pages.findIndex(
     (page, index) => index > 0 && (page.isError || page.data?.live === false),
   );
-  const more =
+  const morePages =
     failedBatch < 0 &&
     deals.live &&
     !fetching &&
-    (last?.data?.offers.length ?? 0) >= filters.pageSize &&
+    (last?.data?.offers.length ?? 0) >= requestSize &&
     batches < 10;
   const owned = hiddenOwned ?? new Set<number>();
   const filtered = loaded
@@ -284,26 +312,62 @@ export default function DealsPage() {
     filters.maxPrice !== undefined ||
     filters.steamOnly ||
     filters.minDiscount > 0;
-  const groups = groupDeals(filtered);
-  // Steam's own price for each visible game, in one batched request.
-  const steamIds = groups
-    .map((group) => group.deal.steamAppId)
-    .filter((id): id is number => id != null)
-    .slice(0, 60);
-  const steamPrices = useQuery(
-    trpc.backlog.getSteamPrices.queryOptions(
-      { steamAppIds: [...steamIds].sort((a, b) => a - b) },
-      { enabled: steamIds.length > 0, staleTime: 5 * 60 * 1000 },
-    ),
+  const candidates = groupDeals(filtered);
+  // Check the full candidate pool before cutting it down to the display size.
+  const steamIds = candidates.flatMap(({ deal }) =>
+    deal.steamAppId != null && deal.source !== "catalog"
+      ? [deal.steamAppId]
+      : [],
   );
-  // Wait under every sort so the billboard and comparison order appear together.
-  const comparing =
-    steamIds.length > 0 &&
-    steamPrices.isPending &&
-    steamPrices.fetchStatus === "fetching";
+  const steamBatches = Array.from(
+    { length: Math.ceil(steamIds.length / 60) },
+    (_, index) =>
+      steamIds.slice(index * 60, (index + 1) * 60).sort((a, b) => a - b),
+  );
+  const steamChecks = useQueries({
+    queries: steamBatches.map((steamAppIds) =>
+      trpc.backlog.getSteamPrices.queryOptions(
+        { steamAppIds },
+        {
+          retry: false,
+          staleTime: 5 * 60 * 1000,
+          ...priceRefetchOptions,
+        },
+      ),
+    ),
+  });
+  const steamPrices: Record<number, number> = {};
+  const steamRequests = new Map<
+    number,
+    { checking: boolean; retry?: () => void }
+  >();
+  steamChecks.forEach((check, index) => {
+    if (hasFreshPrices(check, connection))
+      Object.assign(steamPrices, check.data);
+    const request = {
+      checking: connection.online && check.fetchStatus === "fetching",
+      retry: () => void check.refetch(),
+    };
+    for (const id of steamBatches[index] ?? []) steamRequests.set(id, request);
+  });
+  const comparing = steamChecks.some((check) => check.isFetching);
+  const ranked = bestDeals ? rankDeals(candidates, steamPrices) : candidates;
+  const limit = filters.pageSize * displayBatches;
+  const groups = widePool ? ranked.slice(0, limit) : ranked;
+  const moreLoaded = groups.length < candidates.length;
+  const more = moreLoaded || morePages;
+  const steamRedeemable = loaded.filter((deal) => deal.steamRedeemable).length;
+  const loadMore = () => {
+    setDisplayBatches((value) => value + 1);
+    if (
+      morePages &&
+      (!widePool || candidates.length < filters.pageSize * (displayBatches + 1))
+    )
+      setBatches((value) => value + 1);
+  };
   const comparisons = groups.map(({ deal }) => {
     const steam =
-      deal.steamAppId != null ? steamPrices.data?.[deal.steamAppId] : undefined;
+      deal.steamAppId != null ? steamPrices[deal.steamAppId] : undefined;
     return steamGap(deal, steam);
   });
   const comparable = comparisons.filter((gap) => gap != null).length;
@@ -315,12 +379,19 @@ export default function DealsPage() {
     !filters.hideOwned;
   const reset = () => change({ ...defaults, query: filters.query });
   const cached = Boolean(deals.data) && !deals.live;
+  const showStat =
+    !offline &&
+    !cached &&
+    !deals.isError &&
+    !deals.isPending &&
+    !comparing &&
+    groups.length > 0;
   return (
     <main className="page-shell">
       <PageHeading
         title="Deals"
         stat={
-          deals.isPending || comparing ? null : comparable === 0 ? (
+          !showStat ? null : comparable === 0 ? (
             "No Steam prices to compare"
           ) : beatSteam === 0 ? (
             "No deals beat Steam right now"
@@ -573,7 +644,7 @@ export default function DealsPage() {
                     }`}
             </p>
             {/* Saved snapshots carry their own date in the notice below. */}
-            {!deals.isPending && deals.live && first?.dataUpdatedAt ? (
+            {first && hasFreshPrices(first, connection) && deals.live ? (
               <PricesChecked at={first.dataUpdatedAt} />
             ) : null}
           </div>
@@ -645,12 +716,17 @@ export default function DealsPage() {
               Try again
             </button>
           </p>
+        ) : deals.isError && groups.length > 0 ? (
+          <p className="source-notice" role="alert">
+            Couldn’t refresh store prices.{" "}
+            <button className="text-link" onClick={deals.refetch}>
+              Try again
+            </button>
+          </p>
         ) : null}
-        {offline ? null : deals.isPending ? (
+        {offline && !groups.length ? null : deals.isPending ? (
           <p role="status">Loading deals…</p>
-        ) : comparing ? (
-          <p role="status">Comparing with Steam…</p>
-        ) : deals.isError ? (
+        ) : deals.isError && !groups.length ? (
           <p role="alert">
             Couldn’t load deals.{" "}
             <button className="text-link" onClick={deals.refetch}>
@@ -660,8 +736,17 @@ export default function DealsPage() {
         ) : filtered.length ? (
           <DealCards
             groups={groups}
-            steamPrices={steamPrices.data}
-            bestDeals={filters.sort === "deals"}
+            steamPrices={steamPrices}
+            steamRequests={steamRequests}
+            steamOnlyAction={
+              !filters.steamOnly && !offline && !cached && steamRedeemable > 0
+                ? {
+                    count: steamRedeemable,
+                    onClick: () => change({ steamOnly: true }),
+                  }
+                : undefined
+            }
+            bestDeals={bestDeals}
           />
         ) : cached && !loaded.length ? null : (
           <div className="empty-state space-y-3">
@@ -683,10 +768,7 @@ export default function DealsPage() {
                 />
               )}
               {more && (
-                <button
-                  className="text-link"
-                  onClick={() => setBatches((value) => value + 1)}
-                >
+                <button className="text-link" onClick={loadMore}>
                   Search more offers
                 </button>
               )}
@@ -709,17 +791,19 @@ export default function DealsPage() {
             </button>
           </p>
         )}
-        {(more || (fetching && batches > 1)) && filtered.length > 0 && (
-          <div className="load-more">
-            <button
-              className="action secondary"
-              disabled={fetching}
-              onClick={() => setBatches((value) => value + 1)}
-            >
-              {fetching ? "Loading…" : "Load more deals"}
-            </button>
-          </div>
-        )}
+        {!offline &&
+          (more || (fetching && batches > 1)) &&
+          filtered.length > 0 && (
+            <div className="load-more">
+              <button
+                className="action secondary"
+                disabled={fetching}
+                onClick={loadMore}
+              >
+                {fetching ? "Loading…" : "Load more deals"}
+              </button>
+            </div>
+          )}
       </section>
     </main>
   );

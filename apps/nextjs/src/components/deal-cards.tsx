@@ -19,8 +19,11 @@ import {
   storeName,
   TrackActions,
 } from "./game-ui";
+import { lastChecked } from "./price-ui";
 
-type Deal = RouterOutputs["backlog"]["searchDeals"]["offers"][number];
+type Deal = RouterOutputs["backlog"]["searchDeals"]["offers"][number] & {
+  lastCheckedAt?: string | number;
+};
 export interface DealGroup {
   deal: Deal;
   /** Distinct other stores selling the same game among loaded offers. */
@@ -53,7 +56,14 @@ export function groupDeals(deals: Deal[]): DealGroup[] {
       groups.set(key, { deal, stores: new Set([deal.storeId ?? deal.id]) });
     else {
       group.stores.add(deal.storeId ?? deal.id);
-      if (deal.cheapestPrice < group.deal.cheapestPrice) group.deal = deal;
+      const saved = isSaved(deal);
+      const previousSaved = isSaved(group.deal);
+      if (
+        saved === previousSaved
+          ? deal.cheapestPrice < group.deal.cheapestPrice
+          : !saved
+      )
+        group.deal = deal;
     }
   }
   return [...groups.values()].map(({ deal, stores }) => ({
@@ -61,6 +71,9 @@ export function groupDeals(deals: Deal[]): DealGroup[] {
     otherStores: stores.size - 1,
   }));
 }
+
+const isSaved = (deal: Deal) =>
+  deal.source === "catalog" || deal.lastCheckedAt !== undefined;
 
 /** Store art, unless it's CheapShark's generic "no box art" placeholder. */
 const storeArt = (deal: Deal) =>
@@ -81,13 +94,13 @@ function PriceLine({ deal }: { deal: Deal }) {
 function OfferDetails({ deal }: { deal: Deal }) {
   return (
     <p className="deal-price-meta">
-      {deal.normalPrice > deal.cheapestPrice && (
+      {!isSaved(deal) && deal.normalPrice > deal.cheapestPrice && (
         <s>
           <span className="sr-only">was </span>
           {price(deal.normalPrice)}
         </s>
       )}
-      {deal.savingsPercent >= 1 && (
+      {!isSaved(deal) && deal.savingsPercent >= 1 && (
         <span className="discount-label">
           −{Math.round(deal.savingsPercent)}%
         </span>
@@ -99,10 +112,16 @@ function OfferDetails({ deal }: { deal: Deal }) {
   );
 }
 
-function StoreLine({ group }: { group: DealGroup }) {
+function StoreLine({
+  group,
+  comparison,
+}: {
+  group: DealGroup;
+  comparison?: React.ReactNode;
+}) {
   const { deal, otherStores } = group;
   return (
-    <p className="deal-store">
+    <p className={cn("deal-store", comparison && "whitespace-normal")}>
       {storeName(deal.storeId)}
       {deal.steamRedeemable && deal.storeId !== "1" ? " · Steam key" : ""}
       {otherStores > 0 && deal.steamAppId ? (
@@ -113,14 +132,31 @@ function StoreLine({ group }: { group: DealGroup }) {
           </Link>
         </>
       ) : null}
+      {comparison && <> · {comparison}</>}
+      {deal.lastCheckedAt !== undefined && (
+        <> · {lastChecked(deal.lastCheckedAt)}</>
+      )}
     </p>
   );
 }
 
-function Title({ deal, level }: { deal: Deal; level: "h2" | "h3" }) {
+function Title({
+  deal,
+  level,
+  compact,
+}: {
+  deal: Deal;
+  level: "h2" | "h3";
+  compact?: boolean;
+}) {
   const Heading = level;
   return (
-    <Heading className="deal-title">
+    <Heading
+      className={cn(
+        "deal-title",
+        compact && "max-sm:line-clamp-none max-sm:wrap-anywhere",
+      )}
+    >
       {deal.steamAppId ? (
         <Link href={`/game/${deal.steamAppId}`}>{deal.title}</Link>
       ) : (
@@ -131,13 +167,24 @@ function Title({ deal, level }: { deal: Deal; level: "h2" | "h3" }) {
 }
 
 /** Compact rows and phone cards disclose wishlist/own actions together. */
-function TrackToggle({ children }: { children: React.ReactNode }) {
+function TrackToggle({
+  children,
+  compact,
+}: {
+  children: React.ReactNode;
+  compact: boolean;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="track-toggle" data-open={open || undefined}>
       <button
         type="button"
-        className="quiet-button track-toggle-button"
+        className={cn(
+          "track-toggle-button",
+          compact
+            ? "action secondary deal-find min-w-28 justify-center"
+            : "quiet-button",
+        )}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
@@ -150,8 +197,7 @@ function TrackToggle({ children }: { children: React.ReactNode }) {
 
 /** Steam's own price minus this offer, in cents (positive = offer is cheaper). */
 export function steamGap(deal: Deal, steam?: number) {
-  if (deal.source === "catalog" || !deal.steamAppId || steam == null)
-    return null;
+  if (isSaved(deal) || !deal.steamAppId || steam == null) return null;
   if (deal.storeId === "1") return 0;
   const comparison = compareToSteam(deal.cheapestPrice, steam);
   if (!comparison) return null;
@@ -162,32 +208,70 @@ export function steamGap(deal: Deal, steam?: number) {
       : -comparison.extraCents;
 }
 
+export function rankDeals(
+  groups: DealGroup[],
+  steamPrices: Record<number, number>,
+) {
+  const gap = (group: DealGroup) =>
+    steamGap(group.deal, steamPrices[group.deal.steamAppId ?? 0]);
+  const rank = (group: DealGroup, value: number | null) =>
+    value != null ? 0 : group.deal.steamAppId ? 1 : 2;
+  return [...groups].sort((a, b) => {
+    const left = gap(a);
+    const right = gap(b);
+    return rank(a, left) - rank(b, right) || (right ?? 0) - (left ?? 0);
+  });
+}
+
+interface SteamRequest {
+  checking: boolean;
+  retry?: () => void;
+}
+
+function SteamUnavailable({ request }: { request?: SteamRequest }) {
+  if (request?.checking) return <span>Checking Steam…</span>;
+  return (
+    <span>
+      Steam price unavailable
+      {request?.retry && (
+        <>
+          {" "}
+          ·{" "}
+          <button
+            type="button"
+            className="text-link pointer-coarse:min-h-11"
+            onClick={request.retry}
+          >
+            Retry
+          </button>
+        </>
+      )}
+    </span>
+  );
+}
+
 /** "Steam $X · save $Y", or that Steam matches or beats this offer. */
 function SteamLine({
   deal,
   steam,
-  checking,
+  request,
   featured = false,
 }: {
   deal: Deal;
   steam?: number;
-  /** Steam prices for this batch are still loading. */
-  checking: boolean;
+  request?: SteamRequest;
   featured?: boolean;
 }) {
-  const reason = (text: string) => (
+  const reason = (text: React.ReactNode) => (
     <p className="steam-line steam-line-muted">{text}</p>
   );
   // A saved offer cannot support a saving against today's Steam price.
-  if (deal.source === "catalog")
-    return reason("Steam: compare once prices are live");
+  if (isSaved(deal)) return reason("Steam: compare once prices are live");
   if (!deal.steamAppId)
     return reason("Steam comparison unavailable for this edition");
   const gap = steamGap(deal, steam);
   if (gap == null || steam == null)
-    return reason(
-      checking ? "Checking Steam…" : "Steam price unavailable right now",
-    );
+    return reason(<SteamUnavailable request={request} />);
   return (
     <p className="steam-line">
       <span className="ledger-label">Steam</span>{" "}
@@ -218,18 +302,24 @@ function SteamLine({
 export function DealCards({
   groups,
   steamPrices,
+  steamRequests,
+  steamOnlyAction,
   bestDeals = false,
 }: {
   groups: DealGroup[];
   /** Steam's current price by AppID, for the comparison line. */
-  steamPrices?: Record<number, number>;
+  steamPrices: Record<number, number>;
+  steamRequests: ReadonlyMap<number, SteamRequest>;
+  steamOnlyAction?: { count: number; onClick: () => void };
   bestDeals?: boolean;
 }) {
   const baseline = (group: DealGroup) =>
     group.deal.steamAppId != null
-      ? steamPrices?.[group.deal.steamAppId]
+      ? steamPrices[group.deal.steamAppId]
       : undefined;
   const gap = (group: DealGroup) => steamGap(group.deal, baseline(group));
+  const request = (group: DealGroup) =>
+    steamRequests.get(group.deal.steamAppId ?? 0);
   // Compare grouped offers, so a cheaper unmatched edition cannot inherit a win.
   const featured = groups.reduce<DealGroup | undefined>(
     (best, group) =>
@@ -238,13 +328,13 @@ export function DealCards({
   );
   const remaining = groups.filter((group) => group !== featured);
   const matched = bestDeals
-    ? remaining
-        .filter((group) => gap(group) != null)
-        .sort((a, b) => (gap(b) ?? 0) - (gap(a) ?? 0))
+    ? remaining.filter((group) => gap(group) != null)
     : remaining;
   const unmatched = bestDeals
     ? remaining.filter((group) => gap(group) == null)
     : [];
+  const compared = matched.length + Number(Boolean(featured));
+  const checking = groups.some((group) => request(group)?.checking);
   return (
     <div className="deal-results">
       {featured && (
@@ -252,7 +342,6 @@ export function DealCards({
           key={featured.deal.id}
           group={featured}
           steam={baseline(featured)}
-          checking={false}
           featured
         />
       )}
@@ -265,19 +354,41 @@ export function DealCards({
               key={group.deal.id}
               group={group}
               steam={baseline(group)}
-              checking={steamPrices === undefined}
+              request={request(group)}
             />
           ))}
         </div>
       )}
       {unmatched.length > 0 && (
         <div className="deal-editions">
+          {steamOnlyAction && !checking && compared < 3 && (
+            <p className="glance-note px-3 py-2">
+              {compared === 0 ? "None" : `Only ${compared}`} of these{" "}
+              {groups.length} {compared === 1 ? "has" : "have"} a Steam price to
+              compare.{" "}
+              <button
+                type="button"
+                className="text-link pointer-coarse:min-h-11"
+                onClick={steamOnlyAction.onClick}
+              >
+                Show deals that activate on Steam ({steamOnlyAction.count}) →
+              </button>
+            </p>
+          )}
           <p className="deal-divider">
-            Other editions: no live Steam price to compare
+            {checking
+              ? "Store offers"
+              : compared > 0
+                ? "Other editions: no live Steam price to compare"
+                : "No live Steam price to compare for these editions"}
           </p>
           <div className="deal-edition-list">
             {unmatched.map((group) => (
-              <DealRow key={group.deal.id} group={group} />
+              <DealRow
+                key={group.deal.id}
+                group={group}
+                request={request(group)}
+              />
             ))}
           </div>
         </div>
@@ -289,12 +400,12 @@ export function DealCards({
 function DealCard({
   group,
   steam,
-  checking,
+  request,
   featured = false,
 }: {
   group: DealGroup;
   steam?: number;
-  checking: boolean;
+  request?: SteamRequest;
   featured?: boolean;
 }) {
   const { deal } = group;
@@ -356,33 +467,34 @@ function DealCard({
             href={offerUrl(deal)}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`${deal.source === "catalog" ? "Saved price " : ""}${price(deal.cheapestPrice)} at ${storeName(deal.storeId)} (opens store)`}
+            aria-label={`${isSaved(deal) ? "Saved price " : ""}${price(deal.cheapestPrice)} at ${storeName(deal.storeId)} (opens store)`}
           >
             <span className="ledger-label" aria-hidden="true">
-              {deal.source === "catalog"
+              {isSaved(deal)
                 ? "Saved"
                 : deal.cheapestPrice === 0
                   ? "Free"
-                  : gap != null && gap < 0
+                  : (gap != null && gap < 0) ||
+                      (gap == null && deal.storeId !== "1")
                     ? "Offer"
                     : "Best"}{" "}
               · {storeName(deal.storeId)}
             </span>
             <PriceLine deal={deal} />
             <span className="price-link-cue" aria-hidden="true">
-              {deal.source === "catalog"
+              {isSaved(deal)
                 ? "Check saved price"
                 : `at ${storeName(deal.storeId)}`}{" "}
               <span aria-hidden="true">↗</span>
             </span>
           </a>
-          {deal.storeId === "1" && deal.source !== "catalog" ? (
+          {deal.storeId === "1" && !isSaved(deal) ? (
             <p className="deal-best-note">Steam has the best price</p>
           ) : (
             <SteamLine
               deal={deal}
               steam={steam}
-              checking={checking}
+              request={request}
               featured={featured}
             />
           )}
@@ -406,6 +518,7 @@ function DealActions({
   compact?: boolean;
 }) {
   const { deal } = group;
+  const saved = isSaved(deal);
   const openAddGame = useAddGame();
   return (
     <div className="deal-actions">
@@ -426,30 +539,30 @@ function DealActions({
           href={offerUrl(deal)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`${deal.source === "catalog" ? "Check price" : deal.cheapestPrice === 0 ? "Get it free" : "Buy"} at ${storeName(deal.storeId)} (opens store)`}
+          aria-label={`${saved ? "Check price" : deal.cheapestPrice === 0 ? "Get it free" : "Buy"} at ${storeName(deal.storeId)} (opens store)`}
         >
           {compact
-            ? deal.source === "catalog"
+            ? saved
               ? "Check price"
               : deal.cheapestPrice === 0
                 ? "Get free"
                 : "Buy"
-            : `${deal.source === "catalog" ? "Check price at" : deal.cheapestPrice === 0 ? "Get it free at" : "Buy at"} ${storeName(deal.storeId)}`}
+            : `${saved ? "Check price at" : deal.cheapestPrice === 0 ? "Get it free at" : "Buy at"} ${storeName(deal.storeId)}`}
           <span aria-hidden="true">↗</span>
         </a>
       )}
       {deal.steamAppId ? (
-        <TrackToggle>
+        <TrackToggle compact={compact}>
           <TrackActions
             steamAppId={deal.steamAppId}
             title={deal.title}
             price={deal.cheapestPrice}
             store={purchaseStoreFromDeal(deal.storeId)}
-            saved={deal.source === "catalog"}
+            saved={saved}
             offer={{
               store: storeName(deal.storeId),
               url: offerUrl(deal),
-              source: deal.source ?? "cheapshark",
+              source: saved ? "catalog" : (deal.source ?? "cheapshark"),
             }}
           />
         </TrackToggle>
@@ -457,7 +570,7 @@ function DealActions({
         <button
           type="button"
           aria-haspopup="dialog"
-          className="action secondary deal-find"
+          className={cn("action secondary deal-find", compact && "min-w-28")}
           onClick={() => openAddGame(deal.title)}
         >
           {compact ? "Find on Steam" : "Find it on Steam to track"}
@@ -468,10 +581,20 @@ function DealActions({
 }
 
 /** Offers without a live Steam comparison stay scannable below the divider. */
-function DealRow({ group }: { group: DealGroup }) {
+function DealRow({
+  group,
+  request,
+}: {
+  group: DealGroup;
+  request?: SteamRequest;
+}) {
   const { deal } = group;
   return (
-    <article className="deal-row" data-testid="deal-card">
+    <article
+      id={`offer-${encodeURIComponent(deal.id)}`}
+      className="deal-row"
+      data-testid="deal-card"
+    >
       <div className="deal-row-art">
         <GameArt
           appId={deal.steamAppId}
@@ -480,8 +603,15 @@ function DealRow({ group }: { group: DealGroup }) {
         />
       </div>
       <div className="deal-row-heading">
-        <Title deal={deal} level="h3" />
-        <StoreLine group={group} />
+        <Title deal={deal} level="h3" compact />
+        <StoreLine
+          group={group}
+          comparison={
+            deal.steamAppId && deal.storeId !== "1" && !isSaved(deal) ? (
+              <SteamUnavailable request={request} />
+            ) : undefined
+          }
+        />
       </div>
       <div className="deal-row-price">
         <a
@@ -489,7 +619,7 @@ function DealRow({ group }: { group: DealGroup }) {
           href={offerUrl(deal)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`${deal.source === "catalog" ? "Saved price " : ""}${price(deal.cheapestPrice)} at ${storeName(deal.storeId)} (opens store)`}
+          aria-label={`${isSaved(deal) ? "Saved price " : ""}${price(deal.cheapestPrice)} at ${storeName(deal.storeId)} (opens store)`}
         >
           <PriceLine deal={deal} />
           <OfferDetails deal={deal} />
