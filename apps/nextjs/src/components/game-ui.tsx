@@ -521,19 +521,50 @@ export const coverArt = (appId: number) => `/api/art/${appId}/capsule`;
 
 /** Vertical library cover (2:3), falling back to the wide header art. */
 export function CoverArt({ appId, title }: { appId: number; title: string }) {
-  const [fallback, setFallback] = useState(false);
+  const [failed, setFailed] = useState<string[]>([]);
+  const resolved = [coverArt(appId), headerArt(appId)].find(
+    (value) => !failed.includes(value),
+  );
+  const reject = (value: string) =>
+    setFailed((values) =>
+      values.includes(value) ? values : [...values, value],
+    );
   return (
     <div className="cover-frame">
-      <Image
-        className={cn("cover-art", fallback && "is-header")}
-        src={fallback ? headerArt(appId) : coverArt(appId)}
-        alt={title}
-        width={300}
-        height={450}
-        unoptimized
-        loading="lazy"
-        onError={() => setFallback(true)}
-      />
+      {resolved ? (
+        <Image
+          key={resolved}
+          ref={(image) => {
+            if (
+              image?.complete &&
+              (image.naturalWidth === 0 || isFallbackArt(image))
+            )
+              reject(resolved);
+          }}
+          className={cn(
+            "cover-art",
+            resolved === headerArt(appId) && "is-header",
+          )}
+          src={resolved}
+          alt={title}
+          width={300}
+          height={450}
+          unoptimized
+          loading="lazy"
+          onLoad={(event) => {
+            if (isFallbackArt(event.currentTarget)) reject(resolved);
+          }}
+          onError={() => reject(resolved)}
+        />
+      ) : (
+        <div
+          className="cover-art artwork-placeholder"
+          role="img"
+          aria-label={title}
+        >
+          <span>{title}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -670,16 +701,28 @@ export function GameLink({
 
 function MastheadHero({ appId }: { appId: number }) {
   const [source, setSource] = useState<"hero" | "header" | "hidden">("hero");
+  const reject = () => setSource(source === "hero" ? "header" : "hidden");
+  if (source === "hidden") return null;
   return (
     <Image
+      key={source}
+      ref={(image) => {
+        if (
+          image?.complete &&
+          (image.naturalWidth === 0 || isFallbackArt(image))
+        )
+          reject();
+      }}
       className="cover-mosaic-hero"
       src={source === "hero" ? libraryHero(appId) : headerArt(appId)}
       alt=""
       width={360}
       height={240}
       sizes="(min-width: 1200px) 360px, 280px"
-      style={{ visibility: source === "hidden" ? "hidden" : undefined }}
-      onError={() => setSource(source === "hero" ? "header" : "hidden")}
+      onLoad={(event) => {
+        if (isFallbackArt(event.currentTarget)) reject();
+      }}
+      onError={reject}
     />
   );
 }
@@ -692,6 +735,11 @@ export function CoverMosaic({
   appIds: number[];
   title?: string;
 }) {
+  const [missing, setMissing] = useState<number[]>([]);
+  const reject = (appId: number) =>
+    setMissing((values) =>
+      values.includes(appId) ? values : [...values, appId],
+    );
   const lead = appIds[0];
   if (lead === undefined) return null;
   const covers = appIds.slice(1, 4);
@@ -700,22 +748,32 @@ export function CoverMosaic({
       <MastheadHero key={lead} appId={lead} />
       {title && <span className="cover-mosaic-word">{title}</span>}
       <div className="cover-mosaic-track">
-        {covers.map((appId, index) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={`${appId}-${index}`}
-            src={coverArt(appId)}
-            alt=""
-            width={88}
-            height={132}
-            loading="lazy"
-            decoding="async"
-            onError={(event) => {
-              // Keep the reserved slot without showing a broken-image icon.
-              event.currentTarget.style.visibility = "hidden";
-            }}
-          />
-        ))}
+        {covers.map((appId, index) =>
+          missing.includes(appId) ? null : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={`${appId}-${index}`}
+              ref={(image) => {
+                // Cached images may finish before hydration attaches onLoad.
+                if (
+                  image?.complete &&
+                  (image.naturalWidth === 0 || isFallbackArt(image))
+                )
+                  reject(appId);
+              }}
+              src={coverArt(appId)}
+              alt=""
+              width={88}
+              height={132}
+              loading="lazy"
+              decoding="async"
+              onLoad={(event) => {
+                if (isFallbackArt(event.currentTarget)) reject(appId);
+              }}
+              onError={() => reject(appId)}
+            />
+          ),
+        )}
       </div>
     </div>
   );
