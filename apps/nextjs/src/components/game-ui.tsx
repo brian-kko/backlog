@@ -843,20 +843,20 @@ function useCoverFallbacks() {
  * The deck fans out on hover and the card under the pointer lifts, like a
  * card game. Hovering uses fixed, invisible hit areas (one per card, in deck
  * order) that never move or restack, so a lifted card can't cover its
- * neighbours' slivers and the pointer never skips a card. Mouse users can
- * click a game's card to open it; keyboard and screen-reader users reach the
- * same games in the page itself, so the deck stays decorative.
+ * neighbours' slivers and the pointer never skips a card.
  */
 function CoverDeck({
   cards: all,
+  label,
   tucked = false,
 }: {
   cards: DeckCard[];
+  label: string;
   /** Run the hand under a solid toolbar that follows (Library). */
   tucked?: boolean;
 }) {
   const covers = useCoverFallbacks();
-  const [active, setActive] = useState<number | null>(null);
+  const [active, setActive] = useState<string | null>(null);
   const cards = all
     .filter(
       (card, index) =>
@@ -867,70 +867,80 @@ function CoverDeck({
   const shown = cards.filter((card) => !covers.gone(card));
   if (!shown.length) return null;
   return (
-    <div
-      className={cn("cover-mosaic is-deck", tucked && "is-tucked")}
-      aria-hidden="true"
-    >
+    <div className={cn("cover-mosaic is-deck", tucked && "is-tucked")}>
       {lead != null && <MastheadHero key={lead} appId={lead} />}
       {/* Fades the hand out as it slides under what follows. */}
       <div className="deck-fade">
         <div
           className="cover-deck"
-          style={{ "--count": shown.length } as React.CSSProperties}
-          onMouseLeave={() => setActive(null)}
+          role="group"
+          aria-label={label}
+          style={
+            {
+              "--deck-count": shown.length,
+              "--compact-count": Math.min(shown.length, 4),
+            } as React.CSSProperties
+          }
+          onPointerLeave={() => setActive(null)}
         >
-          {shown.map((card, index) => (
-            <div
-              key={deckKey(card)}
-              className={cn("deck-card", active === index && "is-active")}
-              style={{ "--i": index } as React.CSSProperties}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                key={covers.stage(card)}
-                ref={(image) => {
-                  // Cached images may finish before hydration attaches onLoad.
-                  if (
-                    image?.complete &&
-                    (image.naturalWidth === 0 ||
-                      isFallbackArt(image) ||
-                      (card.steamAppId == null && image.naturalHeight < 200))
-                  )
-                    covers.reject(card);
-                }}
-                src={covers.source(card)}
-                alt=""
-                width={216}
-                height={324}
-                decoding="async"
-                onLoad={(event) => {
-                  const image = event.currentTarget;
-                  // Store thumbnails can be tiny strips; too blurry for a card.
-                  const tooSmall =
-                    card.steamAppId == null && image.naturalHeight < 200;
-                  if (isFallbackArt(image) || tooSmall) covers.reject(card);
-                }}
-                onError={() => covers.reject(card)}
-              />
-            </div>
-          ))}
           {shown.map((card, index) => {
-            const hit = {
+            const key = deckKey(card);
+            const hit: React.HTMLAttributes<HTMLElement> = {
               className: "deck-hit",
               title: card.title,
-              style: { "--i": index } as React.CSSProperties,
-              onMouseEnter: () => setActive(index),
+              onPointerEnter: (event) => {
+                if (event.pointerType === "mouse") setActive(key);
+              },
             };
-            return card.steamAppId != null ? (
-              <Link
-                key={`hit-${deckKey(card)}`}
-                {...hit}
-                href={`/game/${card.steamAppId}`}
-                tabIndex={-1}
-              />
-            ) : (
-              // An edition without a Steam game has no page to open.
-              <span key={`hit-${deckKey(card)}`} {...hit} />
+            return (
+              <div
+                key={key}
+                className="deck-slot"
+                style={{ "--i": index } as React.CSSProperties}
+              >
+                <div
+                  className={cn("deck-card", active === key && "is-active")}
+                  aria-hidden="true"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    key={covers.stage(card)}
+                    ref={(image) => {
+                      // Cached images may finish before hydration attaches onLoad.
+                      if (
+                        image?.complete &&
+                        (image.naturalWidth === 0 ||
+                          isFallbackArt(image) ||
+                          (card.steamAppId == null &&
+                            image.naturalHeight < 200))
+                      )
+                        covers.reject(card);
+                    }}
+                    src={covers.source(card)}
+                    alt=""
+                    width={216}
+                    height={324}
+                    decoding="async"
+                    onLoad={(event) => {
+                      const image = event.currentTarget;
+                      // Store thumbnails can be tiny strips; too blurry for a card.
+                      const tooSmall =
+                        card.steamAppId == null && image.naturalHeight < 200;
+                      if (isFallbackArt(image) || tooSmall) covers.reject(card);
+                    }}
+                    onError={() => covers.reject(card)}
+                  />
+                </div>
+                {card.steamAppId != null ? (
+                  <Link
+                    {...hit}
+                    href={`/game/${card.steamAppId}`}
+                    aria-label={card.title}
+                  />
+                ) : (
+                  <span {...hit} aria-hidden="true" />
+                )}
+              </div>
             );
           })}
         </div>
@@ -967,8 +977,7 @@ export function PageHeading({
     deck?.flatMap((card) => (card.steamAppId != null ? [card.steamAppId] : [])),
   );
   return (
-    <header className="page-heading">
-      {deck && <CoverDeck cards={deck} tucked={deckTucked} />}
+    <header className={cn("page-heading", deck && "has-deck")}>
       <div className="page-heading-content space-y-2">
         {/* null reserves the line while data loads, so nothing shifts. */}
         {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}
@@ -976,6 +985,9 @@ export function PageHeading({
         {children && <p className="page-description">{children}</p>}
       </div>
       {actions && <div className="page-actions">{actions}</div>}
+      {deck && (
+        <CoverDeck cards={deck} label={`${title} games`} tucked={deckTucked} />
+      )}
     </header>
   );
 }

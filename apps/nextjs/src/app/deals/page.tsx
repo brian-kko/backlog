@@ -319,16 +319,19 @@ export default function DealsPage() {
       <PageHeading
         title="Deals"
         stat={
-          groups.length > 0 && !comparing ? (
-            comparable > 0 ? (
-              <>
-                <strong>{beatSteam}</strong> of {comparable} with a Steam price
-                beat it
-              </>
-            ) : (
-              "No Steam prices to compare in these results"
-            )
-          ) : null
+          deals.isPending || comparing ? null : comparable === 0 ? (
+            "No Steam prices to compare"
+          ) : beatSteam === 0 ? (
+            "No deals beat Steam right now"
+          ) : comparable === 1 ? (
+            <>
+              <strong>1</strong> deal beats Steam
+            </>
+          ) : (
+            <>
+              <strong>{beatSteam}</strong> of {comparable} deals beat Steam
+            </>
+          )
         }
         // The best deals on the page, one card per game; editions without a
         // Steam game use the store's own art.
@@ -382,7 +385,7 @@ export default function DealsPage() {
           <div
             role="group"
             aria-label="Quick filters"
-            className="chip-scroller"
+            className="chip-scroller deal-preset-scroller"
           >
             <button
               className="filter-pill"

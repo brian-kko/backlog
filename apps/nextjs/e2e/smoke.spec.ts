@@ -543,6 +543,170 @@ test("guest dashboard previews and persistent navigation cover all main routes",
   }
 });
 
+test("Library deck links follow the visual order and open from the keyboard", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/library");
+  const deck = page.getByRole("group", { name: "Library games", exact: true });
+  const links = deck.getByRole("link");
+  const titles = ["Cyberpunk 2077", "Elden Ring", "Baldur's Gate 3"];
+  await expect(links).toHaveCount(titles.length);
+  await expect(deck.getByRole("img")).toHaveCount(0);
+  await expect(
+    page.getByText("Steam (unconfirmed) · Paid $29.99", { exact: true }),
+  ).toBeVisible();
+  const leftEdges = await links.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().left),
+  );
+  expect(leftEdges).toEqual([...leftEdges].sort((a, b) => a - b));
+  const firstCard = deck.locator(".deck-card").first();
+  const restingTransform = await firstCard.evaluate(
+    (element) => getComputedStyle(element).transform,
+  );
+  await page.locator("#main").focus();
+  for (const [index, title] of titles.entries()) {
+    await page.keyboard.press("Tab");
+    const link = links.nth(index);
+    await expect(link).toHaveAccessibleName(title);
+    await expect(link).toBeFocused();
+    await expect(deck.locator(".deck-card").nth(index)).toHaveCSS(
+      "outline-width",
+      "3px",
+    );
+    if (index === 0) {
+      await expect(firstCard).not.toHaveCSS("transform", restingTransform);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await expect(firstCard).toHaveCSS("outline-width", "3px");
+      await expect(firstCard).toHaveCSS("transform", restingTransform);
+    }
+  }
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL("/game/1086940");
+});
+
+test("Home deck clears the heading at full fan and lift", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.goto("/");
+  const deck = page.getByRole("group", { name: "Home games", exact: true });
+  const links = deck.getByRole("link");
+  const cards = deck.locator(".deck-card");
+  await expect(links).toHaveCount(5);
+  for (const width of [1024, 1100, 1199, 1200, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.locator("#main").focus();
+    await links.last().hover();
+    await expect(cards.last()).toHaveClass(/is-active/);
+    // Keep the fan open while focusing and lifting the leftmost card.
+    await links.nth(1).focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(links.first()).toBeFocused();
+    await expect(cards.first()).toHaveCSS("outline-width", "3px");
+    await deck.evaluate(async (element) => {
+      await Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    const content = await page.locator(".page-heading-content").boundingBox();
+    if (!content) throw new Error("Home masthead content is missing");
+    const leftEdges = await cards.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().left),
+    );
+    expect(Math.min(...leftEdges), `at ${width}px`).toBeGreaterThan(
+      content.x + content.width,
+    );
+  }
+  await page.locator("#main").focus();
+  await links.last().hover();
+  const points = await links.evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      // Find an exposed point even when most of this hit area is covered.
+      for (let y = Math.ceil(box.top); y < box.bottom; y += 4) {
+        for (let x = Math.ceil(box.left); x < box.right; x += 4) {
+          if (document.elementFromPoint(x, y) === element) return { x, y };
+        }
+      }
+      return null;
+    }),
+  );
+  const restingHits = await links.evaluateAll((elements) =>
+    elements.map((element) => getComputedStyle(element).transform),
+  );
+  for (const [index, point] of points.entries()) {
+    if (!point) throw new Error(`Card ${index + 1} has no pointer target`);
+    await page.mouse.move(point.x, point.y);
+    await expect(cards.nth(index)).toHaveClass(/is-active/);
+    await expect(links.nth(index)).toHaveCSS(
+      "transform",
+      restingHits[index] ?? "",
+    );
+  }
+});
+
+test("compact masthead decks clear the heading and wrapped navigation", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 840, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect(
+    page.getByRole("group", { name: "Home games" }).getByRole("link"),
+  ).toHaveCount(4);
+  await page.getByTestId("nav-library").click();
+  const deck = page.getByRole("group", { name: "Library games" });
+  await expect(deck.getByRole("link")).toHaveCount(3);
+  await expect(deck.locator(".deck-card").first()).toHaveCSS("width", "110px");
+  await expect(deck.locator(".deck-card").first()).toHaveCSS("height", "165px");
+  await expect(page.locator(".deck-fade")).toHaveCSS("bottom", "0px");
+  await expect(page.locator(".deck-fade")).toHaveCSS(
+    "mask-image",
+    /linear-gradient/,
+  );
+  for (const width of [768, 840, 1023]) {
+    await page.setViewportSize({ width, height: 900 });
+    await deck.getByRole("link").last().hover();
+    await expect(deck.locator(".deck-card").last()).toHaveCSS(
+      "outline-width",
+      "3px",
+    );
+    await deck.evaluate(async (element) => {
+      await Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => undefined)),
+      );
+    });
+    const content = await page.locator(".page-heading-content").boundingBox();
+    const nav = await page.locator(".site-nav").boundingBox();
+    if (!content || !nav) throw new Error("Library masthead or nav is missing");
+    const boxes = await deck.locator(".deck-card").evaluateAll((elements) =>
+      elements.map((element) => {
+        const { left, top } = element.getBoundingClientRect();
+        return { left, top };
+      }),
+    );
+    expect(Math.min(...boxes.map(({ left }) => left))).toBeGreaterThan(
+      content.x + content.width,
+    );
+    expect(Math.min(...boxes.map(({ top }) => top))).toBeGreaterThan(
+      nav.y + nav.height,
+    );
+    expect(
+      await page.evaluate(() => {
+        const { clientWidth, scrollWidth } = document.documentElement;
+        return scrollWidth - clientWidth;
+      }),
+    ).toBe(0);
+  }
+  await page.setViewportSize({ width: 767, height: 900 });
+  await expect(deck).toBeHidden();
+});
+
 test("clearing sample games keeps games the guest added", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add game" }).first().click();
@@ -653,6 +817,81 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
   ).toBeVisible();
 });
 
+test.describe("phone Deals presets", () => {
+  test.use({ hasTouch: true });
+
+  test("keep a faded edge and let the last chip scroll fully into view", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/deals");
+    const scroller = page.getByRole("group", { name: "Quick filters" });
+    const last = scroller.getByRole("button", { name: "Activates on Steam" });
+    await expect(scroller).toHaveCSS("padding-inline-end", "16px");
+    await expect(scroller).toHaveCSS("mask-image", /16px/);
+    const chipBounds = await scroller.getByRole("button").evaluateAll((chips) =>
+      chips.map((chip) => {
+        const { top, height } = chip.getBoundingClientRect();
+        return { top, height };
+      }),
+    );
+    expect(chipBounds).toHaveLength(4);
+    for (const chip of chipBounds) {
+      expect(chip.height).toBeGreaterThanOrEqual(44);
+      expect(chip.top).toBe(chipBounds[0]?.top);
+    }
+    const scrollerBounds = await scroller.boundingBox();
+    const start = await last.boundingBox();
+    if (!scrollerBounds || !start) throw new Error("Preset chips are missing");
+    const rightEdge = scrollerBounds.x + scrollerBounds.width;
+    expect(start.x + start.width).toBeGreaterThan(rightEdge);
+    await scroller.evaluate(
+      (element) => (element.scrollLeft = element.scrollWidth),
+    );
+    const end = await last.boundingBox();
+    if (!end) throw new Error("Steam preset is missing");
+    expect(end.x).toBeGreaterThanOrEqual(scrollerBounds.x);
+    expect(rightEdge - (end.x + end.width)).toBeCloseTo(16, 0);
+    await last.tap();
+    await expect(last).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+for (const [steamPrice, copy] of [
+  [35, "1 deal beats Steam"],
+  [25, "No deals beat Steam right now"],
+] as const) {
+  test(`Deals masthead reads "${copy}"`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const offerArt = "/deck-offer-fixture.svg";
+    await page.route(`**${offerArt}`, (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="216" height="324"/>',
+      }),
+    );
+    const offers = deals.slice(1, 3).map((deal, index) => ({
+      ...deal,
+      title: index === 0 ? "Matched game" : "Store-only edition",
+      steamAppId: index === 0 ? 1001 : null,
+      storeId: "25",
+      cheapestPrice: 29.99,
+      thumb: index === 0 ? deal.thumb : offerArt,
+    }));
+    await mockDealResults(page, offers, { 1001: steamPrice });
+    await page.goto("/deals");
+    const stat = page.locator(".page-stat");
+    await expect(stat).toHaveText(copy);
+    if (steamPrice === 35) await expect(stat.locator("strong")).toHaveText("1");
+    const deck = page.getByRole("group", { name: "Deals games", exact: true });
+    await expect(deck.getByRole("link")).toHaveCount(1);
+    await expect(deck.getByRole("link")).toHaveAccessibleName("Matched game");
+    const edition = deck.locator('.deck-hit[title="Store-only edition"]');
+    await expect(edition).toHaveAttribute("aria-hidden", "true");
+    expect(await edition.evaluate((element) => element.tabIndex)).toBe(-1);
+  });
+}
+
 for (const width of [1024, 1440]) {
   test(`deals align edition prices and actions at ${width}px`, async ({
     page,
@@ -669,8 +908,9 @@ for (const width of [1024, 1440]) {
     await mockDealResults(page, offers, { 2000: 28.78, 2001: 30, 2002: 60 });
     await page.goto("/deals");
     await expect(page.locator(".page-stat")).toHaveText(
-      "2 of 3 with a Steam price beat it",
+      "2 of 3 deals beat Steam",
     );
+    await expect(page.locator(".page-stat strong")).toHaveText("2");
     await expect(page.getByTestId("deal-card").getByRole("heading")).toHaveText(
       [2, 1, 0, 3, 4, 5, 6].map((index) => `Comparison fixture ${index}`),
     );
@@ -728,9 +968,16 @@ for (const width of [1024, 1440]) {
     ).toBeVisible();
     await expect(rows.nth(1).locator(".ledger-label")).toHaveCount(0);
     await expect(rows.nth(1).locator(".deal-price")).toHaveText("Free");
+    const freeAction = rows
+      .nth(1)
+      .getByRole("link", { name: /^Get it free at/ });
+    const paidAction = rows.nth(2).getByRole("link", { name: /^Buy at/ });
+    const freeWidth = (await freeAction.boundingBox())?.width ?? 0;
+    expect(freeWidth).toBeGreaterThanOrEqual(96);
+    expect((await paidAction.boundingBox())?.width).toBe(freeWidth);
     await page.getByRole("button", { name: "Under $15", exact: true }).click();
     await expect(page.locator(".page-stat")).toHaveText(
-      "No Steam prices to compare in these results",
+      "No Steam prices to compare",
     );
     await expect(page.getByTestId("deal-card")).toHaveCount(4);
     await expect(page).toHaveURL(/price=14\.99/);
@@ -1009,7 +1256,7 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
     page
       .getByTestId("library-card")
       .filter({ hasText: "Counter-Strike 2" })
-      .getByText("Got it free at Steam"),
+      .getByText("Steam (unconfirmed) · Got it free at Steam", { exact: true }),
   ).toBeVisible();
   // Table view is remembered and sortable.
   await page.getByRole("button", { name: "Table", exact: true }).click();
@@ -1352,9 +1599,7 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
   ).toBeVisible();
   // Editing a sample made it the user's own and dropped its invented price.
   await expect(
-    page.getByText(
-      "Price not recorded at GOG · plays on GOG Galaxy (unconfirmed)",
-    ),
+    page.getByText("GOG Galaxy (unconfirmed) · Price not recorded at GOG"),
   ).toBeVisible();
 });
 
@@ -2076,7 +2321,7 @@ test("library search, removal undo, and owning a wishlist game keep purchase dat
   await page.getByTestId("nav-library").click();
   await page.getByLabel("Find in your library", { exact: true }).fill("Hades");
   await expect(
-    page.getByText("Price not recorded · plays on Steam (unconfirmed)", {
+    page.getByText("Steam (unconfirmed) · Price not recorded", {
       exact: true,
     }),
   ).toBeVisible();
@@ -2735,6 +2980,12 @@ test("Riot games can be added, run in the Riot Client and link to Riot's notes",
       .locator("option:checked"),
   ).toHaveText("Riot Client");
   await page.keyboard.press("Escape");
+  const card = page.getByTestId("library-card").filter({
+    has: page.getByRole("heading", { name: "League of Legends", exact: true }),
+  });
+  await expect(card.locator(".purchase-line > span")).toHaveText(
+    /^Riot Client · /,
+  );
 
   const riot = riotGame(2_000_000_001);
   await page.goto("/game/2000000001");

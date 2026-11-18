@@ -145,17 +145,13 @@
   /* ---------- Masthead deck: the page's games as a hand of cards ---------- */
   /* Lifted and fanned cards may leave the art box; the art itself is masked. */
   .cover-mosaic.is-deck {
-    --mosaic-w: 320px;
     /* How far the hand runs under what follows: only where a solid toolbar
        follows (Library). Elsewhere it ends at the masthead's edge, so it
        never runs behind text. */
     --deck-tuck: 0px;
     --deck-fade-len: 52px;
+    width: var(--mosaic-w);
     overflow: visible;
-  }
-  .cover-mosaic.is-deck.is-tucked {
-    --deck-tuck: 64px;
-    --deck-fade-len: 96px;
   }
 
   /* The hand fades out over its last 96px and is gone where the toolbar
@@ -180,6 +176,7 @@
   }
 
   .cover-deck {
+    --count: var(--deck-count);
     --card-w: 136px;
     --card-h: 204px;
     /* --fan is the outermost card's angle; it is shared across the cards so
@@ -190,7 +187,7 @@
     position: absolute;
     /* Left of centre in the art box (the fade box starts 200px to its
        left), so the fanned hand's right edge stays inside the content. */
-    left: calc(200px + var(--mosaic-w) * var(--deck-x, 0.34));
+    left: calc(200px + var(--mosaic-w) * var(--deck-x));
     /* Big cards: the hand reaches below the masthead and tucks under the
        toolbar, which sits above it (see the stacking rules below). Offsets
        are from the fade box, whose bottom is 64px below the art box. */
@@ -204,6 +201,10 @@
     transform: rotate(-6deg);
   }
 
+  .deck-slot {
+    display: contents;
+  }
+
   .deck-card,
   .deck-hit {
     --o: calc(var(--i) - (var(--count) - 1) / 2);
@@ -215,13 +216,6 @@
     border-radius: 12px;
     /* A low pivot puts the fanned cards on an arc, like a held hand. */
     transform-origin: 50% 160%;
-  }
-
-  /* Library's hand is bigger and slides under its toolbar. */
-  .is-tucked .cover-deck {
-    --card-w: 170px;
-    --card-h: 255px;
-    bottom: calc(var(--deck-tuck) - 104px);
   }
 
   /* The pointer targets: each card's fanned position, but never its lift or
@@ -238,6 +232,10 @@
     position: absolute;
     inset: -40px 0 auto;
     height: 40px;
+  }
+  .deck-hit:focus-visible {
+    /* Put the focus ring on the visible card instead of its fixed hit area. */
+    outline: none;
   }
 
   .deck-card {
@@ -262,57 +260,96 @@
     /* The hand fans out when the pointer reaches it… */
     /* A 15° fan keeps the hand inside the content edge at laptop widths. */
     .cover-deck:hover {
-      --fan: 15deg;
-      --spread: 12px;
+      --fan: var(--hover-fan, 15deg);
+      --spread: var(--hover-spread, 12px);
     }
-    /* …and the card under the pointer rises out of it. */
-    .deck-card.is-active {
-      --lift: -32px;
-      --pop: 1.05;
-      z-index: 10;
-      /* A clear lime ring and a deeper shadow mark the card you're on. */
-      box-shadow:
-        0 0 0 3px var(--signal),
-        0 0 0 9px color-mix(in srgb, var(--signal) 22%, transparent),
-        0 26px 48px rgb(0 0 0 / 0.55);
-    }
-    .deck-card.is-active img {
+  }
+
+  .cover-deck:not(:has(.deck-hit:focus-visible)) .deck-card.is-active,
+  .deck-slot:has(> .deck-hit:focus-visible) > .deck-card {
+    --lift: var(--active-lift, -32px);
+    --pop: var(--active-pop, 1.05);
+    z-index: 10;
+    outline: 3px solid var(--signal);
+    box-shadow:
+      0 0 0 9px color-mix(in srgb, var(--signal) 22%, transparent),
+      0 26px 48px rgb(0 0 0 / 0.55);
+
+    img {
       border-color: transparent;
     }
   }
 
-  @media (min-width: 1200px) {
-    .cover-deck {
-      --card-w: 150px;
-      --card-h: 225px;
-      --deck-x: 0.36;
-      bottom: calc(var(--deck-tuck) - 64px);
-    }
-    .is-tucked .cover-deck {
-      --card-w: 196px;
-      --card-h: 294px;
-      bottom: calc(var(--deck-tuck) - 138px);
-    }
-    .cover-deck:hover {
-      --fan: 17deg;
-      --spread: 22px;
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
+    .cover-deck {
+      --active-lift: 0px;
+      --active-pop: 1;
+    }
     .deck-card,
     .deck-hit {
       transition: none;
     }
   }
 
+  @media (768px <= width < 1024px) {
+    .page-heading.has-deck {
+      min-height: 182px;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 12px 312px 12px 0;
+    }
+    .page-heading.has-deck .page-heading-content {
+      flex: none;
+      width: 100%;
+    }
+    .cover-mosaic.is-deck {
+      --mosaic-w: 280px;
+      display: block;
+      height: 182px;
+    }
+    .cover-deck {
+      --count: var(--compact-count);
+      --card-w: 110px;
+      --card-h: 165px;
+      --deck-x: 0.5;
+      --fan: 9deg;
+      --spread: 14px;
+      --hover-fan: 11deg;
+      --hover-spread: 14px;
+      bottom: -18px;
+    }
+    .deck-slot:nth-child(n + 5) {
+      display: none;
+    }
+    @media (pointer: coarse) {
+      .cover-deck {
+        /* Leave a wider exposed target on each overlapping card. */
+        --spread: 25px;
+      }
+    }
+  }
+
   @media (min-width: 1024px) {
-    .page-heading:has(.is-deck) {
-      padding-right: 344px;
+    .page-heading.has-deck {
+      /* Reserve room for the leftmost card at full fan and lift. */
+      padding-right: 416px;
     }
     .cover-mosaic.is-deck {
       --mosaic-w: 320px;
-      width: var(--mosaic-w);
+    }
+    .cover-deck {
+      --deck-x: 0.44;
+    }
+    /* Library's hand is bigger and slides under its toolbar. */
+    .cover-mosaic.is-deck.is-tucked {
+      --deck-tuck: 64px;
+      --deck-fade-len: 96px;
+    }
+    .is-tucked .cover-deck {
+      --card-w: 170px;
+      --card-h: 255px;
+      bottom: calc(var(--deck-tuck) - 104px);
     }
     /* Everything after the masthead paints above the deck's lower half
        (positioned elements paint in document order). No z-index, so
@@ -326,12 +363,24 @@
   }
 
   @media (min-width: 1200px) {
-    .page-heading:has(.is-deck) {
-      padding-right: 472px;
+    .page-heading.has-deck {
+      padding-right: 536px;
     }
     .cover-mosaic.is-deck {
       --mosaic-w: 440px;
-      width: var(--mosaic-w);
+    }
+    .cover-deck {
+      --card-w: 150px;
+      --card-h: 225px;
+      --deck-x: 0.42;
+      --hover-fan: 17deg;
+      --hover-spread: 22px;
+      bottom: calc(var(--deck-tuck) - 64px);
+    }
+    .is-tucked .cover-deck {
+      --card-w: 196px;
+      --card-h: 294px;
+      bottom: calc(var(--deck-tuck) - 138px);
     }
   }
 
