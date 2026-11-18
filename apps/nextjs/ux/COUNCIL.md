@@ -274,11 +274,15 @@ brainstorm). The deck stays until a direction is chosen.
   only); lime marks a dated 12-month low once price history exists; hover or
   focus names the game. It gets richer as edition matching lands.
 - **Library:** keep the current card system (the tucked hand).
-- **Wishlist:** a **dynamic arrow price chart**. The closest-to-target game's
-  price line (90-day history once price history lands) ends in an arrowhead
-  at today's checked price, pointing in the direction of the latest change,
-  with the target as a dashed line. Before history exists, the arrow runs
-  from the last checked price to now, against the target.
+- **Wishlist:** a **dynamic arrow price chart**. It shows the price history
+  of the closest-to-target game over a selectable period (30 days, 90 days
+  or 12 months) as a stepped line that jumps up or down at each recorded
+  price change and ends in an arrowhead at today's checked price. The target
+  is a dashed line, and each step's date and store show on hover or focus.
+  The line draws left to right once (transform/opacity only, instant under
+  reduced motion). It shows only observed prices with their dates; gaps
+  read "no data", never interpolated. It needs price history; until then
+  the chart says how many observations exist.
 - **Updates:** undecided (candidates: Patch Calendar, Watchlist Pings,
   Signal Meter).
 
