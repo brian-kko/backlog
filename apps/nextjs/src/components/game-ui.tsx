@@ -797,43 +797,56 @@ function MastheadHero({ appId }: { appId: number }) {
   );
 }
 
+/**
+ * Portrait cover first, then the wide header cropped to the card (Riot's
+ * games and newer Steam apps have no portrait cover), then nothing.
+ */
+function useCoverFallbacks() {
+  const [stages, setStages] = useState<Record<number, number>>({});
+  const stage = (appId: number) => stages[appId] ?? 0;
+  const reject = (appId: number, from: number) =>
+    setStages((values) =>
+      (values[appId] ?? 0) === from ? { ...values, [appId]: from + 1 } : values,
+    );
+  const source = (appId: number) =>
+    stage(appId) === 0 ? coverArt(appId) : headerArt(appId);
+  return { stage, reject, source, gone: (appId: number) => stage(appId) > 1 };
+}
+
 /** The page's own games, composed in a separate decorative art region. */
 export function CoverMosaic({ appIds }: { appIds: number[] }) {
-  const [missing, setMissing] = useState<number[]>([]);
-  const reject = (appId: number) =>
-    setMissing((values) =>
-      values.includes(appId) ? values : [...values, appId],
-    );
+  const covers = useCoverFallbacks();
   const lead = appIds[0];
   if (lead === undefined) return null;
-  const covers = appIds.slice(1, 4);
+  const shownCovers = appIds.slice(1, 4);
   return (
     <div className="cover-mosaic" aria-hidden="true">
       <MastheadHero key={lead} appId={lead} />
       <div className="cover-mosaic-track">
-        {covers.map((appId, index) =>
-          missing.includes(appId) ? null : (
+        {shownCovers.map((appId, index) =>
+          covers.gone(appId) ? null : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              key={`${appId}-${index}`}
+              key={`${appId}-${index}-${covers.stage(appId)}`}
               ref={(image) => {
                 // Cached images may finish before hydration attaches onLoad.
                 if (
                   image?.complete &&
                   (image.naturalWidth === 0 || isFallbackArt(image))
                 )
-                  reject(appId);
+                  covers.reject(appId, covers.stage(appId));
               }}
-              src={coverArt(appId)}
+              src={covers.source(appId)}
               alt=""
               width={88}
               height={132}
               loading="lazy"
               decoding="async"
               onLoad={(event) => {
-                if (isFallbackArt(event.currentTarget)) reject(appId);
+                if (isFallbackArt(event.currentTarget))
+                  covers.reject(appId, covers.stage(appId));
               }}
-              onError={() => reject(appId)}
+              onError={() => covers.reject(appId, covers.stage(appId))}
             />
           ),
         )}
@@ -853,14 +866,10 @@ function CoverDeck({
 }: {
   cards: { steamAppId: number; title: string }[];
 }) {
-  const [missing, setMissing] = useState<number[]>([]);
-  const reject = (appId: number) =>
-    setMissing((values) =>
-      values.includes(appId) ? values : [...values, appId],
-    );
+  const covers = useCoverFallbacks();
   const lead = cards[0];
   if (!lead) return null;
-  const shown = cards.filter((card) => !missing.includes(card.steamAppId));
+  const shown = cards.filter((card) => !covers.gone(card.steamAppId));
   return (
     <div className="cover-mosaic is-deck" aria-hidden="true">
       <MastheadHero key={lead.steamAppId} appId={lead.steamAppId} />
@@ -881,23 +890,32 @@ function CoverDeck({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
+                key={covers.stage(card.steamAppId)}
                 ref={(image) => {
                   if (
                     image?.complete &&
                     (image.naturalWidth === 0 || isFallbackArt(image))
                   )
-                    reject(card.steamAppId);
+                    covers.reject(
+                      card.steamAppId,
+                      covers.stage(card.steamAppId),
+                    );
                 }}
-                src={coverArt(card.steamAppId)}
+                src={covers.source(card.steamAppId)}
                 alt=""
                 width={216}
                 height={324}
                 decoding="async"
                 onLoad={(event) => {
                   if (isFallbackArt(event.currentTarget))
-                    reject(card.steamAppId);
+                    covers.reject(
+                      card.steamAppId,
+                      covers.stage(card.steamAppId),
+                    );
                 }}
-                onError={() => reject(card.steamAppId)}
+                onError={() =>
+                  covers.reject(card.steamAppId, covers.stage(card.steamAppId))
+                }
               />
             </Link>
           ))}
