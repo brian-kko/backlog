@@ -87,6 +87,7 @@ KEEP (what must not regress)
 | 6     | 9.4   | 9.1  | All gates pass; open: hashed Steam art, singleton deal card, nav/back link over hero, digest "would" bug, phone edition rows |
 | 7     | —     | 9.2  | astra hit the Codex limit; Opus: AA over art, billboard art, patch counts, singleton was-price |
 | 8     | 9.0 (9.31 capped) | 9.0 (9.2 capped) | Deck everywhere, Riot games, aurora; capped by Deals placeholder overflow (both), deck a11y, −$0.00 ledger, Riot editor (astra) |
+| 9     | 9.0 (9.32 capped) | 9.3 | All audit gates pass; astra caps on stale offline savings and unknown spend; both flag Deals ranking/deck, Riot leftovers, transitions |
 
 ## Status and open items
 
@@ -289,4 +290,8 @@ brainstorm). The deck stays until a direction is chosen.
 Sequencing: the Radar and the arrow chart lean on price history and edition
 matching, so build those data features first (or alongside), then the two
 mastheads.
+
+**Round 9 (2026-11-18): astra 6.2 9.0 (9.32 capped), Opus 9.3 (no cap).**
+Reviews: `ux/reviews/astra-r9.md` and `ux/reviews/opus-r9.md`. The owner
+asked to review the fix list before any jobs are sent.
 
