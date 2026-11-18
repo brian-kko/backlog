@@ -25,8 +25,7 @@ export const money = (value: number | null | undefined) =>
 /** Shelf price: "Free" instead of $0.00. */
 export const price = (value: number | null | undefined) =>
   value === 0 ? "Free" : money(value);
-export const headerArt = (appId: number) =>
-  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
+export const headerArt = (appId: number) => `/api/art/${appId}/header`;
 export const storeName = (storeId: string | null | undefined) =>
   (storeId ? storeNames[storeId] : undefined) ?? "partner store";
 export const plural = (count: number, one: string, many = `${one}s`) =>
@@ -487,13 +486,11 @@ export function GameArt({
 }
 
 /** Wide library hero art (1920×620) and the transparent title logo. */
-export const libraryHero = (appId: number) =>
-  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_hero.jpg`;
+export const libraryHero = (appId: number) => `/api/art/${appId}/hero`;
 export const gameLogo = (appId: number) =>
   `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/logo.png`;
 
-export const coverArt = (appId: number) =>
-  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/library_600x900.jpg`;
+export const coverArt = (appId: number) => `/api/art/${appId}/capsule`;
 
 /** Vertical library cover (2:3), falling back to the wide header art. */
 export function CoverArt({ appId, title }: { appId: number; title: string }) {
