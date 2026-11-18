@@ -27,9 +27,11 @@ function fallbackArt(): Artwork {
 
 function appdetailsArtUrls(data: unknown, kind: keyof typeof assets): string[] {
   if (!data || typeof data !== "object") return [];
+  // appdetails has no portrait cover (capsule_imagev5 is a 184×69 strip), so
+  // a missing capsule stays missing and the client hides or swaps the slot.
+  if (kind === "capsule") return [];
   const header = "header_image" in data ? data.header_image : undefined;
-  const capsule = "capsule_imagev5" in data ? data.capsule_imagev5 : undefined;
-  const candidates = kind === "capsule" ? [capsule, header] : [header];
+  const candidates = [header];
   const urls = new Set<string>();
   for (const candidate of candidates) {
     if (typeof candidate !== "string") continue;
