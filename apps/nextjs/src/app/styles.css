@@ -118,8 +118,20 @@
   * {
     @apply border-border;
   }
+  /* One nav height for the bar, sticky offsets and the hero tuck-under;
+     a little extra breathing room above the bar on wide screens. */
+  :root {
+    --nav-h: 60px;
+    --nav-pad-top: 0px;
+  }
+  @media (min-width: 1024px) {
+    :root {
+      --nav-h: 68px;
+      --nav-pad-top: 6px;
+    }
+  }
   html {
-    scroll-padding-top: 76px;
+    scroll-padding-top: calc(var(--nav-h) + 16px);
   }
   /* Full-bleed sections use 100vw; never let that create sideways scroll. */
   body {
@@ -162,7 +174,7 @@
   .page-shell {
     @apply mx-auto flex w-full max-w-[1216px] flex-col gap-7 px-4 pt-7 pb-16 sm:px-6 sm:pt-9;
     /* At least a screen tall, so the footer never jumps into view as data loads. */
-    min-height: calc(100dvh - 60px);
+    min-height: calc(100dvh - var(--nav-h));
   }
   /* Transparent over the ambient background at the top; a near-solid tint
      (no blur) once content scrolls underneath. */
@@ -173,7 +185,9 @@
     /* Colour changes are instant; motion is transform/opacity only. */
   }
   .nav-shell {
-    @apply mx-auto flex h-[60px] max-w-[1216px] items-center gap-7 px-4 sm:px-6;
+    @apply mx-auto flex max-w-[1216px] items-center gap-7 px-4 sm:px-6;
+    height: var(--nav-h);
+    padding-top: var(--nav-pad-top);
   }
   .brand {
     @apply flex shrink-0 items-center gap-2.5;
@@ -970,11 +984,11 @@
   .game-hero {
     @apply min-h-[360px] rounded-none border-x-0 border-t-0 sm:min-h-[440px];
     margin-inline: calc(50% - 50vw);
-    margin-top: calc(-60px - 1.75rem);
+    margin-top: calc(-1 * var(--nav-h) - 1.75rem);
   }
   @media (min-width: 640px) {
     .game-hero {
-      margin-top: calc(-60px - 2.25rem);
+      margin-top: calc(-1 * var(--nav-h) - 2.25rem);
     }
   }
   .hero-body {
