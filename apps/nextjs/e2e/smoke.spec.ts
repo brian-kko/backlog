@@ -39,6 +39,7 @@ const titles: Record<number, string> = {
   730: "Counter-Strike 2",
   570: "Dota 2",
   1145360: "Hades",
+  1422450: "Deadlock",
 };
 function steamFeed(steamAppId: number) {
   const item = {
@@ -878,6 +879,84 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
   ).toBeVisible();
 });
 
+for (const width of [1024, 1440]) {
+  for (const { appId, title, logoWidth, logoHeight, hasLogo } of [
+    {
+      appId: 1091500,
+      title: "Cyberpunk 2077",
+      logoWidth: 360,
+      logoHeight: 100,
+      hasLogo: true,
+    },
+    {
+      appId: 1422450,
+      title: "Deadlock",
+      logoWidth: 160,
+      logoHeight: 160,
+      hasLogo: false,
+    },
+  ]) {
+    test(`${title} hero evaluates preloaded logos at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.route("**/logo.png", (route) =>
+        route.fulfill({
+          contentType: "image/svg+xml",
+          body: `<svg xmlns="http://www.w3.org/2000/svg" width="${logoWidth}" height="${logoHeight}"><rect width="100%" height="100%" fill="white"/></svg>`,
+        }),
+      );
+      // Hold hydration until the SSR image has loaded: no React load event.
+      let hydrate: () => void = () => undefined;
+      const scriptsReady = new Promise<void>((resolve) => {
+        hydrate = resolve;
+      });
+      await page.route("**/_next/static/**/*.js", async (route) => {
+        await scriptsReady;
+        await route.continue();
+      });
+      try {
+        await page.goto(`/game/${appId}`, { waitUntil: "commit" });
+        await expect
+          .poll(() =>
+            page
+              .locator(".hero-logo")
+              .evaluate((image) =>
+                image instanceof HTMLImageElement && image.complete
+                  ? image.naturalWidth
+                  : 0,
+              ),
+          )
+          .toBe(logoWidth);
+      } finally {
+        hydrate();
+      }
+      const heading = page.locator(".hero-title");
+      await expect(heading).toHaveText(title);
+      if (hasLogo) await expect(heading).toHaveClass(/has-logo/);
+      else await expect(heading).not.toHaveClass(/has-logo/);
+
+      for (const viewport of [width, 840, 390]) {
+        await page.setViewportSize({ width: viewport, height: 900 });
+        const back = page.locator(".hero-body .back-link");
+        await expect(back).toHaveCSS("position", "static");
+        const backBottom = await back.evaluate(
+          (element) => element.getBoundingClientRect().bottom,
+        );
+        const titleTop = await heading
+          .locator(":scope > span")
+          .evaluate((element) => element.getBoundingClientRect().top);
+        expect(titleTop - backBottom).toBeGreaterThanOrEqual(24);
+      }
+      // Also exercise normal loading after the hydration gate is open.
+      await page.reload();
+      await expect(heading).toHaveText(title);
+      if (hasLogo) await expect(heading).toHaveClass(/has-logo/);
+      else await expect(heading).not.toHaveClass(/has-logo/);
+    });
+  }
+}
+
 test("games you don't own offer buying instead of launching", async ({
   page,
 }) => {
@@ -1696,6 +1775,41 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
   ).toBeVisible();
   await expect(page.getByText("Sorted by AI summary")).toBeVisible();
 });
+
+for (const width of [390, 1440]) {
+  test(`patch heroes keep readable dark surfaces in light theme at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.addInitScript(() => localStorage.setItem("theme-mode", "light"));
+    for (const appId of [1422450, 553850]) {
+      await page.goto(`/patch/${appId}/1847920302234123`);
+      await expect(page.locator("html")).toHaveClass(/light/);
+      const hero = page.locator(".patch-hero");
+      await expect(hero).toBeVisible();
+      await expect(hero).toHaveCSS("min-height", "220px");
+      await expect(hero).toHaveCSS("background-color", "rgb(18, 20, 17)");
+      await expect(hero.locator("h1")).toHaveCSS("color", "rgb(242, 244, 235)");
+      await expect(hero.locator(".patch-meta")).toHaveCSS(
+        "color",
+        "rgb(195, 201, 186)",
+      );
+      await expect(hero.getByRole("link", { name: "Read on Steam" })).toHaveCSS(
+        "color",
+        "rgb(242, 244, 235)",
+      );
+      const layers = await hero.evaluate((element) => {
+        const art = element.querySelector(".patch-hero-art");
+        return {
+          art: art ? Number(getComputedStyle(art).zIndex) : 0,
+          gradient: Number(getComputedStyle(element, "::before").zIndex),
+        };
+      });
+      expect(layers.gradient).toBeGreaterThan(layers.art);
+      expect(layers.gradient).toBeLessThan(0);
+    }
+  });
+}
 
 test("patch reader shows compact Deadlock values and a chip for every change", async ({
   page,

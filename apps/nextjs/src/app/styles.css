@@ -977,18 +977,20 @@
     }
   }
   .hero-body {
-    @apply relative mx-auto w-full max-w-[1216px] space-y-4 px-4 pt-24 pb-8 sm:px-6 sm:pb-10;
+    @apply relative mx-auto w-full max-w-[1216px] space-y-4 px-4 pt-18 pb-8 sm:px-6 sm:pb-10;
   }
   .hero-body > :not(.back-link) {
     @apply max-w-2xl;
   }
   .hero-body .back-link {
-    @apply absolute top-[72px];
+    @apply flex w-fit;
+    position: static;
+    margin-block: 0 24px;
   }
   /* Same height whether the title ends up as a wordmark or as text, so
      swapping an emblem logo for the name doesn't shift the page. */
   .hero-title {
-    @apply flex min-h-[168px] flex-col justify-end sm:min-h-[200px];
+    @apply flex min-h-[128px] flex-col justify-end sm:min-h-[160px];
   }
   .hero-description {
     @apply text-muted-foreground max-w-prose leading-relaxed;
@@ -1011,7 +1013,7 @@
     @apply block text-5xl leading-none font-bold uppercase sm:text-6xl;
   }
   .hero-logo {
-    @apply block h-auto max-h-32 w-auto max-w-[min(360px,80%)] object-contain object-left sm:max-h-40;
+    @apply block h-auto max-h-24 w-auto max-w-[min(360px,80%)] object-contain object-left sm:max-h-32;
   }
   .hub-art {
     @apply w-full shrink-0 rounded-lg md:max-w-[44%];
@@ -1475,14 +1477,23 @@
   }
   .patch-hero {
     @apply relative isolate flex min-h-64 items-end overflow-hidden rounded-xl border;
-    background: #0d1215;
+    /* Artwork remains a dark surface in either page theme. */
+    --background: #121411;
+    --foreground: #f2f4eb;
+    --muted-foreground: #c3c9ba;
+    --border: #2c3227;
+    --signal: #c8ed78;
+    background: var(--background);
+    color: var(--foreground);
   }
   .patch-hero-art {
-    @apply absolute inset-0 -z-10 h-full w-full object-cover opacity-60;
+    @apply absolute inset-0 h-full w-full object-cover opacity-60;
+    z-index: -2;
   }
   .patch-hero::before {
     content: "";
-    @apply absolute inset-0 -z-10;
+    @apply absolute inset-0;
+    z-index: -1;
     background: linear-gradient(
       100deg,
       rgb(8 12 14 / 0.95) 0%,
