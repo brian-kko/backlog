@@ -70,6 +70,60 @@ describe("Patch notes parsing", () => {
       "A short update without itemised changes.",
     );
   });
+
+  it.each([
+    "🧠 Known Issues",
+    "Known Issues:",
+    "[b]🧠 Known Issues[/b]",
+    "[b]Known issues:[/b]",
+    "[h3]🧠 Known Issues[/h3]",
+    "<h3>Known Issues</h3>",
+    "- 🧠 Known Issues",
+  ])(
+    "keeps %s and its bullets out of change counts and highlights",
+    (heading) => {
+      const patch = parsePatchNotes(
+        `[h3]Fixes[/h3][list][*]Fixed a crash.[/*][/list]\n${heading}\n[list][*]Crashes can still occur on exit.[/*][*]Increased damage is not applied yet.[/*][/list][h3]Audio[/h3][list][*]Improved footsteps.[/*][/list]`,
+      );
+      const issues = patch.sections[1];
+      expect(issues?.title).toMatch(/^Known Issues$/i);
+      expect(issues?.subjects[0]?.changes).toEqual([]);
+      expect(issues?.subjects[0]?.context).toEqual([
+        "Crashes can still occur on exit.",
+        "Increased damage is not applied yet.",
+      ]);
+      const summary = summarizePatch(patch);
+      expect(summary.counts).toEqual({
+        new: 0,
+        buff: 1,
+        nerf: 0,
+        adjusted: 0,
+        fix: 1,
+        removed: 0,
+        note: 0,
+      });
+      expect(summary.groups.flatMap((group) => group.subjects)).toEqual([
+        "Audio",
+        "Fixes",
+      ]);
+      expect(summary.headline).toBe("1 buff and 1 fix across Fixes and Audio.");
+      expect(summary.highlights).toEqual([
+        "Audio: Improved footsteps.",
+        "Fixes: Fixed a crash.",
+      ]);
+    },
+  );
+
+  it("does not classify a Known Issues-only post as changes", () => {
+    const patch = parsePatchNotes(
+      "🧠 Known Issues\n- Fixed damage values are not applied yet.",
+    );
+    const summary = summarizePatch(patch);
+    expect(summary.counts.fix).toBe(0);
+    expect(summary.groups).toEqual([]);
+    expect(summary.highlights).toEqual([]);
+    expect(summary.headline).toBe("A short update without itemised changes.");
+  });
 });
 
 describe("Change classification", () => {
@@ -168,14 +222,17 @@ describe("Flat 'Name: change' patch notes (Deadlock style)", () => {
         "[/p]",
       ].join("\n"),
     );
-    expect(patch.sections.map((section) => section.title)).toEqual(["General"]);
+    expect(patch.sections.map((section) => section.title)).toEqual([
+      "General",
+      "Known issues",
+    ]);
     const subjects = patch.sections[0]?.subjects ?? [];
     const midBoss = subjects.find((subject) => subject.name === "Mid-Boss");
     expect(midBoss?.changes).toHaveLength(4);
-    // Developer context stays with the category, not with one subject.
-    const general = subjects.find((subject) => subject.name === "General");
-    expect(general?.changes).toEqual([]);
-    expect(general?.context).toEqual(["Some masks clip through hats"]);
+    // Unresolved issues stay readable in their own section, outside changes.
+    const issues = patch.sections[1]?.subjects[0];
+    expect(issues?.changes).toEqual([]);
+    expect(issues?.context).toEqual(["Some masks clip through hats"]);
   });
 
   it("leaves 'Label: sentence' lists alone when no name repeats", () => {

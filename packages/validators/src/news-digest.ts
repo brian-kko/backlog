@@ -33,7 +33,13 @@ const changeVerb =
 const greeting =
   /^(?:greetings|hello|hi|hey|dear|welcome|incoming transmission|attention|thanks|thank you)\b/i;
 const plannedChange =
-  /\b(?:will|would|coming soon|plan(?:ning)? to|hope to|aim to)\b|\b(?:not|never|hasn['’]t|haven['’]t|wasn['’]t|weren['’]t)\s+(?:been\s+)?(?:fixed|added|increased|decreased|reduced|removed|adjusted|improved|resolved|corrected|rebalanced)\b/i;
+  /\b(?:will|would|coming soon|plan(?:ning)? to|hope to|aim to)\b|\b(?:not|never|isn['’]t|aren['’]t|hasn['’]t|haven['’]t|wasn['’]t|weren['’]t)\s+(?:(?:been|yet|fully|actually|still)\s+)*(?:fixed|added|increased|decreased|reduced|removed|adjusted|improved|resolved|corrected|rebalanced)\b/i;
+const completedChange =
+  /^(?:fixed|added|increased|decreased|reduced|removed|adjusted|improved|resolved|corrected|rebalanced)\b/i;
+const genericSubject =
+  /^(?:(?:crash|bug)\s+)?fix(?:es)?$|^known issues$|^misc(?:ellaneous)?$|^general$/i;
+const fallbackHeading =
+  /(?:^|\s)(?:[^\p{L}\p{N}\s]+\s*)?(?:known issues\b|(?:(?:(?:crash|bug)\s+)?fix(?:es)?|misc(?:ellaneous)?|general|changes|balance|weapons|performance|new content)\s*:)/iu;
 
 const sentences = (text: string) =>
   text
@@ -47,20 +53,44 @@ function isIntro(text: string) {
   return greeting.test(text) || capitals.length > letters.length * 0.6;
 }
 
-/** Removes publisher greetings before displaying a fallback excerpt. */
+/** Keeps fallback excerpts short and stops before subsequent section headings. */
 export function stripNewsIntro(text: string): string {
-  const parts = sentences(text);
+  const heading = fallbackHeading.exec(text);
+  const excerpt = heading ? text.slice(0, heading.index).trim() : text;
+  const parts = sentences(excerpt);
   while (parts[0] && isIntro(parts[0])) parts.shift();
   // A post that is only a greeting keeps it; an empty excerpt says less.
-  return parts.length ? parts.join(" ") : text;
+  return shortExcerpt(parts.length ? parts.join(" ") : excerpt) ?? "";
 }
 
-function shortChange(sentence: string): string | null {
+function shortExcerpt(sentence: string): string | null {
   if (sentence.length <= 140) return sentence;
   // Leave long words intact and keep the lead an exact source excerpt.
   const boundary = sentence.slice(0, 141).lastIndexOf(" ");
-  const line = boundary > 0 ? sentence.slice(0, boundary) : null;
-  return line && changeVerb.test(line) ? line : null;
+  return boundary > 0 ? sentence.slice(0, boundary) : null;
+}
+
+function isCompletedChange(sentence: string): boolean {
+  // "Fixed a crash that would occur" describes the old failure, not a plan.
+  // Keep modal language in the main action and all negations subject to checks.
+  const action = completedChange.test(sentence)
+    ? sentence.replace(
+        /(\b(?:that|which|when|where)\b[^.!?]*?)\bwould\b(?=\s+(?:occur|happen|crash|cause|prevent|fail|disconnect|freeze|block|stop|trigger|result)\b)/gi,
+        "$1",
+      )
+    : sentence;
+  return (
+    changeVerb.test(sentence) &&
+    !isIntro(sentence) &&
+    !plannedChange.test(action)
+  );
+}
+
+function withoutGenericSubject(sentence: string): string {
+  const colon = sentence.indexOf(":");
+  return colon >= 0 && genericSubject.test(sentence.slice(0, colon).trim())
+    ? sentence.slice(colon + 1).trim()
+    : sentence;
 }
 
 /** Extracts source-backed topics and a change sentence; never writes a summary. */
@@ -83,9 +113,10 @@ export function digestNews(
         .filter((change) => change.kind !== "note")
         .flatMap((change) =>
           sentences(change.text).map((sentence) => ({
-            sentence,
+            sentence: withoutGenericSubject(sentence),
             subject:
               subject.name === section.title ||
+              genericSubject.test(subject.name.replace(/:$/, "").trim()) ||
               sentence.startsWith(`${subject.name}:`)
                 ? null
                 : subject.name,
@@ -95,17 +126,16 @@ export function digestNews(
   );
   const candidates = patch?.sections.length
     ? (changes ?? [])
-    : sentences(text).map((sentence) => ({ sentence, subject: null }));
-  const change = candidates.find(
-    ({ sentence }) =>
-      changeVerb.test(sentence) &&
-      !isIntro(sentence) &&
-      !plannedChange.test(sentence),
-  );
+    : sentences(text).map((sentence) => ({
+        sentence: withoutGenericSubject(sentence),
+        subject: null,
+      }));
+  const change = candidates.find(({ sentence }) => isCompletedChange(sentence));
   const sentence = change
     ? change.subject
       ? `${change.subject}: ${change.sentence}`
       : change.sentence
     : null;
-  return { topics, line: sentence ? shortChange(sentence) : null };
+  const line = sentence ? shortExcerpt(sentence) : null;
+  return { topics, line: line && changeVerb.test(line) ? line : null };
 }

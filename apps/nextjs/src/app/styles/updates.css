@@ -74,6 +74,16 @@
     margin-right: 6px;
   }
 
+  @media (max-width: 639px) {
+    .news-entry .news-topics {
+      flex-basis: 100%;
+    }
+
+    .news-patch-summary + .news-topics::before {
+      content: none;
+    }
+  }
+
   .news-entry .news-lead {
     font-size: 15px;
     line-height: 23px;

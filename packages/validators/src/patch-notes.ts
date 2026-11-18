@@ -77,6 +77,7 @@ const adjustedPattern =
   /\b(chang\w*|adjust\w*|rework\w*|updat\w*|tweak\w*|rebalanc\w*)\b/i;
 const contextLabel =
   /^(problem|issue|why|context|intent|expectation|goal|reason|background|known issues?|developer('s)? notes?)\b/i;
+const knownIssuesHeading = /^\W*known issues?\b/i;
 const systemSection =
   /\b(system|general|gameplay|ui|ux|interface|performance|audio|server|network|quality of life|qol|balance|economy|progression|matchmaking|stability)\b/i;
 const versionPattern =
@@ -263,7 +264,7 @@ export function parsePatchNotes(contents: string, title = ""): ParsedPatch {
       section = { title: heading, subjects: [] };
       sections.push(section);
       subject = null;
-      contextMode = false;
+      contextMode = knownIssuesHeading.test(heading);
       continue;
     }
     if (!trimmed.startsWith("\u0001") && dashBullet.test(trimmed))
@@ -275,6 +276,14 @@ export function parsePatchNotes(contents: string, title = ""): ParsedPatch {
       /^(?:\[(b|i|u)\]\s*)+([\s\S]+?)(?:\s*\[\/(?:b|i|u)\])+$/i.exec(body);
     const text = cleanSteamText(body);
     if (!text) continue;
+    // Publishers also use plain or emoji-prefixed labels instead of h-tags.
+    if (knownIssuesHeading.test(text)) {
+      section = { title: stripEmoji(text).replace(/:$/, ""), subjects: [] };
+      sections.push(section);
+      subject = null;
+      contextMode = true;
+      continue;
+    }
     if (!isItem && emphasised && isShortLabel(text) && !/[.!?]$/.test(text)) {
       // A bold "Label:" is either developer context or a category of changes
       // ("General:", "Heroes:"), which reads best as its own section.
@@ -300,11 +309,13 @@ export function parsePatchNotes(contents: string, title = ""): ParsedPatch {
         context: [],
       };
       section.subjects.push(subject);
-      contextMode = false;
+      contextMode = knownIssuesHeading.test(section.title);
       continue;
     }
     if (!isItem && text.endsWith(":") && isShortLabel(text)) {
-      contextMode = contextLabel.test(text);
+      contextMode =
+        knownIssuesHeading.test(section?.title ?? "") ||
+        contextLabel.test(text);
       continue;
     }
     if (!section && !isItem) {
@@ -380,7 +391,10 @@ export function summarizePatch(patch: ParsedPatch): PatchSummary {
     removed: 0,
     note: 0,
   };
-  const subjects = patch.sections.flatMap((section) => section.subjects);
+  const sections = patch.sections.filter(
+    (section) => !knownIssuesHeading.test(section.title),
+  );
+  const subjects = sections.flatMap((section) => section.subjects);
   for (const subject of subjects)
     for (const change of subject.changes) counts[change.kind] += 1;
   const groups = groupOrder
@@ -405,7 +419,7 @@ export function summarizePatch(patch: ParsedPatch): PatchSummary {
   ].filter(Boolean) as string[];
   // Name real sections; a post without headings only has the default one,
   // so say how many things changed instead of "across Patch notes".
-  const named = patch.sections
+  const named = sections
     .map((section) => section.title)
     .filter((title) => title && title !== "Patch notes");
   const areas = named.length

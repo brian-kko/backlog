@@ -146,11 +146,17 @@ function Glance({
   onOpen: (id: string) => void;
 }) {
   const tiles = data.patch.sections.flatMap((section, sectionIndex) =>
-    section.subjects.map((subject, subjectIndex) => ({
-      subject,
-      id: anchor(sectionIndex, subjectIndex),
-      group: groupOf(subject),
-    })),
+    section.subjects.flatMap((subject, subjectIndex) =>
+      subject.changes.length
+        ? [
+            {
+              subject,
+              id: anchor(sectionIndex, subjectIndex),
+              group: groupOf(subject),
+            },
+          ]
+        : [],
+    ),
   );
   return (
     // Only populated groups, flowing into as many columns as fit, so a
@@ -344,16 +350,23 @@ function FullNotes({
                     </span>
                   </h3>
                 )}
-                {subject.context.length > 0 && (
-                  <details className="patch-context">
-                    <summary>Developer notes</summary>
-                    <ul>
+                {subject.context.length > 0 &&
+                  (/^known issues?\b/i.test(section.title) ? (
+                    <ul className="text-muted-foreground space-y-2 text-sm">
                       {subject.context.map((line, index) => (
                         <li key={index}>{line}</li>
                       ))}
                     </ul>
-                  </details>
-                )}
+                  ) : (
+                    <details className="patch-context">
+                      <summary>Developer notes</summary>
+                      <ul>
+                        {subject.context.map((line, index) => (
+                          <li key={index}>{line}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  ))}
                 <ul className="patch-changes">
                   {subject.changes.map((change, index) => (
                     <li key={index}>
@@ -527,7 +540,10 @@ export function PatchReader({
             summary.counts.removed +
             summary.counts.fix;
           const items = data.patch.sections.reduce(
-            (sum, section) => sum + section.subjects.length,
+            (sum, section) =>
+              sum +
+              section.subjects.filter((subject) => subject.changes.length)
+                .length,
             0,
           );
           return changes ? (
