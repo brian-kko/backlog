@@ -11,7 +11,7 @@ import {
   toCents,
 } from "@acme/validators";
 
-import { AddGameButton } from "./add-game";
+import { useAddGame } from "./add-game";
 import {
   GameArt,
   libraryHero,
@@ -126,7 +126,7 @@ function Title({ deal, level }: { deal: Deal; level: "h2" | "h3" }) {
   );
 }
 
-/** On phones, wishlist/own actions sit behind one "Track" button. */
+/** Compact rows and phone cards disclose wishlist/own actions together. */
 function TrackToggle({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -252,7 +252,9 @@ export function DealCards({
         />
       )}
       {matched.length > 0 && (
-        <div className="deal-grid">
+        <div
+          className={cn("deal-grid", matched.length <= 2 && "deal-grid-pair")}
+        >
           {matched.map((group) => (
             <DealCard
               key={group.deal.id}
@@ -266,7 +268,7 @@ export function DealCards({
       {unmatched.length > 0 && (
         <div className="deal-editions">
           <p className="deal-divider">
-            Other editions: no Steam match to compare
+            Other editions: no live Steam price to compare
           </p>
           <div className="deal-edition-list">
             {unmatched.map((group) => (
@@ -346,12 +348,16 @@ function DealCard({
               <span aria-hidden="true">↗</span>
             </span>
           </a>
-          <SteamLine
-            deal={deal}
-            steam={steam}
-            checking={checking}
-            featured={featured}
-          />
+          {deal.storeId === "1" && deal.source !== "catalog" ? (
+            <p className="deal-best-note">Steam has the best price</p>
+          ) : (
+            <SteamLine
+              deal={deal}
+              steam={steam}
+              checking={checking}
+              featured={featured}
+            />
+          )}
         </div>
         <OfferDetails deal={deal} />
         <DealActions group={group} gap={gap} featured={featured} />
@@ -372,6 +378,7 @@ function DealActions({
   compact?: boolean;
 }) {
   const { deal } = group;
+  const openAddGame = useAddGame();
   return (
     <div className="deal-actions">
       {gap != null && gap < 0 && deal.steamAppId ? (
@@ -380,8 +387,10 @@ function DealActions({
           href={`https://store.steampowered.com/app/${deal.steamAppId}`}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label="Buy at Steam (opens store)"
         >
-          Buy at Steam<span aria-hidden="true">↗</span>
+          {compact ? "Buy" : "Buy at Steam"}
+          <span aria-hidden="true">↗</span>
         </a>
       ) : (
         <a
@@ -389,13 +398,15 @@ function DealActions({
           href={offerUrl(deal)}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label={`${deal.source === "catalog" ? "Check price" : deal.cheapestPrice === 0 ? "Get it free" : "Buy"} at ${storeName(deal.storeId)} (opens store)`}
         >
-          {deal.source === "catalog"
-            ? "Check price at"
-            : deal.cheapestPrice === 0
-              ? "Get it free at"
-              : "Buy at"}{" "}
-          {storeName(deal.storeId)}
+          {compact
+            ? deal.source === "catalog"
+              ? "Check price"
+              : deal.cheapestPrice === 0
+                ? "Get free"
+                : "Buy"
+            : `${deal.source === "catalog" ? "Check price at" : deal.cheapestPrice === 0 ? "Get it free at" : "Buy at"} ${storeName(deal.storeId)}`}
           <span aria-hidden="true">↗</span>
         </a>
       )}
@@ -407,14 +418,22 @@ function DealActions({
             price={deal.cheapestPrice}
             store={purchaseStoreFromDeal(deal.storeId)}
             saved={deal.source === "catalog"}
+            offer={{
+              store: storeName(deal.storeId),
+              url: offerUrl(deal),
+              source: deal.source ?? "cheapshark",
+            }}
           />
         </TrackToggle>
       ) : (
-        <AddGameButton
-          label={compact ? "Find on Steam" : "Find it on Steam to track"}
-          initialQuery={deal.title}
+        <button
+          type="button"
+          aria-haspopup="dialog"
           className="action secondary deal-find"
-        />
+          onClick={() => openAddGame(deal.title)}
+        >
+          {compact ? "Find on Steam" : "Find it on Steam to track"}
+        </button>
       )}
     </div>
   );
@@ -440,14 +459,9 @@ function DealRow({ group }: { group: DealGroup }) {
           rel="noopener noreferrer"
           aria-label={`${deal.source === "catalog" ? "Saved price " : ""}${price(deal.cheapestPrice)} at ${storeName(deal.storeId)} (opens store)`}
         >
-          {deal.cheapestPrice === 0 && (
-            <span className="ledger-label">
-              Free · {storeName(deal.storeId)}
-            </span>
-          )}
           <PriceLine deal={deal} />
+          <OfferDetails deal={deal} />
         </a>
-        <OfferDetails deal={deal} />
       </div>
       <DealActions group={group} compact />
     </article>

@@ -15,12 +15,14 @@
   }
 
   .deal-results .deal-content {
+    display: grid;
+    grid-template-rows: auto 1fr auto auto;
     gap: 12px;
     padding: 16px;
   }
 
   .deal-results .deal-heading {
-    min-height: 72px;
+    min-height: 0;
   }
 
   .deal-heading > .deal-store {
@@ -58,6 +60,13 @@
     margin: 0;
     padding: 0;
     background: none;
+    align-self: end;
+  }
+
+  .deal-best-note {
+    color: var(--muted-foreground);
+    font-size: 13px;
+    line-height: 18px;
   }
 
   .deal-results .deal-ledger > .price-link,
@@ -65,7 +74,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: baseline;
-    gap: 4px 8px;
+    gap: 4px 12px;
     margin: 0;
     padding: 12px;
     border-radius: 8px;
@@ -238,17 +247,98 @@
     min-width: 0;
   }
 
-  @media (width >= 1100px) {
+  .deal-row .track-toggle-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+
+  .deal-row .track-toggle:not([data-open]) .track-toggle-body {
+    display: none;
+  }
+
+  @media (width >= 960px) {
+    .deal-edition-list {
+      grid-template-columns: 120px minmax(0, 1fr) max-content max-content;
+      column-gap: 16px;
+      padding-inline: 16px;
+    }
+
     .deal-row {
-      grid-template-columns: 120px minmax(0, 1fr) auto auto;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      padding-inline: 0;
+    }
+
+    .deal-row .deal-store {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     .deal-row .deal-actions {
       grid-column: auto;
+      flex-wrap: nowrap;
     }
 
-    .deal-row:has(.field-label, .own-prompt) .deal-actions {
-      grid-column: 2 / -1;
+    .deal-row .track-toggle {
+      position: relative;
+    }
+
+    /* An opened tracking panel must not widen every row's action column. */
+    .deal-row .track-toggle-body {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      z-index: 10;
+      width: min(380px, calc(100vw - 48px));
+      margin-top: 8px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+    }
+  }
+
+  @media (width >= 1024px) {
+    .deal-results .deal-grid-pair {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .deal-results .deal-grid-pair > .deal-card {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .deal-grid-pair .deal-art,
+    .deal-grid-pair .deal-art .game-art {
+      width: 240px;
+      height: 112px;
+    }
+
+    .deal-grid-pair .deal-content {
+      align-self: stretch;
+      min-width: 0;
+    }
+
+    .deal-results .deal-grid-pair .deal-actions {
+      flex-direction: column;
+    }
+
+    .deal-grid-pair .deal-buy {
+      white-space: normal;
+      text-align: center;
+    }
+
+    .deal-grid-pair .track-toggle {
+      width: 100%;
+    }
+
+    .deal-grid-pair > .deal-card:only-child {
+      grid-column: 1 / -1;
     }
   }
 
@@ -315,6 +405,10 @@
       min-height: 0;
     }
 
+    .deal-featured .deal-ledger {
+      align-self: stretch;
+    }
+
     .deal-featured .deal-title {
       display: -webkit-box;
       overflow: hidden;
@@ -335,7 +429,7 @@
       display: flex;
       flex-wrap: wrap;
       align-items: baseline;
-      gap: 6px;
+      gap: 6px 12px;
       padding: 0;
       background: none;
       color: var(--deal-art-text);
@@ -366,11 +460,11 @@
 
     .deal-results .deal-featured .price-link-cue {
       display: inline;
-      font-family: var(--font-mono);
-      font-size: 40px;
+      font-family: var(--font-sans);
+      font-size: 20px;
       font-weight: 500;
-      line-height: 48px;
-      color: inherit;
+      line-height: 28px;
+      color: color-mix(in oklab, var(--deal-art-text) 72%, transparent);
     }
 
     .deal-featured .price-link-cue > span {
@@ -500,6 +594,10 @@
 
     .deal-results .deal-heading {
       min-height: 0;
+    }
+
+    .deal-results .deal-content {
+      display: contents;
     }
 
     .deal-results .deal-row {

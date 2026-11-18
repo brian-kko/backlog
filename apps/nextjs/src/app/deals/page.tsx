@@ -262,11 +262,13 @@ export default function DealsPage() {
     steamIds.length > 0 &&
     steamPrices.isPending &&
     steamPrices.fetchStatus === "fetching";
-  const beatSteam = groups.filter(({ deal }) => {
+  const comparisons = groups.map(({ deal }) => {
     const steam =
       deal.steamAppId != null ? steamPrices.data?.[deal.steamAppId] : undefined;
-    return (steamGap(deal, steam) ?? 0) > 0;
-  }).length;
+    return steamGap(deal, steam);
+  });
+  const comparable = comparisons.filter((gap) => gap != null).length;
+  const beatSteam = comparisons.filter((gap) => gap != null && gap > 0).length;
   const hidden = loaded.length - filtered.length;
   const moreActive =
     (filters.maxPrice !== undefined && filters.maxPrice !== 14.99) ||
@@ -279,11 +281,15 @@ export default function DealsPage() {
       <PageHeading
         title="Deals"
         stat={
-          groups.length && steamPrices.data ? (
-            <>
-              <strong>{beatSteam}</strong> of {groups.length} beat Steam’s own
-              price
-            </>
+          groups.length > 0 && !comparing ? (
+            comparable > 0 ? (
+              <>
+                <strong>{beatSteam}</strong> of {comparable} with a Steam price
+                beat it
+              </>
+            ) : (
+              "No Steam prices to compare in these results"
+            )
           ) : null
         }
         art={groups
