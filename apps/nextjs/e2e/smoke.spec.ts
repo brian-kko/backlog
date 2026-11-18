@@ -8,7 +8,9 @@ import { z } from "zod/v4";
 
 import {
   BacklogExportSchema,
+  cleanSteamText,
   CollectionFeedInputSchema,
+  digestNews,
   GameSearchInputSchema,
   parsePatchNotes,
   PatchNotesInputSchema,
@@ -45,6 +47,8 @@ function steamFeed(steamAppId: number) {
   const item = {
     steamAppId,
     cleanSummary: "Performance improvements and bug fixes.",
+    digest: digestNews("Performance improvements and bug fixes.", ""),
+    patchCounts: null,
     url: `https://store.steampowered.com/news/app/${steamAppId}`,
     publishedAt: new Date("2026-10-22T12:00:00Z"),
     official: true,
@@ -64,6 +68,10 @@ function steamFeed(steamAppId: number) {
         category: "event" as const,
         title: "Night City Festival",
         cleanSummary: "Join the limited-time celebration.",
+        digest: digestNews(
+          "Join the limited-time celebration.",
+          "Night City Festival",
+        ),
       },
       {
         ...item,
@@ -72,6 +80,10 @@ function steamFeed(steamAppId: number) {
         category: "general" as const,
         title: "A letter from the developers",
         cleanSummary: "Thank you for playing.",
+        digest: digestNews(
+          "Thank you for playing.",
+          "A letter from the developers",
+        ),
       },
     ],
   };
@@ -889,25 +901,32 @@ test("updates count recent categories and link classified patch summaries", asyn
           items: input.steamAppIds.flatMap((id) => {
             const feed = steamFeed(id);
             return [
-              ...feed.patchNotes.map((item, index) => ({
-                ...item,
-                id: `${id}${index}`,
-                // The API sends counts computed from the notes, not the notes.
-                patchCounts: summarizePatch(
-                  parsePatchNotes(
-                    index === 0
-                      ? patchPost
-                      : index === 1
-                        ? "[list][*]Reduced damage from 10 to 5[/*][*]Increased health from 10 to 20[/*][/list]"
-                        : "Thank you for playing.",
+              ...feed.patchNotes.map((item, index) => {
+                const contents =
+                  index === 0
+                    ? `INCOMING TRANSMISSION FROM SUPER EARTH HIGH COMMAND. ${"Our scientists have a problem to solve. ".repeat(12)}${patchPost}`
+                    : index === 1
+                      ? "[list][*]Fixed a crash on startup.[/*][*]Fixed a menu bug.[/*][*]Fixed matchmaking.[/*][*]Adjusted the settings menu.[/*][/list]"
+                      : "Thank you for playing.";
+                const patch = parsePatchNotes(contents, item.title);
+                return {
+                  ...item,
+                  id: `${id}${index}`,
+                  // Match the server's compact digest and counts serialization.
+                  digest: digestNews(
+                    cleanSteamText(contents),
                     item.title,
+                    patch,
                   ),
-                ).counts,
-                publishedAt: new Date(
-                  index === 2 ? "2026-09-01T12:00:00Z" : "2026-10-22T12:00:00Z",
-                ),
-              })),
-              ...feed.events.filter((item) => item.official),
+                  patchCounts: summarizePatch(patch).counts,
+                  publishedAt: new Date(
+                    index === 2
+                      ? "2026-09-01T12:00:00Z"
+                      : "2026-10-22T12:00:00Z",
+                  ),
+                };
+              }),
+              ...feed.events.filter((item) => item.official && id !== 1245620),
             ];
           }),
         })),
@@ -947,8 +966,26 @@ test("updates count recent categories and link classified patch summaries", asyn
   await expect(detailed.locator(".news-patch-count")).toHaveText([
     "▼ 1 nerf",
     "▲ 2 buffs",
-    "↻ 1 other",
+    "↻ 1 change",
   ]);
+  await expect(detailed.locator(".news-lead")).toHaveText(
+    "AMW-20 APEX: Decreased caliber from 60 to 20",
+  );
+  await expect(
+    detailed.locator(".news-digest-meta .news-topics li"),
+  ).toHaveText(["Crash fixes", "Bug fixes"]);
+  const fixes = feed.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: "Cyberpunk 2077 Patch 2",
+      exact: true,
+    }),
+  });
+  await expect(fixes.locator(".news-patch-count")).toHaveText(["↻ 4 fixes"]);
+  await expect(
+    feed
+      .locator(".news-patch-count")
+      .filter({ hasText: /\b0 (nerfs|buffs|changes|fixes)\b/ }),
+  ).toHaveCount(0);
   await expect(detailed.locator(".news-patch-summary")).toHaveAttribute(
     "href",
     "/patch/1091500/10915000",
@@ -957,7 +994,7 @@ test("updates count recent categories and link classified patch summaries", asyn
     detailed.getByRole("link", { name: /^Read patch notes\b/ }),
   ).toHaveAttribute("href", "/patch/1091500/10915000");
   const gameCount = await page.locator(".updates-filter .pill-count").count();
-  await expect(feed.locator(".news-patch-summary")).toHaveCount(gameCount);
+  await expect(feed.locator(".news-patch-summary")).toHaveCount(gameCount * 2);
   await expect(page.locator(".page-stat")).toHaveText(
     `${gameCount * 2} patches in the last 30 days`,
   );
@@ -978,8 +1015,23 @@ test("updates count recent categories and link classified patch summaries", asyn
   ).toBeVisible();
   await page.getByTestId("tab-events").click();
   await expect(page.locator(".page-stat")).toHaveText(
-    `${gameCount} events in the last 30 days`,
+    `${gameCount - 1} events in the last 30 days`,
   );
+  const emptyGame = page.getByRole("button", {
+    name: "Elden Ring",
+    exact: true,
+  });
+  await expect(emptyGame.locator(".pill-count")).toBeEmpty();
+  await expect(emptyGame).toHaveAccessibleDescription(
+    "0 events in the last 30 days",
+  );
+  await expect(emptyGame.locator(".pill-count")).toHaveCSS(
+    "visibility",
+    "hidden",
+  );
+  await expect(
+    page.locator('.updates-filter .pill-count:not([data-empty="true"])'),
+  ).toHaveCount(gameCount - 1);
   await expect(feed.locator(".news-patch-summary")).toHaveCount(0);
 });
 

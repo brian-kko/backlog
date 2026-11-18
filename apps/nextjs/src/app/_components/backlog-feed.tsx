@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
 import { cn } from "@acme/ui";
-import { digestNews, isAboutSequel } from "@acme/validators";
+import { isAboutSequel } from "@acme/validators";
 
 import { GameArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
@@ -32,27 +32,35 @@ const categoryLabel = (category: NewsItem["category"]) =>
 function PatchSummary({ item }: { item: NewsItem }) {
   const counts = item.patchCounts;
   if (!counts) return null;
-  const other = counts.adjusted + counts.new + counts.fix + counts.removed;
-  // Unclassified prose is not evidence of a concrete change.
-  if (counts.nerf + counts.buff + other < 3) return null;
+  const changes = counts.adjusted + counts.new + counts.fix + counts.removed;
+  if (counts.nerf + counts.buff + changes === 0) return null;
+  const neutralLabel =
+    counts.nerf + counts.buff === 0 && counts.fix > changes / 2
+      ? "fix"
+      : "change";
   return (
     <Link
       className="news-patch-summary"
       href={`/patch/${item.steamAppId}/${item.id}`}
     >
-      <span className="news-patch-count" data-kind="nerf">
-        <span aria-hidden="true">▼</span> {counts.nerf}{" "}
-        {counts.nerf === 1 ? "nerf" : "nerfs"}
-      </span>
-      <span aria-hidden="true">·</span>
-      <span className="news-patch-count" data-kind="buff">
-        <span aria-hidden="true">▲</span> {counts.buff}{" "}
-        {counts.buff === 1 ? "buff" : "buffs"}
-      </span>
-      <span aria-hidden="true">·</span>
-      <span className="news-patch-count" data-kind="adjusted">
-        <span aria-hidden="true">↻</span> {other} other
-      </span>
+      {counts.nerf > 0 && (
+        <span className="news-patch-count" data-kind="nerf">
+          <span aria-hidden="true">▼</span> {counts.nerf}{" "}
+          {counts.nerf === 1 ? "nerf" : "nerfs"}
+        </span>
+      )}
+      {counts.buff > 0 && (
+        <span className="news-patch-count" data-kind="buff">
+          <span aria-hidden="true">▲</span> {counts.buff}{" "}
+          {counts.buff === 1 ? "buff" : "buffs"}
+        </span>
+      )}
+      {changes > 0 && (
+        <span className="news-patch-count" data-kind="adjusted">
+          <span aria-hidden="true">↻</span> {changes} {neutralLabel}
+          {changes === 1 ? "" : "s"}
+        </span>
+      )}
       <span className="sr-only">: Read patch notes for {item.title}</span>
     </Link>
   );
@@ -77,7 +85,7 @@ export function NewsCards({
   return (
     <div className={compact ? "news-list news-list-compact" : "news-list"}>
       {items.map((item) => {
-        const { topics, line } = digestNews(item.cleanSummary, item.title);
+        const { topics, line } = item.digest;
         const lead = line ?? item.cleanSummary;
         return (
           <article
@@ -126,16 +134,18 @@ export function NewsCards({
                 </time>
               </div>
               <h3>{item.title}</h3>
-              {item.category === "patch_note" && /^\d+$/.test(item.id) && (
-                <PatchSummary item={item} />
-              )}
-              {topics.length > 0 && (
-                <ul className="news-topics" aria-label="Topics">
-                  {topics.map((topic) => (
-                    <li key={topic}>{topic}</li>
-                  ))}
-                </ul>
-              )}
+              <div className="news-digest-meta">
+                {item.category === "patch_note" && /^\d+$/.test(item.id) && (
+                  <PatchSummary item={item} />
+                )}
+                {topics.length > 0 && (
+                  <ul className="news-topics" aria-label="Topics">
+                    {topics.map((topic) => (
+                      <li key={topic}>{topic}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               {lead && <p className="news-lead">{lead}</p>}
               <div className="news-links">
                 {item.category === "patch_note" && /^\d+$/.test(item.id) && (
