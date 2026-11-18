@@ -173,6 +173,18 @@
     border-radius: 4px;
   }
 
+  .deal-row-art .artwork-placeholder {
+    overflow: hidden;
+    padding: 0;
+    background-size:
+      22px 22px,
+      auto;
+  }
+
+  .deal-row-art .artwork-placeholder > span {
+    display: none;
+  }
+
   .deal-row-heading {
     min-width: 0;
   }

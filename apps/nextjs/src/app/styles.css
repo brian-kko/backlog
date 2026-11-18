@@ -204,7 +204,7 @@
     @apply relative flex min-w-0 items-center gap-0.5 self-stretch;
   }
   .nav-link {
-    @apply text-muted-foreground relative inline-flex items-center gap-2 px-3 text-sm font-medium whitespace-nowrap transition-colors;
+    @apply text-muted-foreground relative inline-flex items-center gap-2 px-3 text-sm font-medium whitespace-nowrap;
   }
   .nav-link svg {
     @apply hidden opacity-70;
@@ -271,7 +271,7 @@
   }
   /* A clear, tappable way back, named after where you came from. */
   .back-link {
-    @apply text-muted-foreground hover:text-foreground hover:bg-muted/60 -mb-3 -ml-2 inline-flex min-h-11 items-center gap-1.5 self-start rounded-md px-2 text-sm font-medium transition-colors;
+    @apply text-muted-foreground hover:text-foreground hover:bg-muted/60 -mb-3 -ml-2 inline-flex min-h-11 items-center gap-1.5 self-start rounded-md px-2 text-sm font-medium;
   }
   .back-link > span:first-child {
     @apply text-base leading-none;
@@ -307,7 +307,6 @@
       var(--foreground) 32%,
       transparent
     );
-    transition: text-decoration-color 0.12s ease-out;
   }
   .quiet-button {
     @apply text-muted-foreground hover:text-foreground inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm font-medium disabled:opacity-50;
@@ -328,7 +327,7 @@
     scrollbar-width: none;
   }
   .filter-pill {
-    @apply text-muted-foreground hover:text-foreground bg-card inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50;
+    @apply text-muted-foreground hover:text-foreground bg-card inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium whitespace-nowrap disabled:opacity-50;
     border-color: var(--control-border);
   }
   .filter-pill[aria-pressed="true"] {
@@ -340,7 +339,7 @@
     @apply flex gap-6 border-b;
   }
   .tab {
-    @apply text-muted-foreground hover:text-foreground relative inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm font-medium transition-colors;
+    @apply text-muted-foreground hover:text-foreground relative inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm font-medium;
   }
   .tab[aria-selected="true"] {
     @apply text-foreground;
@@ -1274,7 +1273,7 @@
     @apply grid gap-1;
   }
   .spotlight-pick > button {
-    @apply hover:bg-muted/60 flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors;
+    @apply hover:bg-muted/60 flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left;
   }
   .spotlight-pick > button {
     box-shadow: inset 2px 0 0 transparent;
@@ -1675,7 +1674,7 @@
     @apply flex flex-wrap gap-2;
   }
   .glance-tile {
-    @apply bg-background inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border py-1.5 pr-1.5 pl-3 text-left text-sm font-medium transition-colors;
+    @apply bg-background inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border py-1.5 pr-1.5 pl-3 text-left text-sm font-medium;
     border-left: 3px solid var(--kind);
   }
   .glance-tile:hover {

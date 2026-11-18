@@ -216,16 +216,15 @@ function SteamLine({
 }
 
 export function DealCards({
-  deals,
+  groups,
   steamPrices,
   bestDeals = false,
 }: {
-  deals: Deal[];
+  groups: DealGroup[];
   /** Steam's current price by AppID, for the comparison line. */
   steamPrices?: Record<number, number>;
   bestDeals?: boolean;
 }) {
-  const groups = groupDeals(deals);
   const baseline = (group: DealGroup) =>
     group.deal.steamAppId != null
       ? steamPrices?.[group.deal.steamAppId]
@@ -239,7 +238,9 @@ export function DealCards({
   );
   const remaining = groups.filter((group) => group !== featured);
   const matched = bestDeals
-    ? remaining.filter((group) => gap(group) != null)
+    ? remaining
+        .filter((group) => gap(group) != null)
+        .sort((a, b) => (gap(b) ?? 0) - (gap(a) ?? 0))
     : remaining;
   const unmatched = bestDeals
     ? remaining.filter((group) => gap(group) == null)
