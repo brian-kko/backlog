@@ -295,3 +295,21 @@ mastheads.
 Reviews: `ux/reviews/astra-r9.md` and `ux/reviews/opus-r9.md`. The owner
 asked to review the fix list before any jobs are sent.
 
+**Round 10 workers (2026-11-18), on `gpt-6.2-sol`, specs in
+`../gemuzu-wt/specs10/`:**
+- `r10-price`: offline/stale price honesty, unknown spend, alert reasons,
+  Riot price exclusion, outage de-duplication, Deals ranking pool, copy.
+- `r10-polish`: Riot launcher everywhere, card transition, empty masthead
+  band, art end-state and a Home illustration, copy.
+- `r10-data`: `price_snapshots` table with daily snapshots, dated
+  CheapShark low, the `getPriceHistory` route, and Steam title-based edition
+  matching (`steamMatch`).
+
+**IsThereAnyDeal is NOT used.** Its API terms forbid competing apps
+("MUST NOT make an app that could be considered a competition to
+IsThereAnyDeal"). Price history comes from our own snapshots plus
+CheapShark's dated low; edition matching uses Steam's store search.
+
+Next: a masthead worker (`r10-mastheads`: Deals Price Radar and the Wishlist
+arrow chart) once `r10-data` merges.
+
