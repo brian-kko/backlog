@@ -216,3 +216,42 @@ Round-9 work merged: `r9-riot` and `r9-fixes` (79/79 e2e). Running:
 
 Gemini review: `ux/reviews/gemini-r8.md` (9.0).
 
+## Resume here (session ended 2026-11-18)
+
+State: `feat/ui-council-6` is pushed with no PR yet. Round 9's `r9-riot`,
+`r9-fixes` and `r9-polish` are merged, and the full e2e suite passes (85
+tests). The round-9 audit and reviews haven't run yet.
+
+Next, in order:
+1. **Wire in the Gemini art** (in `apps/nextjs/public/art/`, from
+   `ux/handoff/gemini/`):
+   - Show the empty-state SVGs inline on the empty Library, Wishlist,
+     Updates and Deals pages. Map `--art-ink`, `--art-muted` and
+     `--art-accent` to the theme tokens; the art is decorative
+     (`aria-hidden`).
+   - Tweaks: crop the Wishlist and Updates viewBoxes so the art is centred;
+     replace Deals' ✓ with a neutral dash; turn Library's hovering cartridge
+     into a card; make the cartridge label an outline with a light tint.
+   - The cartridge appears only in the boot and loading moments (brand
+     motif: cards lead; see the Gemini README).
+   - Fallback and share art: prefer the v2 outputs if the owner ran
+     `tasks/B-card-back-v2.md` and `tasks/C-share-background-v2.md` (raw
+     files in `ux/handoff/gemini/reviews/`, gitignored). Otherwise use
+     `fallback-*.webp` and `og-background.jpg`.
+2. **Masthead concepts:** astra's design consult is in
+   `ux/reviews/astra-consult.md`. The owner picks a concept per page; the
+   deck stays on every page until then.
+3. **Round 9:** `pnpm --filter @acme/nextjs ux:audit`, then reviews from
+   astra (`gpt-6.2-astra`), Opus (a subagent) and optionally Gemini (task E
+   with fresh screenshots).
+4. **Open the PR** for `feat/ui-council-6` → main and merge when CI is
+   green.
+
+Housekeeping:
+- The poller workflow is disabled on GitHub (it never worked: no
+  deployment, secrets or endpoint). A local edit to `cron-poller.yml` is
+  deliberately uncommitted.
+- Codex needs CLI 0.170.0 or later for the 6.2 models.
+- Worktrees `r9-*` and branches `codex/r9-*` can be removed (they're
+  merged).
+
