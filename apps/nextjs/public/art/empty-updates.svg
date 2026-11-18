@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" role="img">
+  <title>Antenna mast broadcasting three concentric signal arcs above a document mark</title>
+  <style>
+    .arc1, .arc2, .arc3 {
+      transform-box: fill-box;
+      transform-origin: left center;
+      animation: signal-fade 2.4s ease-in-out infinite alternate;
+    }
+    .arc1 { animation-delay: 0s; }
+    .arc2 { animation-delay: 0.3s; }
+    .arc3 { animation-delay: 0.6s; }
+    @keyframes signal-fade {
+      0% { opacity: 0.35; }
+      100% { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+    }
+  </style>
+
+  <!-- Antenna mast and base -->
+  <g stroke="var(--art-ink, currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <line x1="108" y1="54" x2="108" y2="136" />
+    <line x1="101" y1="68" x2="115" y2="68" />
+    <circle cx="108" cy="52" r="3" fill="var(--art-ink, currentColor)" />
+    <path d="M 88 144 L 94 136 L 122 136 L 128 144 Z" fill="var(--art-ink, currentColor)" fill-opacity="0.12" />
+  </g>
+
+  <!-- Document dashes below base -->
+  <g stroke="var(--art-muted, #b6bcad)" stroke-width="2" stroke-linecap="round">
+    <line x1="92" y1="156" x2="124" y2="156" />
+    <line x1="96" y1="164" x2="120" y2="164" />
+  </g>
+
+  <!-- Concentric signal arcs -->
+  <g class="arc1" stroke="var(--art-muted, #b6bcad)" stroke-width="2" stroke-linecap="round" fill="none">
+    <path d="M 128 37 A 25 25 0 0 1 128 67" />
+  </g>
+  <g class="arc2" stroke="var(--art-muted, #b6bcad)" stroke-width="2" stroke-linecap="round" fill="none">
+    <path d="M 144 25 A 45 45 0 0 1 144 79" />
+  </g>
+  <g class="arc3" stroke="var(--art-accent, #c8ed78)" stroke-width="2" stroke-linecap="round" fill="none">
+    <path d="M 160 13 A 65 65 0 0 1 160 91" />
+  </g>
+</svg>

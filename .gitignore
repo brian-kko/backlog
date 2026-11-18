@@ -74,3 +74,5 @@ dist/
 # UX audit output (screenshots, reports)
 apps/nextjs/ux/report/
 apps/nextjs/ux/handoff/gemini/review/*.png
+apps/nextjs/ux/handoff/gemini/reviews/
+*:Zone.Identifier

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" role="img">
+  <title>Magnifying glass sweeping over a stack of three cartridges</title>
+  <style>
+    .lens {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: lens-sweep 3.6s ease-in-out infinite alternate;
+    }
+    @keyframes lens-sweep {
+      0% { transform: translateX(-6px); }
+      100% { transform: translateX(6px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+    }
+  </style>
+
+  <!-- Stack of 3 blank cartridges -->
+  <g stroke="var(--art-muted, #b6bcad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <rect x="86" y="48" width="104" height="28" rx="3" />
+    <rect x="104" y="53" width="68" height="18" rx="2" />
+
+    <rect x="94" y="84" width="104" height="28" rx="3" />
+    <rect x="112" y="89" width="68" height="18" rx="2" />
+
+    <rect x="88" y="120" width="104" height="28" rx="3" />
+    <rect x="106" y="125" width="68" height="18" rx="2" />
+  </g>
+
+  <!-- Accent tick mark on middle cartridge label -->
+  <path d="M 148 98 L 152 102 L 161 93" stroke="var(--art-accent, #c8ed78)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+  <!-- Magnifying glass -->
+  <g class="lens" stroke="var(--art-ink, currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="154" cy="98" r="32" fill="var(--art-ink, currentColor)" fill-opacity="0.08" />
+    <path d="M 134 86 A 22 22 0 0 1 146 78" stroke="var(--art-muted, #b6bcad)" fill="none" />
+    <path d="M 179 119 L 197 137 L 193 141 L 175 123 Z" fill="var(--art-ink, currentColor)" />
+  </g>
+</svg>

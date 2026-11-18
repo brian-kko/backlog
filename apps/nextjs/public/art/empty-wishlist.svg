@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" role="img">
+  <title>Hanging price tag swinging gently beside a target reticle</title>
+  <style>
+    .tag {
+      transform-box: fill-box;
+      transform-origin: 50% 0%;
+      animation: tag-swing 3.2s ease-in-out infinite alternate;
+    }
+    .target {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: target-pulse 2.4s ease-in-out infinite alternate;
+    }
+    @keyframes tag-swing {
+      0% { transform: rotate(-4deg); }
+      100% { transform: rotate(4deg); }
+    }
+    @keyframes target-pulse {
+      0% { transform: scale(0.94); opacity: 0.6; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+    }
+  </style>
+
+  <!-- Anchor pin -->
+  <circle cx="132" cy="34" r="6" stroke="var(--art-muted, #b6bcad)" stroke-width="2" fill="none" />
+  <circle cx="132" cy="34" r="2" fill="var(--art-ink, currentColor)" />
+
+  <!-- Swinging price tag -->
+  <g class="tag" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="132" y1="34" x2="132" y2="59" stroke="var(--art-ink, currentColor)" />
+    <rect x="104" y="50" width="56" height="96" rx="8" stroke="var(--art-ink, currentColor)" fill="var(--art-ink, currentColor)" fill-opacity="0.1" />
+    <circle cx="132" cy="63" r="4" stroke="var(--art-ink, currentColor)" fill="none" />
+    <line x1="116" y1="84" x2="148" y2="84" stroke="var(--art-muted, #b6bcad)" />
+    <line x1="116" y1="98" x2="142" y2="98" stroke="var(--art-muted, #b6bcad)" />
+    <line x1="116" y1="112" x2="134" y2="112" stroke="var(--art-muted, #b6bcad)" />
+  </g>
+
+  <!-- Target reticle -->
+  <g class="target" stroke="var(--art-accent, #c8ed78)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <circle cx="192" cy="136" r="16" />
+    <line x1="170" y1="136" x2="178" y2="136" />
+    <line x1="206" y1="136" x2="214" y2="136" />
+    <circle cx="192" cy="136" r="2" fill="var(--art-accent, #c8ed78)" />
+  </g>
+</svg>
