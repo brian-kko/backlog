@@ -27,13 +27,12 @@
 
   .cover-mosaic {
     --masthead-hero-opacity: 0.22;
-    --masthead-word-opacity: 0.04;
     display: none;
     position: absolute;
     top: 0;
     right: 0;
     width: 360px;
-    height: 240px;
+    height: 216px;
     overflow: hidden;
     isolation: isolate;
     pointer-events: none;
@@ -42,7 +41,6 @@
 
   :root.dark .cover-mosaic {
     --masthead-hero-opacity: 0.35;
-    --masthead-word-opacity: 0.06;
   }
 
   .cover-mosaic-hero {
@@ -62,27 +60,38 @@
     );
   }
 
-  .cover-mosaic-word {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    color: var(--foreground);
-    font-family: var(--font-display);
-    font-size: min(128px, calc(344px / (var(--word-chars) * 0.5)));
-    font-weight: 700;
-    line-height: 1;
-    text-transform: uppercase;
-    white-space: nowrap;
-    opacity: var(--masthead-word-opacity);
-    mask-image: linear-gradient(to right, transparent, #000 35%);
-  }
-
   .cover-mosaic-track {
     position: absolute;
-    top: 48px;
+    top: 50%;
     right: 24px;
     display: flex;
     align-items: center;
+    translate: 0 -50%;
+  }
+
+  /* A soft contact shadow grounds the covers and the deck on the page. */
+  .cover-mosaic-track::after,
+  .cover-deck::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -16px;
+    width: 220px;
+    height: 28px;
+    translate: -50% 0;
+    z-index: -1;
+    background: radial-gradient(closest-side, rgb(0 0 0 / 0.45), transparent);
+  }
+
+  :root:not(.dark) .cover-mosaic-track::after,
+  :root:not(.dark) .cover-deck::before {
+    background: radial-gradient(closest-side, rgb(30 36 14 / 0.2), transparent);
+  }
+
+  /* On paper the art reads as ink rather than a milky wash. */
+  :root:not(.dark) .cover-mosaic-hero {
+    --masthead-hero-opacity: 0.3;
+    mix-blend-mode: multiply;
   }
 
   .cover-mosaic-track img {
@@ -128,7 +137,7 @@
 
   @media (min-width: 1024px) {
     .page-heading {
-      min-height: 240px;
+      min-height: 216px;
       flex-direction: column;
       align-items: flex-start;
       /* Top-aligned so every page's title sits at the same height, however
@@ -157,10 +166,6 @@
       animation: masthead-art-in 220ms ease-out both;
     }
 
-    .cover-mosaic-word {
-      font-size: min(128px, calc(264px / (var(--word-chars) * 0.5)));
-    }
-
     .cover-mosaic-track img {
       flex-basis: 72px;
       width: 72px;
@@ -181,10 +186,6 @@
       width: 360px;
     }
 
-    .cover-mosaic-word {
-      font-size: min(128px, calc(344px / (var(--word-chars) * 0.5)));
-    }
-
     .cover-mosaic-track img {
       flex-basis: 88px;
       width: 88px;
@@ -200,15 +201,11 @@
      transform only, mouse users only, off with reduced motion. */
   @media (hover: hover) and (pointer: fine) and (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
     .cover-mosaic-hero,
-    .cover-mosaic-word,
     .cover-mosaic-track img {
       transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
     }
     .page-heading:hover .cover-mosaic-hero {
       transform: scale(1.04) translateX(-6px);
-    }
-    .page-heading:hover .cover-mosaic-word {
-      transform: translateX(-10px);
     }
     .page-heading:hover .cover-mosaic-track img:first-child {
       transform: translate(-14px, 4px) rotate(-11deg);
@@ -230,8 +227,11 @@
   .cover-deck {
     --card-w: 104px;
     --card-h: 156px;
-    --spread: 22px;
-    --tilt: 6deg;
+    /* --fan is the outermost card's angle; it is shared across the cards so
+       the hand keeps its width with 3 or 7 games. */
+    --fan: 9deg;
+    --spread: 4px;
+    --tilt: calc(var(--fan) / max(1, (var(--count) - 1) / 2));
     position: absolute;
     left: 50%;
     bottom: 28px;
@@ -250,9 +250,11 @@
     width: var(--card-w);
     height: var(--card-h);
     border-radius: 10px;
-    transform-origin: 50% 120%;
+    /* A low pivot puts the fanned cards on an arc, like a held hand. */
+    transform-origin: 50% 220%;
     transform: translateX(calc(var(--o) * var(--spread)))
-      rotate(calc(var(--o) * var(--tilt))) translateY(var(--lift, 0px));
+      rotate(calc(var(--o) * var(--tilt))) translateY(var(--lift, 0px))
+      scale(var(--pop, 1));
     transition: transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
     box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
   }
@@ -268,14 +270,15 @@
 
   @media (hover: hover) and (pointer: fine) {
     /* The hand fans out when the pointer reaches it… */
-    /* 7 cards × 32px stays inside the 280px art box at laptop widths. */
+    /* A 14° fan keeps the hand near the 280px art box at laptop widths. */
     .cover-deck:hover {
-      --spread: 32px;
-      --tilt: 7deg;
+      --fan: 14deg;
+      --spread: 6px;
     }
     /* …and the card under the pointer rises out of it. */
     .deck-card:hover {
-      --lift: -26px;
+      --lift: -28px;
+      --pop: 1.06;
       z-index: 10;
     }
     .deck-card:hover img {
@@ -290,8 +293,8 @@
       bottom: 20px;
     }
     .cover-deck:hover {
-      --spread: 40px;
-      --tilt: 8deg;
+      --fan: 15deg;
+      --spread: 8px;
     }
   }
 

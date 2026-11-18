@@ -735,13 +735,7 @@ function MastheadHero({ appId }: { appId: number }) {
 }
 
 /** The page's own games, composed in a separate decorative art region. */
-export function CoverMosaic({
-  appIds,
-  title,
-}: {
-  appIds: number[];
-  title?: string;
-}) {
+export function CoverMosaic({ appIds }: { appIds: number[] }) {
   const [missing, setMissing] = useState<number[]>([]);
   const reject = (appId: number) =>
     setMissing((values) =>
@@ -753,7 +747,6 @@ export function CoverMosaic({
   return (
     <div className="cover-mosaic" aria-hidden="true">
       <MastheadHero key={lead} appId={lead} />
-      {title && <span className="cover-mosaic-word">{title}</span>}
       <div className="cover-mosaic-track">
         {covers.map((appId, index) =>
           missing.includes(appId) ? null : (
@@ -794,10 +787,8 @@ export function CoverMosaic({
  */
 function CoverDeck({
   cards,
-  title,
 }: {
   cards: { steamAppId: number; title: string }[];
-  title: string;
 }) {
   const [missing, setMissing] = useState<number[]>([]);
   const reject = (appId: number) =>
@@ -810,7 +801,6 @@ function CoverDeck({
   return (
     <div className="cover-mosaic is-deck" aria-hidden="true">
       <MastheadHero key={lead.steamAppId} appId={lead.steamAppId} />
-      <span className="cover-mosaic-word">{title}</span>
       <div
         className="cover-deck"
         style={{ "--count": shown.length } as React.CSSProperties}
@@ -876,15 +866,8 @@ export function PageHeading({
   // The page's own games colour its background glow.
   useAmbientPalette(deck?.map((card) => card.steamAppId) ?? art);
   return (
-    <header
-      className="page-heading"
-      style={{ "--word-chars": title.length } as React.CSSProperties}
-    >
-      {deck ? (
-        <CoverDeck cards={deck} title={title} />
-      ) : (
-        art && <CoverMosaic appIds={art} title={title} />
-      )}
+    <header className="page-heading">
+      {deck ? <CoverDeck cards={deck} /> : art && <CoverMosaic appIds={art} />}
       <div className="page-heading-content space-y-2">
         {/* null reserves the line while data loads, so nothing shifts. */}
         {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}
