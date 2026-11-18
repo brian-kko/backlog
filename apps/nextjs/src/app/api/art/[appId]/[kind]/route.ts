@@ -25,37 +25,98 @@ function fallbackArt(): Artwork {
   };
 }
 
+function appdetailsArtUrls(data: unknown, kind: keyof typeof assets): string[] {
+  if (!data || typeof data !== "object") return [];
+  const header = "header_image" in data ? data.header_image : undefined;
+  const capsule = "capsule_imagev5" in data ? data.capsule_imagev5 : undefined;
+  const candidates = kind === "capsule" ? [capsule, header] : [header];
+  const urls = new Set<string>();
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    try {
+      const url = new URL(candidate);
+      if (
+        url.protocol !== "https:" ||
+        url.port ||
+        url.username ||
+        url.password ||
+        ![
+          "shared.akamai.steamstatic.com",
+          "cdn.akamai.steamstatic.com",
+          "shared.fastly.steamstatic.com",
+        ].includes(url.hostname)
+      )
+        continue;
+      url.search = "";
+      url.hash = "";
+      urls.add(url.href);
+    } catch {
+      // Ignore malformed URLs from upstream data.
+    }
+  }
+  return [...urls];
+}
+
+async function fetchArt(url: string): Promise<Artwork | undefined> {
+  try {
+    const response = await fetch(url, {
+      next: { revalidate: 86400 },
+      // Never follow a redirect to another host.
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+    });
+    const contentType = response.headers.get("content-type")?.split(";")[0];
+    if (
+      response.ok &&
+      contentType &&
+      ["image/jpeg", "image/png", "image/webp", "image/avif"].includes(
+        contentType,
+      )
+    ) {
+      const body = await response.arrayBuffer();
+      if (body.byteLength) return { body, contentType };
+    } else {
+      await response.body?.cancel();
+    }
+  } catch {
+    // Try the next asset on missing art or an upstream outage.
+  }
+  return undefined;
+}
+
 async function resolveArt(
   appId: number,
   kind: keyof typeof assets,
 ): Promise<Artwork> {
   for (const asset of assets[kind]) {
-    try {
-      const response = await fetch(
-        `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/${asset}`,
-        {
-          next: { revalidate: 86400 },
-          // Never follow a redirect to another host.
-          redirect: "error",
-          signal: AbortSignal.timeout(5000),
-        },
-      );
-      const contentType = response.headers.get("content-type")?.split(";")[0];
-      if (
-        response.ok &&
-        contentType &&
-        ["image/jpeg", "image/png", "image/webp", "image/avif"].includes(
-          contentType,
-        )
-      ) {
-        const body = await response.arrayBuffer();
-        if (body.byteLength) return { body, contentType };
-      } else {
-        await response.body?.cancel();
+    const resolved = await fetchArt(
+      `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/${asset}`,
+    );
+    if (resolved) return resolved;
+  }
+  try {
+    const response = await fetch(
+      `https://store.steampowered.com/api/appdetails?appids=${appId}&filters=basic`,
+      {
+        next: { revalidate: 86400 },
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    if (response.ok) {
+      const details = (await response.json()) as Record<
+        string,
+        { data?: unknown } | undefined
+      >;
+      for (const url of appdetailsArtUrls(details[appId]?.data, kind)) {
+        const resolved = await fetchArt(url);
+        if (resolved) return resolved;
       }
-    } catch {
-      // Missing art and upstream outages share the same local fallback.
+    } else {
+      await response.body?.cancel();
     }
+  } catch {
+    // Missing art and upstream outages share the same local fallback.
   }
   return fallbackArt();
 }
