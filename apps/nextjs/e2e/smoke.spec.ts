@@ -173,6 +173,16 @@ test.beforeEach(async ({ page }) => {
       ),
     }),
   );
+  // Unoptimized images and plain <img> elements use the art resolver directly.
+  await page.route("**/api/art/**", (route) =>
+    route.fulfill({
+      contentType: "image/gif",
+      body: Buffer.from(
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+        "base64",
+      ),
+    }),
+  );
   let accountItems = structuredClone(backup.items);
   const t = initTRPC.create({ transformer: SuperJSON });
   const router = t.router({

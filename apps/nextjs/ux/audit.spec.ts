@@ -78,21 +78,6 @@ interface Check {
 const pages: PageAudit[] = [];
 const checks: Check[] = [];
 
-/** Console errors not explained by missing store art behind the optimizer. */
-function unexplainedErrors(audit: PageAudit) {
-  const missingArt = audit.failedRequests.filter((request) =>
-    /^404 .*\/_next\/image\?url=https%3A%2F%2Fshared\.akamai\.steamstatic\.com/.test(
-      request,
-    ),
-  ).length;
-  const notFound = audit.consoleErrors.filter((text) =>
-    text.startsWith(
-      "Failed to load resource: the server responded with a status of 404",
-    ),
-  ).length;
-  return audit.consoleErrors.length - Math.min(missingArt, notFound);
-}
-
 /** Collects console errors and failed requests for one page. */
 function watch(page: Page) {
   const consoleErrors: string[] = [];
@@ -101,6 +86,12 @@ function watch(page: Page) {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
+  page.on("requestfailed", (request) => {
+    const failure = request.failure()?.errorText;
+    // Navigation can cancel requests that the previous page no longer needs.
+    if (failure && failure !== "net::ERR_ABORTED")
+      failedRequests.push(`${failure} ${request.url().slice(0, 140)}`);
+  });
   page.on("response", (response) => {
     const url = response.url();
     if (response.status() >= 400 && !url.includes("/_next/webpack-hmr"))
@@ -383,6 +374,20 @@ async function auditPage(
         : "no visible a.back-link",
     });
   }
+  if (
+    (viewport === "desktop" || viewport === "laptop") &&
+    (route === "/game/1091500" || route === "/game/1422450")
+  ) {
+    const title = page.locator(".hero-title");
+    const hasLogo = route === "/game/1091500";
+    if (hasLogo) await expect(title).toHaveClass(/\bhas-logo\b/);
+    else await expect(title).not.toHaveClass(/\bhas-logo\b/);
+    checks.push({
+      name: `${id}: game title uses the expected logo treatment`,
+      pass: true,
+      detail: `${hasLogo ? "Cyberpunk" : "Deadlock"}: has-logo=${hasLogo}`,
+    });
+  }
   const shot = await shoot(page, id);
   pages.push({
     id,
@@ -580,17 +585,58 @@ test("states: empty collection, filters, views, dialogs", async ({
       detail: `focused=${focused} found=${found} in ${searchMs} ms, closed=${closed}`,
     });
 
-    // Empty collection after clearing the samples.
-    await page
-      .getByRole("button", { name: "Clear sample games", exact: true })
-      .click();
-    await settle(page);
-    for (const [name, route] of routes.slice(0, 5)) {
-      if (route !== "/") await page.goto(route);
-      await settle(page);
-      await auditPage(page, log, id(`empty-${name}`), route, viewport, "dark");
-    }
     await context.close();
+
+    // Target edits turn samples into saved games; isolate empty captures from them.
+    const {
+      context: emptyContext,
+      page: emptyPage,
+      log: emptyLog,
+    } = await newPage(browser, viewport, "dark");
+    await emptyPage.addInitScript(() => {
+      localStorage.setItem(
+        "backlog-guest-v1",
+        JSON.stringify({
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          items: [],
+        }),
+      );
+      localStorage.removeItem("backlog-guest-sample");
+    });
+    for (const [name, route] of routes.slice(0, 5)) {
+      await emptyPage.goto(route);
+      await settle(emptyPage);
+      const collectionCount = await emptyPage.evaluate(() => {
+        const saved: unknown = JSON.parse(
+          localStorage.getItem("backlog-guest-v1") ?? "null",
+        );
+        return saved &&
+          typeof saved === "object" &&
+          "items" in saved &&
+          Array.isArray(saved.items)
+          ? saved.items.length
+          : null;
+      });
+      expect(collectionCount, `${name}: collection is empty`).toBe(0);
+      if (["/library", "/wishlist", "/updates"].includes(route)) {
+        await expect(emptyPage.locator("main .empty-state")).toBeVisible();
+        await expect(
+          emptyPage.locator(
+            "[data-testid=library-card], .watch-card, .news-entry",
+          ),
+        ).toHaveCount(0);
+      }
+      await auditPage(
+        emptyPage,
+        emptyLog,
+        id(`empty-${name}`),
+        route,
+        viewport,
+        "dark",
+      );
+    }
+    await emptyContext.close();
   }
 });
 
@@ -846,7 +892,14 @@ test.afterAll(() => {
     "console errors (non-simulated)": pages
       .filter(
         (audit) =>
-          unexplainedErrors(audit) > 0 &&
+          audit.consoleErrors.length > 0 &&
+          !/outage|offline|loading/.test(audit.id),
+      )
+      .map((audit) => audit.id),
+    "failed requests (non-simulated)": pages
+      .filter(
+        (audit) =>
+          audit.failedRequests.length > 0 &&
           !/outage|offline|loading/.test(audit.id),
       )
       .map((audit) => audit.id),
@@ -877,19 +930,6 @@ test.afterAll(() => {
       ([name, failing]) =>
         `- ${failing.length ? "❌" : "✅"} **${name}**${failing.length ? `: ${failing.slice(0, 12).join(", ")}${failing.length > 12 ? ` … (+${failing.length - 12})` : ""}` : ""}`,
     ),
-    // Live deals sometimes point at Steam apps with no art: the optimizer
-    // 404s and the browser logs it, while "broken images" checks the
-    // fallback tile. Not a gate, but kept visible.
-    ...(() => {
-      const missingArt = pages
-        .filter(
-          (audit) => unexplainedErrors(audit) < audit.consoleErrors.length,
-        )
-        .map((audit) => audit.id);
-      return missingArt.length
-        ? [`- ℹ️ Missing store art (fallback shown): ${missingArt.join(", ")}`]
-        : [];
-    })(),
     "",
     "## Interaction checks",
     "",
