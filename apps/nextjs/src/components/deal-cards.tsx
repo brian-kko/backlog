@@ -12,7 +12,13 @@ import {
 } from "@acme/validators";
 
 import { useAddGame } from "./add-game";
-import { GameArt, price, storeName, TrackActions } from "./game-ui";
+import {
+  GameArt,
+  libraryHero,
+  price,
+  storeName,
+  TrackActions,
+} from "./game-ui";
 
 type Deal = RouterOutputs["backlog"]["searchDeals"]["offers"][number];
 export interface DealGroup {
@@ -302,7 +308,12 @@ function DealCard({
         <GameArt
           appId={deal.steamAppId}
           title={deal.title}
-          src={deal.thumb}
+          // The billboard wants the wide hero; rows use the store banner.
+          src={
+            featured && deal.steamAppId
+              ? libraryHero(deal.steamAppId)
+              : deal.thumb
+          }
           priority={featured}
           onMissing={featured ? () => setNoArt(true) : undefined}
         />
