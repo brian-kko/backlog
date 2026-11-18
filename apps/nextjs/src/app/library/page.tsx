@@ -167,12 +167,8 @@ function purchaseSummary(item: BacklogItem) {
   const platform = itemPlatform(item);
   // Make the launcher assumption visible until the user confirms it.
   const confirmed = Boolean(item.platform) || isRiotGame(item.steamAppId);
-  const plays = confirmed
-    ? platform === "steam"
-      ? ""
-      : ` · plays on ${platformNames[platform]}`
-    : ` · plays on ${platformNames[platform]} (unconfirmed)`;
-  return `${paid}${from}${plays}`;
+  const launcher = `${platformNames[platform]}${confirmed ? "" : " (unconfirmed)"}`;
+  return `${launcher} · ${paid}${from}`;
 }
 
 function LibraryCard({ item }: { item: BacklogItem }) {

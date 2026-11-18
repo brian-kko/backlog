@@ -1,4 +1,13 @@
 @layer components {
+  @media (width < 640px) {
+    .deal-preset-scroller {
+      /* The last chip clears the fade when the row is fully scrolled. */
+      --chip-fade: 16px;
+      padding-inline-end: 16px;
+      scroll-padding-inline: 16px;
+    }
+  }
+
   .deal-results {
     display: grid;
     gap: 20px;
@@ -293,6 +302,11 @@
     .deal-row .deal-actions {
       grid-column: auto;
       flex-wrap: nowrap;
+    }
+
+    .deal-row .deal-actions > .deal-buy {
+      min-width: 96px;
+      padding-inline: 8px;
     }
 
     .deal-row .track-toggle {

@@ -1976,7 +1976,11 @@
   }
   /* Hint that chip rows scroll sideways. */
   .chip-scroller {
-    mask-image: linear-gradient(to right, #000 85%, transparent);
+    mask-image: linear-gradient(
+      to right,
+      #000 calc(100% - var(--chip-fade, 15%)),
+      transparent
+    );
   }
   /* The add-game dialog becomes a top sheet so the keyboard can't cover results. */
   .add-game-dialog {
