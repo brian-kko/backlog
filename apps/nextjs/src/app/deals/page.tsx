@@ -141,7 +141,45 @@ function WishlistOnSale() {
   );
 }
 
+/**
+ * The filter pickers behave like menus: opening one closes the other, and a
+ * click outside (or Escape) closes them, so two panels never overlap.
+ */
+function usePickerMenus() {
+  useEffect(() => {
+    const pickers = () => [
+      ...document.querySelectorAll<HTMLDetailsElement>(
+        "details.popover-picker",
+      ),
+    ];
+    const onToggle = (event: Event) => {
+      const opened = event.target;
+      if (!(opened instanceof HTMLDetailsElement) || !opened.open) return;
+      for (const other of pickers()) if (other !== opened) other.open = false;
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      for (const picker of pickers())
+        if (picker.open && !picker.contains(event.target as Node))
+          picker.open = false;
+    };
+    // "toggle" doesn't bubble, so listen in the capture phase.
+    document.addEventListener("toggle", onToggle, true);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("toggle", onToggle, true);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, []);
+}
+
+const closeOnEscape = (event: React.KeyboardEvent<HTMLDetailsElement>) => {
+  if (event.key !== "Escape") return;
+  event.currentTarget.open = false;
+  event.currentTarget.querySelector("summary")?.focus();
+};
+
 export default function DealsPage() {
+  usePickerMenus();
   const trpc = useTRPC();
   const { items, isLoading } = useBacklog();
   const [filters, setFilters] = useState(defaults);
@@ -297,7 +335,11 @@ export default function DealsPage() {
         deck={groups.map(({ deal }) => ({
           steamAppId: deal.steamAppId,
           title: deal.title,
-          image: deal.thumb || undefined,
+          // CheapShark's generic "no box art" image isn't the game's art.
+          image:
+            deal.thumb && !deal.thumb.includes("/default_box_art")
+              ? deal.thumb
+              : undefined,
         }))}
       >
         Compare prices across {Object.keys(storeNames).length} PC stores, not
@@ -380,12 +422,7 @@ export default function DealsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <details
               className="popover-picker store-picker"
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.currentTarget.open = false;
-                  event.currentTarget.querySelector("summary")?.focus();
-                }
-              }}
+              onKeyDown={closeOnEscape}
             >
               <summary>
                 Stores
@@ -438,7 +475,10 @@ export default function DealsPage() {
                 ))}
               </fieldset>
             </details>
-            <details className="popover-picker more-filters">
+            <details
+              className="popover-picker more-filters"
+              onKeyDown={closeOnEscape}
+            >
               <summary>
                 More filters
                 {moreActive && <span className="picker-value">On</span>}

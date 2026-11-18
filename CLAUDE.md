@@ -40,8 +40,12 @@ Product intent, page specs and roadmap live in `PLAN.md`. Its section 0, "Why Ge
 
 Pricing rules: never present saved catalog prices as live, never claim "lowest ever" without live history, never record a purchase price the user didn't confirm.
 
-## 5. Verification Commands (Run Before Finishing Any Task)
+## 5. Verification (scale it to the change)
 
-- `pnpm --filter @acme/validators test`
-- `pnpm typecheck`
-- `pnpm --filter @acme/nextjs test:e2e`
+Run what the change can break, not everything every time. The full e2e suite takes 1–2 minutes and CI runs it again (with retries) on every PR.
+
+- **Every change:** `pnpm typecheck` and `pnpm --filter @acme/nextjs lint` (10 known problems exist; add none).
+- **Visual tweaks** (sizes, spacing, colour, copy): also check a screenshot of the affected page at the relevant widths (390 / 840 / 1024 / 1440).
+- **Validators or API logic:** `pnpm --filter @acme/validators test`.
+- **Behaviour changes:** run the e2e tests for that area only, e.g. `pnpm --filter @acme/nextjs exec playwright test e2e/smoke.spec.ts -g "deals"`, and add or update a test for the new behaviour.
+- **Before pushing a batch or opening a PR:** the full suite, `pnpm --filter @acme/nextjs test:e2e`. A test that fails only under the full parallel run and passes alone is a load flake; note it rather than rerunning the suite repeatedly.

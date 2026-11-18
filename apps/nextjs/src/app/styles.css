@@ -800,6 +800,15 @@
   .store-picker fieldset {
     @apply right-auto left-0 sm:right-0 sm:left-auto;
   }
+  /* Fourteen stores in two columns instead of one tall scrolling list. */
+  @media (min-width: 640px) {
+    .store-picker fieldset {
+      @apply w-[26rem] grid-cols-2 gap-x-4;
+    }
+    .store-picker fieldset > :not(label) {
+      @apply col-span-full;
+    }
+  }
   .popover-picker fieldset > label:not(.field-label) {
     @apply flex min-h-8 cursor-pointer items-center gap-3 text-sm;
   }
@@ -1859,9 +1868,11 @@
   /* ---------- Motion & interaction ----------
      Transform/opacity only (cheap in software rendering); all of it is
      neutralised by the reduced-motion block at the end of this file. */
+  /* Solid once content scrolls under it: a 95% tint let controls show
+     through and look like they overlapped the bar. */
   .site-nav[data-scrolled] {
     border-bottom-color: var(--border);
-    background: color-mix(in srgb, var(--background) 95%, transparent);
+    background: var(--background);
   }
   .nav-links::after {
     content: "";

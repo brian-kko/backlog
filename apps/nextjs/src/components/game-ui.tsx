@@ -28,6 +28,8 @@ export const money = (value: number | null | undefined) =>
 export const price = (value: number | null | undefined) =>
   value === 0 ? "Free" : money(value);
 export const headerArt = (appId: number) => `/api/art/${appId}/header`;
+/** Wide card art (616×353 where Steam has it, else the header). */
+export const wideArt = (appId: number) => `/api/art/${appId}/wide`;
 export const storeName = (storeId: string | null | undefined) =>
   (storeId ? storeNames[storeId] : undefined) ?? "partner store";
 export const plural = (count: number, one: string, many = `${one}s`) =>
@@ -539,7 +541,7 @@ export function GameArt({
   const [failed, setFailed] = useState<string[]>([]);
   // A blank thumbnail string falls back to the Steam header art.
   const trimmed = src?.trim() === "" ? undefined : src?.trim();
-  const primary = trimmed ?? (appId ? headerArt(appId) : undefined);
+  const primary = trimmed ?? (appId ? wideArt(appId) : undefined);
   const resolved = [primary, appId ? headerArt(appId) : undefined].find(
     (value) => value && !failed.includes(value),
   );

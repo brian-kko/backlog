@@ -3,12 +3,15 @@ import { isRiotGame } from "@acme/validators";
 
 const assets = {
   header: ["header.jpg"],
+  // Cards: Steam's 616×353 capsule is sharper than the 460×215 header.
+  wide: ["capsule_616x353.jpg", "header.jpg"],
   hero: ["library_hero.jpg", "header.jpg"],
   capsule: ["library_600x900.jpg", "header.jpg"],
 } as const;
 const cacheControl = "public, max-age=86400, stale-while-revalidate=604800";
 const ttl = 86_400_000;
-const maxEntries = 64;
+// Several sizes per game (header, wide, hero, capsule) across a library.
+const maxEntries = 256;
 interface Artwork {
   body: ArrayBuffer;
   contentType: string;
@@ -180,7 +183,10 @@ export async function GET(
     !Number.isInteger(id) ||
     id <= 0 ||
     id > 2147483647 ||
-    (kind !== "header" && kind !== "hero" && kind !== "capsule")
+    (kind !== "header" &&
+      kind !== "hero" &&
+      kind !== "capsule" &&
+      kind !== "wide")
   ) {
     return new Response("Invalid artwork request", { status: 400 });
   }

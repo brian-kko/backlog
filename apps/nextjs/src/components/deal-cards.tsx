@@ -62,6 +62,10 @@ export function groupDeals(deals: Deal[]): DealGroup[] {
   }));
 }
 
+/** Store art, unless it's CheapShark's generic "no box art" placeholder. */
+const storeArt = (deal: Deal) =>
+  deal.thumb.includes("/default_box_art") ? undefined : deal.thumb;
+
 const offerUrl = (deal: Deal) =>
   deal.url ??
   `https://www.cheapshark.com/redirect?dealID=${encodeURIComponent(deal.id)}`;
@@ -311,11 +315,15 @@ function DealCard({
         <GameArt
           appId={deal.steamAppId}
           title={deal.title}
-          // The billboard wants the wide hero; rows use the store banner.
+          // The billboard wants the wide hero. Other Steam games use sharp
+          // Steam card art (store thumbnails can be 120px); editions without
+          // a Steam game keep the store's banner.
           src={
-            featured && deal.steamAppId
-              ? libraryHero(deal.steamAppId)
-              : deal.thumb
+            deal.steamAppId
+              ? featured
+                ? libraryHero(deal.steamAppId)
+                : undefined
+              : storeArt(deal)
           }
           priority={featured}
           onMissing={featured ? () => setNoArt(true) : undefined}
@@ -464,7 +472,11 @@ function DealRow({ group }: { group: DealGroup }) {
   return (
     <article className="deal-row" data-testid="deal-card">
       <div className="deal-row-art">
-        <GameArt appId={deal.steamAppId} title={deal.title} src={deal.thumb} />
+        <GameArt
+          appId={deal.steamAppId}
+          title={deal.title}
+          src={deal.steamAppId ? undefined : storeArt(deal)}
+        />
       </div>
       <div className="deal-row-heading">
         <Title deal={deal} level="h3" />

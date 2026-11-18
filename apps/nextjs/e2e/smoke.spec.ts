@@ -2627,3 +2627,25 @@ test("Riot games can be added, run in the Riot Client and link to Riot's notes",
     0,
   );
 });
+
+test("deal filter pickers open one at a time and close on outside click or Escape", async ({
+  page,
+}) => {
+  await page.goto("/deals");
+  const stores = page.locator("details.store-picker");
+  const more = page.locator("details.more-filters");
+  await page.locator(".store-picker summary").click();
+  await expect(stores).toHaveAttribute("open", "");
+  // Opening the other picker closes the first, so the panels never overlap.
+  await page.locator(".more-filters summary").click();
+  await expect(more).toHaveAttribute("open", "");
+  await expect(stores).not.toHaveAttribute("open");
+  // A click elsewhere closes it.
+  await page.getByRole("heading", { level: 1, name: "Deals" }).click();
+  await expect(more).not.toHaveAttribute("open");
+  // Escape closes it and returns focus to its button.
+  await page.locator(".more-filters summary").click();
+  await page.keyboard.press("Escape");
+  await expect(more).not.toHaveAttribute("open");
+  await expect(page.locator(".more-filters summary")).toBeFocused();
+});
