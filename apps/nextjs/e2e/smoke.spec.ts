@@ -126,6 +126,49 @@ function searchFixtureDeals(input: z.infer<typeof SearchDealsInputSchema>) {
   if (input?.onSale) result = result.filter((deal) => deal.savingsPercent > 0);
   return result;
 }
+
+async function mockDealResults(
+  page: Page,
+  offers: ((typeof deals)[number] & {
+    source?: "cheapshark" | "steam" | "catalog";
+  })[],
+  steamPrices: Record<number, number>,
+  live = true,
+) {
+  const t = initTRPC.create({ transformer: SuperJSON });
+  const router = t.router({
+    backlog: t.router({
+      searchDeals: t.procedure.input(SearchDealsInputSchema).query(() => ({
+        offers,
+        live,
+        snapshotAt: live ? null : "2026-10-29",
+      })),
+      getSteamPrices: t.procedure.input(z.unknown()).query(() => steamPrices),
+      getGamePrices: t.procedure
+        .input(z.object({ steamAppId: z.number() }))
+        .query(({ input }) => ({ prices: fixturePrices(input.steamAppId) })),
+      getCollectionFeed: t.procedure
+        .input(z.unknown())
+        .query(() => ({ items: [], unavailable: [] })),
+    }),
+  });
+  await page.route("**/api/trpc/**", async (route) => {
+    const request = route.request();
+    const response = await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      router,
+      createContext: () => ({}),
+      req: new Request(request.url(), {
+        headers: await request.allHeaders(),
+      }),
+    });
+    await route.fulfill({
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
+    });
+  });
+}
 const patchPost = `[h3]Stratagems[/h3][p][i]AMW-20 APEX[/i][/p][p]Problem we want to solve:[/p][list][*]Demolition strength was too low[/*][/list][p]Changes:[/p][list][*]Decreased caliber from 60 to 20[/*][*]Increased demolition strength to 30[/*][/list][p][i]SG-22 BUSHWACKER[/i][/p][list][*]Increased damage from 405 to 486[/*][/list][h3]Fixes[/h3][list][*]Fixed a crash when joining a squad[/*][/list]`;
 const deadlockPatchPost = [
   "[h3]Heroes[/h3][list]",
@@ -465,7 +508,7 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
   );
   await expect(page.locator(".deal-grid .deal-featured")).toHaveCount(0);
   await expect(page.locator(".deal-divider")).toHaveText(
-    "Other editions: no Steam match to compare",
+    "Other editions: no live Steam price to compare",
   );
   const unmatched = page
     .getByTestId("deal-card")
@@ -526,6 +569,146 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
     page.getByRole("heading", { name: "Featured Game 1", exact: true }),
   ).toBeVisible();
 });
+
+for (const width of [1024, 1440]) {
+  test(`deals align edition prices and actions at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const offers = deals.slice(0, 7).map((deal, index) => ({
+      ...deal,
+      title: `Comparison fixture ${index}`,
+      steamAppId: index < 4 ? 2000 + index : null,
+      storeId: index === 0 ? "1" : index % 2 === 0 ? "25" : "3",
+      cheapestPrice: [28.78, 27.99, 25.91, 9.99, 0, 6.99, 7.99][index] ?? 9.99,
+      source: "cheapshark" as const,
+    }));
+    await mockDealResults(page, offers, { 2000: 28.78, 2001: 30, 2002: 60 });
+    await page.goto("/deals");
+    await expect(page.locator(".page-stat")).toHaveText(
+      "2 of 3 with a Steam price beat it",
+    );
+    await expect(page.locator(".deal-grid-pair > .deal-card")).toHaveCount(2);
+    for (const card of await page
+      .locator(".deal-grid-pair > .deal-card")
+      .all()) {
+      const art = await card.locator(".deal-art").boundingBox();
+      expect(art?.width).toBe(240);
+      expect(art?.height).toBe(112);
+      expect(
+        await card.evaluate((element) => element.scrollWidth),
+      ).toBeLessThanOrEqual(
+        await card.evaluate((element) => element.clientWidth),
+      );
+    }
+    const steamCard = page.getByTestId("deal-card").filter({
+      has: page.getByRole("heading", { name: "Comparison fixture 0" }),
+    });
+    await expect(steamCard.locator(".deal-ledger > .price-link")).toHaveText(
+      /Best · Steam\s*\$28.78/,
+    );
+    await expect(steamCard.locator(".steam-line")).toHaveCount(0);
+    await expect(steamCard.locator(".deal-best-note")).toHaveText(
+      "Steam has the best price",
+    );
+    const rows = page.locator(".deal-row");
+    await expect(rows).toHaveCount(4);
+    const bounds = await rows.evaluateAll((elements) =>
+      elements.map((element) => ({
+        height: element.getBoundingClientRect().height,
+        priceRight: element
+          .querySelector(".deal-row-price")
+          ?.getBoundingClientRect().right,
+        actionsLeft: element
+          .querySelector(".deal-actions")
+          ?.getBoundingClientRect().left,
+      })),
+    );
+    for (const boundsOfRow of bounds) {
+      expect(boundsOfRow.height).toBeLessThanOrEqual(84);
+      expect(boundsOfRow.priceRight).toBe(bounds[0]?.priceRight);
+      expect(boundsOfRow.actionsLeft).toBe(bounds[0]?.actionsLeft);
+    }
+    for (const row of await rows.all()) {
+      await expect(row.locator(".deal-actions").getByRole("link")).toHaveCount(
+        1,
+      );
+      await expect(
+        row.locator(".deal-actions").getByRole("button"),
+      ).toHaveCount(1);
+    }
+    await expect(
+      rows.first().getByRole("button", { name: "Track ▾" }),
+    ).toBeVisible();
+    await expect(rows.nth(1).locator(".ledger-label")).toHaveCount(0);
+    await expect(rows.nth(1).locator(".deal-price")).toHaveText("Free");
+    await page.getByRole("button", { name: "Under $15", exact: true }).click();
+    await expect(page.locator(".page-stat")).toHaveText(
+      "No Steam prices to compare in these results",
+    );
+    await expect(page.getByTestId("deal-card")).toHaveCount(4);
+    await expect(page).toHaveURL(/price=14\.99/);
+  });
+}
+
+for (const scenario of ["epic", "steam", "cached-zero", "unknown"] as const) {
+  test(`free deal follow-up preserves ${scenario} availability`, async ({
+    page,
+  }, testInfo) => {
+    const cached = scenario === "cached-zero";
+    const storeId =
+      scenario === "steam" ? "1" : scenario === "unknown" ? "" : "25";
+    const url =
+      scenario === "steam"
+        ? "https://store.steampowered.com/app/1001"
+        : "https://store.epicgames.com/en-US/p/free-fixture";
+    const offers = deals.slice(1, 2).map((deal) => ({
+      ...deal,
+      title: "Free fixture",
+      cheapestPrice: 0,
+      normalPrice: 3.99,
+      savingsPercent: 100,
+      storeId,
+      url,
+      source: cached
+        ? ("catalog" as const)
+        : scenario === "steam"
+          ? ("steam" as const)
+          : ("cheapshark" as const),
+    }));
+    await mockDealResults(page, offers, {}, !cached);
+    await page.goto("/deals");
+    const card = page.getByTestId("deal-card");
+    await expect(card.locator(".deal-price")).toHaveText("Free");
+    await card.getByRole("button", { name: "Track ▾" }).click();
+    await card.getByRole("button", { name: "+ Wishlist", exact: true }).click();
+    const followUp = card.locator(".track-actions");
+    await expect(followUp.getByText("On your wishlist")).toBeVisible();
+    const availability = followUp.getByRole("link", {
+      name:
+        cached || scenario === "unknown"
+          ? "Check availability"
+          : `Get it free at ${scenario === "steam" ? "Steam" : "Epic Games Store"}`,
+    });
+    await expect(availability).toBeVisible();
+    await expect(availability).toHaveAttribute("href", url);
+    if (cached || scenario === "unknown") {
+      await expect(
+        followUp.getByRole("link", { name: /Get it free/ }),
+      ).toHaveCount(0);
+    } else {
+      await expect(
+        followUp.getByText("Free right now; nothing to wait for"),
+      ).toBeVisible();
+    }
+    await expect(page.getByLabel(/Target price for/)).toHaveCount(0);
+    await expect(page.getByText("$0.00", { exact: false })).toHaveCount(0);
+    await testInfo.attach(`free-follow-up-${scenario}`, {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+  });
+}
 
 test("guest library launches, filters, exports valid JSON, and imports backups", async ({
   page,

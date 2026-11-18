@@ -71,13 +71,19 @@ export function LaunchLink({
   );
 }
 
+interface TrackingOffer {
+  store?: string;
+  url?: string;
+  source?: "cheapshark" | "steam" | "catalog";
+}
+
 /** Free offers replace target entry without changing the saved target. */
 export function FreePriceNotice({
   steamAppId,
   saved,
   checking = false,
   url,
-  store = "Steam",
+  store,
 }: {
   steamAppId: number;
   saved: boolean;
@@ -85,8 +91,11 @@ export function FreePriceNotice({
   url?: string;
   store?: string;
 }) {
-  // Without an offer URL, the only known destination is Steam.
-  const destination = url ? store : "Steam";
+  const destination =
+    store && store !== "partner store" && (url || store === "Steam")
+      ? store
+      : undefined;
+  const live = !saved && !checking && destination != null;
   return (
     <div className="col-span-full min-h-28 space-y-2">
       <p className="text-muted-foreground text-sm" role="status">
@@ -94,7 +103,9 @@ export function FreePriceNotice({
           ? "Checking today’s price…"
           : saved
             ? "Previously free; check the store for today’s price"
-            : "Free right now; nothing to wait for"}
+            : live
+              ? "Free right now; nothing to wait for"
+              : "Check the store for today’s availability"}
       </p>
       <a
         className="action secondary compact"
@@ -102,9 +113,7 @@ export function FreePriceNotice({
         target="_blank"
         rel="noopener noreferrer"
       >
-        {saved || checking
-          ? `Check price at ${destination}`
-          : `Get it free at ${destination}`}
+        {live ? `Get it free at ${destination}` : "Check availability"}
         <span aria-hidden="true"> ↗</span>
       </a>
     </div>
@@ -118,6 +127,7 @@ export function TargetPrompt({
   bestPrice,
   priceLabel = "Best now",
   saved,
+  offer,
 }: {
   steamAppId: number;
   title: string;
@@ -125,12 +135,14 @@ export function TargetPrompt({
   priceLabel?: string;
   /** Omit when the caller cannot verify the price's source. */
   saved?: boolean;
+  /** Destination and source of the offer being tracked. */
+  offer?: TrackingOffer;
 }) {
   const trpc = useTRPC();
   const { items, save } = useBacklog();
   const item = items.find((value) => value.steamAppId === steamAppId);
   // Search results do not pass their source; verify a zero before claiming free.
-  const verify = bestPrice === 0 && saved === undefined;
+  const verify = bestPrice === 0 && saved === undefined && !offer?.source;
   const check = useQuery(
     trpc.backlog.getGamePrices.queryOptions(
       { steamAppId },
@@ -146,18 +158,30 @@ export function TargetPrompt({
       : "Best now"
     : priceLabel;
   if (currentPrice === 0) {
-    const offer = checkedPrices?.deals.find((deal) => deal.price === 0);
+    const checkedOffer = checkedPrices?.deals.find((deal) => deal.price === 0);
+    const currentOffer = checkedPrices
+      ? {
+          source: checkedPrices.source,
+          url: checkedOffer?.url,
+          store: checkedOffer
+            ? storeName(checkedOffer.storeID)
+            : checkedPrices.source === "steam"
+              ? "Steam"
+              : undefined,
+        }
+      : offer;
     return (
       <FreePriceNotice
         steamAppId={steamAppId}
         saved={
-          saved ??
-          (checkedPrices?.source !== "cheapshark" &&
-            checkedPrices?.source !== "steam")
+          currentOffer?.source === "catalog" ||
+          (saved ??
+            (currentOffer?.source !== "cheapshark" &&
+              currentOffer?.source !== "steam"))
         }
         checking={verify && check.isPending && check.fetchStatus !== "paused"}
-        url={offer?.url}
-        store={storeName(offer?.storeID)}
+        url={currentOffer?.url}
+        store={currentOffer?.store}
       />
     );
   }
@@ -337,7 +361,8 @@ export function TrackActions({
   title,
   price,
   store,
-  saved = false,
+  saved,
+  offer,
 }: {
   steamAppId: number;
   title: string;
@@ -346,6 +371,8 @@ export function TrackActions({
   store?: PurchaseStore;
   /** The price is a saved catalog offer, not a live one. */
   saved?: boolean;
+  /** Verified offer context, retained in the wishlist follow-up. */
+  offer?: TrackingOffer;
 }) {
   const { save, items, isLoading } = useBacklog();
   const [error, setError] = useState("");
@@ -402,6 +429,7 @@ export function TrackActions({
           bestPrice={price}
           priceLabel={saved ? "Saved price" : "Best now"}
           saved={saved}
+          offer={offer}
         />
       )}
       {justAdded === "owned" && (
