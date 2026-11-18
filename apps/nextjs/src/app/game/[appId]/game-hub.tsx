@@ -437,7 +437,9 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
               You’re offline. Prices will load when you reconnect.
             </p>
           ) : game.isPending ? (
-            <p role="status">Checking stores…</p>
+            <p role="status" className="price-status">
+              Checking stores…
+            </p>
           ) : offer && prices ? (
             <>
               <div className="space-y-1">
@@ -481,7 +483,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
             </>
           ) : game.isError ? (
             // A failed check is not the same as "nobody sells it".
-            <p role="alert" className="text-sm">
+            <p role="alert" className="price-status text-sm">
               Store prices couldn’t be checked right now.{" "}
               <button className="text-link" onClick={() => void game.refetch()}>
                 Try again

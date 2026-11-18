@@ -774,7 +774,13 @@ test("keyboard focus and motion", async ({ browser }) => {
       const result = await page.evaluate(() => {
         const element = document.activeElement as HTMLElement | null;
         if (!element || element === document.body) return null;
-        const style = getComputedStyle(element);
+        // An element may draw its ring on a sibling (e.g. the masthead deck,
+        // where the fixed hit area is invisible and the card shows focus).
+        const proxy = element.dataset.focusProxy;
+        const ringElement =
+          (proxy ? element.parentElement?.querySelector(proxy) : null) ??
+          element;
+        const style = getComputedStyle(ringElement);
         const ring =
           (style.outlineStyle !== "none" &&
             parseFloat(style.outlineWidth) > 0) ||

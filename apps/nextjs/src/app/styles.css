@@ -1424,6 +1424,12 @@
   .summary-row .summary-line {
     @apply mt-0;
   }
+  /* Loading and failure share a two-line slot, so "Checking stores…"
+     turning into the outage message (two lines on phones) doesn't push the
+     collection editor down. */
+  .price-status {
+    min-height: 3rem;
+  }
   .checked-at {
     @apply text-muted-foreground text-sm;
   }

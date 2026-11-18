@@ -936,6 +936,8 @@ function CoverDeck({
                     {...hit}
                     href={`/game/${card.steamAppId}`}
                     aria-label={card.title}
+                    // Its focus ring is drawn on the sibling card (see CSS).
+                    data-focus-proxy=".deck-card"
                   />
                 ) : (
                   <span {...hit} aria-hidden="true" />
