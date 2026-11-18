@@ -53,8 +53,9 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* viewBox units: about 11px on screen at the desktop size. */
   .price-radar-grid text {
-    font-size: 14px;
+    font-size: 9px;
   }
 
   .price-visual-hit {

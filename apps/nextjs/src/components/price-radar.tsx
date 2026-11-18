@@ -51,16 +51,17 @@ export function getRadarComparisons(
   });
 }
 
-const centre = { x: 113, y: 77 };
-const ringRadius = (fraction: number) => (fraction / 0.6) * 66;
+const centre = { x: 140, y: 77 };
+// Deals usually save 30–95% vs Steam, so the radar spans 0–100%.
+const ringRadius = (fraction: number) => fraction * 66;
 const percent = new Intl.NumberFormat("en-US", {
   style: "percent",
   maximumFractionDigits: 1,
 });
 const rings = [
-  { fraction: 0.1, label: "−10%", y: 25 },
-  { fraction: 0.25, label: "−25%", y: 46 },
-  { fraction: 0.5, label: "−50%", y: 67 },
+  { fraction: 0.25, label: "−25%" },
+  { fraction: 0.5, label: "−50%" },
+  { fraction: 0.75, label: "−75%" },
 ];
 
 export function PriceRadar({
@@ -95,20 +96,18 @@ export function PriceRadar({
         className="price-radar-plot"
         viewBox="0 0 280 154"
         role="group"
-        aria-label="Offers plotted on rings at 10%, 25% and 50% below Steam"
+        aria-label="Offers plotted on rings at 25%, 50% and 75% below Steam"
       >
         <g className="price-radar-grid" aria-hidden="true">
-          <path d="M 47 77 H 179 M 113 11 V 143" />
+          <path d="M 74 77 H 206 M 140 11 V 143" />
           <circle cx={centre.x} cy={centre.y} r="4.5" />
-          {rings.map(({ fraction, label, y }) => {
+          {rings.map(({ fraction, label }) => {
             const radius = ringRadius(fraction);
-            const x = centre.x + radius * 0.92;
-            const tickY = centre.y - radius * 0.39;
+            // Each ring is labelled just above its top, beside the axis.
             return (
               <g key={label}>
                 <circle cx={centre.x} cy={centre.y} r={radius} />
-                <path d={`M ${x} ${tickY} L 197 ${y} H 213`} />
-                <text x="220" y={y} dy=".35em">
+                <text x={centre.x + 3} y={centre.y - radius - 2}>
                   {label}
                 </text>
               </g>
@@ -117,9 +116,11 @@ export function PriceRadar({
         </g>
         {dots.map((dot, index) => {
           const { deal, savingFraction, savingCents, titleMatch } = dot;
-          const angle = (index / dots.length) * 2 * Math.PI - Math.PI / 2;
+          // Half a step off vertical, so no dot sits on the ring labels.
+          const angle =
+            ((index + 0.5) / dots.length) * 2 * Math.PI - Math.PI / 2;
           const radius =
-            savingCents === 0 ? 4.5 : ringRadius(Math.min(0.6, savingFraction));
+            savingCents === 0 ? 4.5 : ringRadius(Math.min(1, savingFraction));
           const x = centre.x + Math.cos(angle) * radius;
           const y = centre.y + Math.sin(angle) * radius;
           const anchor = `offer-${encodeURIComponent(deal.id)}`;
