@@ -11,17 +11,25 @@ import {
   DealItemSchema,
   GameSearchInputSchema,
   GameSearchResultSchema,
+  isRiotGame,
   parsePatchNotes,
   PatchNotesInputSchema,
+  PriceHistoryInputSchema,
+  PriceHistoryOutputSchema,
+  priceHistorySteps,
   SearchDealsInputSchema,
   SteamFeedInputSchema,
+  SteamMatchSchema,
   summarizePatch,
   UpsertBacklogItemSchema,
 } from "@acme/validators";
 
 import { catalogVerifiedAt } from "../curated-games";
+import { addSteamEditionMatches } from "../edition-match";
 import { summarizePatchWithAi } from "../patch-ai";
+import { getObservedPriceHistory } from "../price-history";
 import {
+  fetchCheapSharkAllTimeLow,
   fetchCollectionFeed,
   fetchDealsWithStatus,
   fetchGameMetadata,
@@ -82,7 +90,9 @@ export const backlogRouter = {
     .input(SearchDealsInputSchema)
     .output(
       z.object({
-        offers: z.array(DealItemSchema),
+        offers: z.array(
+          DealItemSchema.extend({ steamMatch: SteamMatchSchema.optional() }),
+        ),
         /** False when stores were unreachable; offers are then saved ones. */
         live: z.boolean(),
         snapshotAt: z.string().nullable(),
@@ -92,6 +102,9 @@ export const backlogRouter = {
       const result = await fetchDealsWithStatus(input?.query, input);
       return {
         ...result,
+        offers: result.live
+          ? await addSteamEditionMatches(result.offers)
+          : result.offers,
         snapshotAt: result.live ? null : catalogVerifiedAt,
       };
     }),
@@ -159,6 +172,24 @@ export const backlogRouter = {
     .query(async ({ input }) => ({
       prices: await fetchGamePrices(input.steamAppId),
     })),
+
+  getPriceHistory: publicProcedure
+    .input(PriceHistoryInputSchema)
+    .output(PriceHistoryOutputSchema)
+    .query(async ({ ctx, input: { steamAppId, days } }) => {
+      if (isRiotGame(steamAppId))
+        return { points: [], observedSince: null, allTimeLow: null, steps: [] };
+
+      const [history, allTimeLow] = await Promise.all([
+        getObservedPriceHistory(ctx.db, steamAppId, days),
+        fetchCheapSharkAllTimeLow(steamAppId),
+      ]);
+      return {
+        ...history,
+        allTimeLow,
+        steps: priceHistorySteps(history.points),
+      };
+    }),
 
   removeBacklogItem: protectedProcedure
     .input(
