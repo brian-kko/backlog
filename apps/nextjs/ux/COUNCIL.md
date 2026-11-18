@@ -194,3 +194,25 @@ on `gpt-6.2-sol` (specs in `../gemuzu-wt/specs9/`):
 The masthead deck (keyboard access, the 1024px overlap, and the per-page
 verdicts) waits for the owner's per-page decision.
 
+**Owner decision (2026-11-18): the deck stays on every page for now.** A
+deck on every page may be redundant, but it stays until per-page
+alternatives are designed and agreed. The candidates are in the round-8
+reviews:
+- an "up next" hand with tags for Home;
+- progress tags for Library;
+- price tags for Wishlist;
+- Steam-saving pills or a podium for Deals;
+- a 30-day patch-activity strip for Updates.
+
+Round-9 work merged: `r9-riot` and `r9-fixes` (79/79 e2e). Running:
+`r9-polish`:
+- deck keyboard and screen-reader access;
+- the deck no longer overlapping text at 1024px;
+- a compact deck at 768–1023px;
+- the phone chip scroll hint;
+- Deals stat copy;
+- free-row alignment;
+- Library launcher-first meta.
+
+Gemini review: `ux/reviews/gemini-r8.md` (9.0).
+
