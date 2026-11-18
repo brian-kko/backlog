@@ -9,6 +9,7 @@ const maxEntries = 64;
 interface Artwork {
   body: ArrayBuffer;
   contentType: string;
+  fallback?: boolean;
 }
 const cache = new Map<string, { artwork: Artwork; expires: number }>();
 const pending = new Map<string, Promise<Artwork>>();
@@ -20,6 +21,7 @@ function fallbackArt(): Artwork {
   return {
     body: Uint8Array.from(Buffer.from(fallbackPng, "base64")).buffer,
     contentType: "image/png",
+    fallback: true,
   };
 }
 
@@ -105,6 +107,8 @@ export async function GET(
       "Content-Type": resolved.contentType,
       "Cache-Control": cacheControl,
       "X-Content-Type-Options": "nosniff",
+      // The plate is 96×64 so clients can detect it (see isFallbackArt).
+      ...(resolved.fallback ? { "X-Gemuzu-Art": "fallback" } : {}),
     },
   });
 }

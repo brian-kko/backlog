@@ -641,6 +641,13 @@ export function GameLink({
   );
 }
 
+/**
+ * The art resolver answers 200 with a 96×64 plate when Steam has no image,
+ * so `onError` never fires; callers check the loaded size instead.
+ */
+export const isFallbackArt = (image: HTMLImageElement) =>
+  image.naturalWidth === 96 && image.naturalHeight === 64;
+
 function MastheadHero({ appId }: { appId: number }) {
   const [source, setSource] = useState<"hero" | "header" | "hidden">("hero");
   return (
