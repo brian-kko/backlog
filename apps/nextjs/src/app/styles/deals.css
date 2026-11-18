@@ -195,6 +195,18 @@
     padding: 0;
   }
 
+  /* The price opens the store, so it needs a full touch target on phones. */
+  @media (pointer: coarse) {
+    .deal-row-price .price-link {
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: end;
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
   .deal-row-price .price-line,
   .deal-row-price .deal-price-meta {
     justify-content: end;

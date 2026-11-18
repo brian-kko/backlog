@@ -28,7 +28,7 @@
     border-radius: 4px;
     background: color-mix(in srgb, var(--kind) 8%, var(--background));
     /* Mix with the theme's text ink to keep 13px labels legible in light mode. */
-    color: color-mix(in srgb, var(--kind) 60%, var(--foreground));
+    color: color-mix(in srgb, var(--kind) 45%, var(--foreground));
     white-space: nowrap;
   }
 

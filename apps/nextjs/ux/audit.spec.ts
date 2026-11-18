@@ -78,6 +78,21 @@ interface Check {
 const pages: PageAudit[] = [];
 const checks: Check[] = [];
 
+/** Console errors not explained by missing store art behind the optimizer. */
+function unexplainedErrors(audit: PageAudit) {
+  const missingArt = audit.failedRequests.filter((request) =>
+    /^404 .*\/_next\/image\?url=https%3A%2F%2Fshared\.akamai\.steamstatic\.com/.test(
+      request,
+    ),
+  ).length;
+  const notFound = audit.consoleErrors.filter((text) =>
+    text.startsWith(
+      "Failed to load resource: the server responded with a status of 404",
+    ),
+  ).length;
+  return audit.consoleErrors.length - Math.min(missingArt, notFound);
+}
+
 /** Collects console errors and failed requests for one page. */
 function watch(page: Page) {
   const consoleErrors: string[] = [];
@@ -347,8 +362,9 @@ async function auditPage(
       backName,
     };
   });
-  if (route === "/deals" || route === "/wishlist") {
-    const priceFont = pageChecks.priceFont ?? "missing price element";
+  // Empty, offline and no-result states have no price to check.
+  if ((route === "/deals" || route === "/wishlist") && pageChecks.priceFont) {
+    const priceFont = pageChecks.priceFont;
     const headingFont = pageChecks.headingFont ?? "missing .page-heading h1";
     checks.push({
       name: `${id}: price uses IBM Plex Mono and page heading uses Barlow Condensed`,
@@ -459,6 +475,11 @@ test("states: empty collection, filters, views, dialogs", async ({
     await settle(page);
     await page.getByRole("button", { name: "Under $15", exact: true }).click();
     await settle(page);
+    // Live store prices can take a few seconds; count them once loaded.
+    await page
+      .getByText("Loading deals…")
+      .waitFor({ state: "hidden", timeout: 20000 })
+      .catch(() => undefined);
     const prices = await page
       .locator("[data-testid=deal-card] .deal-price")
       .allInnerTexts();
@@ -825,7 +846,7 @@ test.afterAll(() => {
     "console errors (non-simulated)": pages
       .filter(
         (audit) =>
-          audit.consoleErrors.length &&
+          unexplainedErrors(audit) > 0 &&
           !/outage|offline|loading/.test(audit.id),
       )
       .map((audit) => audit.id),
@@ -856,6 +877,19 @@ test.afterAll(() => {
       ([name, failing]) =>
         `- ${failing.length ? "❌" : "✅"} **${name}**${failing.length ? `: ${failing.slice(0, 12).join(", ")}${failing.length > 12 ? ` … (+${failing.length - 12})` : ""}` : ""}`,
     ),
+    // Live deals sometimes point at Steam apps with no art: the optimizer
+    // 404s and the browser logs it, while "broken images" checks the
+    // fallback tile. Not a gate, but kept visible.
+    ...(() => {
+      const missingArt = pages
+        .filter(
+          (audit) => unexplainedErrors(audit) < audit.consoleErrors.length,
+        )
+        .map((audit) => audit.id);
+      return missingArt.length
+        ? [`- ℹ️ Missing store art (fallback shown): ${missingArt.join(", ")}`]
+        : [];
+    })(),
     "",
     "## Interaction checks",
     "",
