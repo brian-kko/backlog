@@ -292,50 +292,56 @@ export function NewsTabs({
     <section aria-label="Game news" className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div role="tablist" aria-label="News categories" className="tab-bar">
-          {(["patches", "events"] as const).map((value) => (
-            <button
-              key={value}
-              className="tab"
-              id={`tab-${value}`}
-              data-testid={`tab-${value}`}
-              role="tab"
-              aria-selected={tab === value}
-              aria-controls={`panel-${value}`}
-              tabIndex={tab === value ? 0 : -1}
-              onClick={() => setTab(value)}
-              onKeyDown={(event) => {
-                if (
-                  ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
-                ) {
-                  event.preventDefault();
-                  const next =
-                    event.key === "Home"
-                      ? "patches"
-                      : event.key === "End"
-                        ? "events"
-                        : value === "patches"
+          {(["patches", "events"] as const).map((value) => {
+            const count =
+              (value === "patches" ? patches : events)?.filter(
+                (item) =>
+                  countSince === undefined ||
+                  item.publishedAt.getTime() > countSince,
+              ).length ?? 0;
+            return (
+              <button
+                key={value}
+                className="tab"
+                id={`tab-${value}`}
+                data-testid={`tab-${value}`}
+                role="tab"
+                aria-selected={tab === value}
+                aria-controls={`panel-${value}`}
+                tabIndex={tab === value ? 0 : -1}
+                onClick={() => setTab(value)}
+                onKeyDown={(event) => {
+                  if (
+                    ["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                      event.key,
+                    )
+                  ) {
+                    event.preventDefault();
+                    const next =
+                      event.key === "Home"
+                        ? "patches"
+                        : event.key === "End"
                           ? "events"
-                          : "patches";
-                  setTab(next);
-                  document.getElementById(`tab-${next}`)?.focus();
-                }
-              }}
-            >
-              <span className="sm:hidden">
-                {value === "patches" ? "Patches" : "Events"}
-              </span>
-              <span className="hidden sm:inline">
-                {value === "patches" ? "Patch notes" : "Events & announcements"}
-              </span>
-              <span className="tab-count">
-                {(value === "patches" ? patches : events)?.filter(
-                  (item) =>
-                    countSince === undefined ||
-                    item.publishedAt.getTime() > countSince,
-                ).length ?? 0}
-              </span>
-            </button>
-          ))}
+                          : value === "patches"
+                            ? "events"
+                            : "patches";
+                    setTab(next);
+                    document.getElementById(`tab-${next}`)?.focus();
+                  }
+                }}
+              >
+                <span className="sm:hidden">
+                  {value === "patches" ? "Patches" : "Events"}
+                </span>
+                <span className="hidden sm:inline">
+                  {value === "patches"
+                    ? "Patch notes"
+                    : "Events & announcements"}
+                </span>
+                {count > 0 && <span className="tab-count">{count}</span>}
+              </button>
+            );
+          })}
         </div>
         {children}
       </div>

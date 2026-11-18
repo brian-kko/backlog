@@ -231,8 +231,7 @@ export function BacklogEditor({
                       }
                     >
                       <option value="">
-                        {platformNames[defaultPlatform(item.purchaseStore)]}{" "}
-                        (unconfirmed)
+                        {`${platformNames[defaultPlatform(item.purchaseStore, steamAppId)]} (unconfirmed)`}
                       </option>
                       {(Object.keys(platformNames) as Platform[]).map((key) => (
                         <option key={key} value={key}>

@@ -285,6 +285,7 @@ export function OwnPrompt({
   const failures = useRef(new Set<string>());
   const item = items.find((value) => value.steamAppId === steamAppId);
   if (!item?.isOwned) return null;
+  const riot = isRiotGame(steamAppId);
   const fieldNames: Record<string, string> = {
     amountPaid: "amount paid",
     purchaseStore: "store",
@@ -329,7 +330,7 @@ export function OwnPrompt({
         ? "Got it free"
         : `Paid ${price(item.amountPaid)}`),
     item.purchaseStore && `from ${purchaseStoreNames[item.purchaseStore]}`,
-    item.platform && `plays on ${platformNames[item.platform]}`,
+    !riot && item.platform && `plays on ${platformNames[item.platform]}`,
   ].filter(Boolean);
   return (
     <div className="own-prompt">
@@ -385,30 +386,36 @@ export function OwnPrompt({
           ))}
         </select>
       </label>
-      <label className="field-label col-span-full">
-        <span>Plays on</span>
-        <select
-          className="form-control w-full"
-          aria-label={`Launcher ${title} plays on`}
-          value={item.platform ?? ""}
-          onChange={(event) =>
-            void update({
-              platform: (event.target.value || undefined) as
-                | Platform
-                | undefined,
-            }).catch(() => undefined)
-          }
-        >
-          <option value="">
-            {`${platformNames[defaultPlatform(item.purchaseStore, item.steamAppId)]}${isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}`}
-          </option>
-          {(Object.keys(platformNames) as Platform[]).map((key) => (
-            <option key={key} value={key}>
-              {platformNames[key]}
+      {riot ? (
+        <p className="field-label col-span-full">
+          <span>Plays on</span> <span>{platformNames.riot}</span>
+        </p>
+      ) : (
+        <label className="field-label col-span-full">
+          <span>Plays on</span>
+          <select
+            className="form-control w-full"
+            aria-label={`Launcher ${title} plays on`}
+            value={item.platform ?? ""}
+            onChange={(event) =>
+              void update({
+                platform: (event.target.value || undefined) as
+                  | Platform
+                  | undefined,
+              }).catch(() => undefined)
+            }
+          >
+            <option value="">
+              {`${platformNames[defaultPlatform(item.purchaseStore, steamAppId)]} (unconfirmed)`}
             </option>
-          ))}
-        </select>
-      </label>
+            {(Object.keys(platformNames) as Platform[]).map((key) => (
+              <option key={key} value={key}>
+                {platformNames[key]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <SaveStatus state={status} count={saves}>
         {summary.length ? `Saved: ${summary.join(" · ")}` : "Saved"}
       </SaveStatus>
@@ -979,7 +986,7 @@ export function PageHeading({
     deck?.flatMap((card) => (card.steamAppId != null ? [card.steamAppId] : [])),
   );
   return (
-    <header className={cn("page-heading", deck && "has-deck")}>
+    <header className="page-heading">
       <div className="page-heading-content space-y-2">
         {/* null reserves the line while data loads, so nothing shifts. */}
         {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}
@@ -987,7 +994,7 @@ export function PageHeading({
         {children && <p className="page-description">{children}</p>}
       </div>
       {actions && <div className="page-actions">{actions}</div>}
-      {deck && (
+      {!!deck?.length && (
         <CoverDeck cards={deck} label={`${title} games`} tucked={deckTucked} />
       )}
     </header>

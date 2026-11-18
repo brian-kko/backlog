@@ -15,16 +15,19 @@
     height: auto;
   }
 
+  .empty-art[data-art="home"] {
+    width: min(160px, 72%);
+  }
+
   /* Gentle loops that play a few times and then rest: transform/opacity
      only, and none at all with reduced motion. */
-  .empty-art :is(.ea-cart, .ea-slot-glow, .ea-tag, .ea-target, .ea-lens) {
+  .empty-art :is(.ea-slot-glow, .ea-tag, .ea-target, .ea-lens) {
     transform-box: fill-box;
     animation-timing-function: ease-in-out;
-    animation-direction: alternate;
-    animation-iteration-count: 4;
+    animation-iteration-count: 3;
   }
   .empty-art :is(.ea-arc1, .ea-arc2, .ea-arc3) {
-    animation: ea-signal 2.4s ease-in-out 4 alternate;
+    animation: ea-signal 2.4s ease-in-out 3;
   }
   .empty-art .ea-arc2 {
     animation-delay: 0.3s;
@@ -32,10 +35,8 @@
   .empty-art .ea-arc3 {
     animation-delay: 0.6s;
   }
-  .empty-art .ea-cart {
-    transform-origin: center;
-    animation-name: ea-bob;
-    animation-duration: 3s;
+  .empty-art :is(.ea-cart, .ea-card-hand) {
+    animation: ea-bob 3s ease-in-out 4 alternate;
   }
   .empty-art .ea-slot-glow {
     animation-name: ea-glow;
@@ -62,34 +63,55 @@
     }
   }
   @keyframes ea-glow {
-    from {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
       opacity: 0.5;
     }
   }
   @keyframes ea-swing {
-    from {
+    0%,
+    100% {
+      transform: none;
+    }
+    25% {
       transform: rotate(-4deg);
     }
-    to {
+    75% {
       transform: rotate(4deg);
     }
   }
   @keyframes ea-pulse {
-    from {
+    0%,
+    100% {
+      transform: none;
+      opacity: 1;
+    }
+    50% {
       transform: scale(0.94);
       opacity: 0.6;
     }
   }
   @keyframes ea-sweep {
-    from {
+    0%,
+    100% {
+      transform: none;
+    }
+    25% {
       transform: translateX(-6px);
     }
-    to {
+    75% {
       transform: translateX(6px);
     }
   }
   @keyframes ea-signal {
-    from {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
       opacity: 0.35;
     }
   }

@@ -108,6 +108,8 @@ function PlatformSelect({
   item: BacklogItem;
   onChange: (platform: Platform | undefined) => void;
 }) {
+  if (isRiotGame(item.steamAppId)) return <span>{platformNames.riot}</span>;
+
   return (
     <select
       className="form-control w-full"
@@ -118,7 +120,7 @@ function PlatformSelect({
       }
     >
       <option value="">
-        {`${platformNames[defaultPlatform(item.purchaseStore, item.steamAppId)]}${isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}`}
+        {`${platformNames[defaultPlatform(item.purchaseStore, item.steamAppId)]} (unconfirmed)`}
       </option>
       {(Object.keys(platformNames) as Platform[]).map((key) => (
         <option key={key} value={key}>
@@ -320,7 +322,9 @@ function LibraryRow({ item }: { item: BacklogItem }) {
         )}
       </td>
       <td>
-        {editingPlatform ? (
+        {isRiotGame(item.steamAppId) ? (
+          platformNames.riot
+        ) : editingPlatform ? (
           <PlatformSelect
             item={item}
             onChange={(platform) => {
@@ -332,11 +336,11 @@ function LibraryRow({ item }: { item: BacklogItem }) {
           <button
             type="button"
             className="cell-edit"
-            aria-label={`${platformNames[itemPlatform(item)]}${item.platform || isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}: edit launcher for ${item.title}`}
+            aria-label={`${platformNames[itemPlatform(item)]}${item.platform ? "" : " (unconfirmed)"}: edit launcher for ${item.title}`}
             onClick={() => setEditingPlatform(true)}
           >
             {platformNames[itemPlatform(item)]}
-            {!item.platform && !isRiotGame(item.steamAppId) && (
+            {!item.platform && (
               <span className="text-muted-foreground text-xs">
                 {" "}
                 (unconfirmed)

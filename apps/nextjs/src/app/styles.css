@@ -473,7 +473,7 @@
     @apply bg-card rounded-lg border p-5 sm:p-6;
   }
   .game-card {
-    @apply bg-card flex min-w-0 flex-col overflow-hidden rounded-lg border transition-colors;
+    @apply bg-card flex min-w-0 flex-col overflow-hidden rounded-lg border;
   }
   .game-card:hover {
     border-color: color-mix(in srgb, var(--foreground) 30%, transparent);
@@ -1967,7 +1967,8 @@
     color: var(--signal);
   }
   .nav-count {
-    @apply absolute top-1.5 left-1/2 ml-2 min-w-4 px-1 text-[12px];
+    @apply absolute top-1.5 min-w-4 px-1 text-[12px];
+    left: calc(50% + 10px);
   }
   .nav-controls .action.secondary {
     @apply px-3;
@@ -1976,7 +1977,8 @@
     @apply min-h-9 px-3;
   }
   .nav-dot {
-    @apply absolute top-2 left-1/2 ml-2;
+    @apply absolute top-2;
+    left: calc(50% + 10px);
   }
   .view-toggle {
     display: none;
