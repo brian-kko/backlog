@@ -6,6 +6,7 @@ export function EmptyArt({ name }: { name: EmptyArtName }) {
   return (
     <div
       className="empty-art"
+      data-art={name}
       aria-hidden="true"
       // Static, first-party SVG markup (see empty-art-markup.ts).
       dangerouslySetInnerHTML={{ __html: emptyArt[name] }}

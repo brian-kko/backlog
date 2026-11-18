@@ -457,7 +457,10 @@ test.beforeEach(async ({ page }) => {
         .input(z.object({ steamAppId: z.number() }))
         .query(({ input }) => ({
           steamAppId: input.steamAppId,
-          feed: steamFeed(input.steamAppId),
+          feed:
+            input.steamAppId === storeLedgerAppId
+              ? { ...steamFeed(input.steamAppId), patchNotes: [] }
+              : steamFeed(input.steamAppId),
           metadata: {
             name:
               titles[input.steamAppId] ??
@@ -540,6 +543,110 @@ test("guest dashboard previews and persistent navigation cover all main routes",
       page.getByRole("heading", { level: 1, name: heading, exact: true }),
     ).toBeVisible();
     await expect(page.getByText("PC Companion: Web URI Mode")).toHaveCount(0);
+  }
+});
+
+test("empty mastheads collapse to their title blocks", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const masthead = page.locator(".page-heading");
+  const expectCompactMasthead = async () => {
+    await expect(masthead.locator(".cover-deck")).toHaveCount(0);
+    await expect(masthead).toHaveCSS("padding-right", "0px");
+    const headingHeight = await masthead.evaluate(
+      (element) => element.getBoundingClientRect().height,
+    );
+    const titleHeight = await masthead
+      .locator(".page-heading-content")
+      .evaluate((element) => element.getBoundingClientRect().height);
+    expect(headingHeight).toBeLessThanOrEqual(titleHeight + 48);
+  };
+
+  await page.goto("/library");
+  await page.getByRole("button", { name: "Clear sample games" }).click();
+  await expect(page.getByText(/^Your library is empty/)).toBeVisible();
+  await expectCompactMasthead();
+  const gap = await page.locator(".collection-toolbar").evaluate((toolbar) => {
+    const description = document.querySelector(".page-description");
+    if (!description) throw new Error("Library description is missing");
+    return (
+      toolbar.getBoundingClientRect().top -
+      description.getBoundingClientRect().bottom
+    );
+  });
+  expect(gap).toBeLessThanOrEqual(40);
+
+  for (const [path, emptyCopy] of [
+    ["/wishlist", /^Your wishlist is empty/],
+    ["/updates", /^Add games to your library or wishlist/],
+    ["/", /^Nothing in progress/],
+    ["/deals?q=deckless", /^No store has a deal on “deckless”/],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByText(emptyCopy)).toBeVisible();
+    await expectCompactMasthead();
+  }
+
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.getByTestId("deal-search-input").fill("offline deckless");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByText("Deals need a connection.")).toBeVisible();
+  await expectCompactMasthead();
+});
+
+test("empty-state illustration motion starts and finishes at rest", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/wishlist");
+  await page.getByRole("button", { name: "Clear sample games" }).click();
+  const art = page.locator('.empty-art[data-art="wishlist"]');
+  await expect(art).toBeVisible();
+  await expect(art).toHaveAttribute("aria-hidden", "true");
+  const poses = await art.evaluate((element) =>
+    element.getAnimations({ subtree: true }).map((animation) => {
+      const effect = animation.effect;
+      if (!(effect instanceof KeyframeEffect) || !effect.target)
+        throw new Error("Empty-state animation target is missing");
+      const target = effect.target;
+      const atRest = () => {
+        const { transform, opacity } = getComputedStyle(target);
+        return (
+          opacity === "1" &&
+          (transform === "none" || new DOMMatrixReadOnly(transform).isIdentity)
+        );
+      };
+      const { endTime } = effect.getComputedTiming();
+      if (typeof endTime !== "number")
+        throw new Error("Empty-state animation should have a time duration");
+      animation.pause();
+      effect.updateTiming({ fill: "both" });
+      animation.currentTime = 0;
+      const startsAtRest = atRest();
+      animation.currentTime = endTime;
+      return { startsAtRest, endsAtRest: atRest() };
+    }),
+  );
+  expect(poses).toEqual(
+    Array.from({ length: 2 }, () => ({ startsAtRest: true, endsAtRest: true })),
+  );
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(art.locator(".ea-tag")).toHaveCSS("animation-name", "none");
+  await expect(art.locator(".ea-target")).toHaveCSS("animation-name", "none");
+});
+
+test("Library and Wishlist card borders change instantly while art can move", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  for (const path of ["/library", "/wishlist"]) {
+    await page.goto(path);
+    const card = page.locator(".game-card").first();
+    await card.hover();
+    await expect(card).toHaveCSS("transition-duration", "0s");
+    await expect(card.locator(".game-art")).toHaveCSS(
+      "transition-property",
+      "transform",
+    );
   }
 });
 
@@ -1620,6 +1727,19 @@ test("game store prices compare whole cents and show a free historical low", asy
   ).toBeVisible();
 });
 
+test("game news hides empty tab counts and keeps positive counts", async ({
+  page,
+}) => {
+  await page.goto(`/game/${storeLedgerAppId}`);
+  const patches = page.getByTestId("tab-patches");
+  await expect(patches).toHaveAccessibleName("Patch notes");
+  await expect(patches.locator(".tab-count")).toHaveCount(0);
+  await expect(page.getByRole("tabpanel")).toContainText("No patch notes");
+  await expect(page.getByTestId("tab-events").locator(".tab-count")).toHaveText(
+    "1",
+  );
+});
+
 for (const width of [1024, 1440]) {
   for (const { appId, title, logoWidth, logoHeight, hasLogo } of [
     {
@@ -1822,6 +1942,26 @@ for (const theme of ["dark", "light"]) {
     await expect(nav).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   });
 }
+
+test("phone navigation badges clear the Library and Wishlist icons", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/library");
+  for (const name of ["library", "wishlist"]) {
+    const badge = page.getByTestId(`nav-${name}`).locator(".nav-count");
+    await expect(badge).toBeVisible();
+    const gap = await badge.evaluate((element) => {
+      const icon = element.parentElement?.querySelector("svg");
+      if (!icon) throw new Error("Navigation icon is missing");
+      return (
+        element.getBoundingClientRect().left -
+        icon.getBoundingClientRect().right
+      );
+    });
+    expect(gap).toBeGreaterThanOrEqual(1);
+  }
+});
 
 test("games you don't own offer buying instead of launching", async ({
   page,
@@ -2402,6 +2542,11 @@ for (const signedIn of [false, true]) {
       "29.99",
     );
     await expect(
+      page
+        .getByRole("combobox", { name: /^Plays on/ })
+        .locator("option:checked"),
+    ).toHaveText("Steam (unconfirmed)");
+    await expect(
       page.getByText("Lowest ever $14.99", { exact: true }),
     ).toBeVisible();
     await expect(page.getByLabel("Amount paid", { exact: true })).toBeEnabled();
@@ -2974,11 +3119,12 @@ test("Riot games can be added, run in the Riot Client and link to Riot's notes",
     })
     .click();
   await expect(dialog.getByText("Added to your library")).toBeVisible();
-  await expect(
-    dialog
-      .getByLabel("Launcher League of Legends plays on", { exact: true })
-      .locator("option:checked"),
-  ).toHaveText("Riot Client");
+  const prompt = dialog.locator(".own-prompt");
+  await expect(prompt.getByText("Riot Client", { exact: true })).toBeVisible();
+  await expect(prompt.getByRole("combobox", { name: /^Launcher/ })).toHaveCount(
+    0,
+  );
+  await expect(prompt.locator('a[href^="steam://"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
   const card = page.getByTestId("library-card").filter({
     has: page.getByRole("heading", { name: "League of Legends", exact: true }),
@@ -3089,6 +3235,54 @@ test("imported Riot wishlist entries follow updates without price targets or Ste
   await editor.getByRole("button", { name: /^Follow updates/ }).click();
   await expect(following).toBeVisible();
   await expect(page.getByLabel(/^Target price/)).toHaveCount(0);
+
+  // The import's Steam override survives membership edits, including Add Game.
+  await page
+    .getByRole("button", { name: "Add game", exact: true })
+    .first()
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Search games").fill("valorant");
+  await dialog
+    .getByRole("button", { name: "I own it: add VALORANT to library" })
+    .click();
+  const prompt = dialog.locator(".own-prompt");
+  await expect(prompt.getByText("Riot Client", { exact: true })).toBeVisible();
+  await expect(prompt.getByRole("combobox", { name: /^Launcher/ })).toHaveCount(
+    0,
+  );
+  await expect(prompt.locator('a[href^="steam://"]')).toHaveCount(0);
+  await prompt.getByLabel("Amount paid for VALORANT").fill("0");
+  await prompt.getByLabel("Amount paid for VALORANT").blur();
+  await expect(prompt.getByRole("status")).toContainText("Saved: Got it free");
+  await expect(prompt.getByRole("status")).not.toContainText("Steam");
+  await page.keyboard.press("Escape");
+
+  await page.getByTestId("nav-library").click();
+  const libraryGame = page.getByTestId("library-card");
+  await expect(libraryGame).toHaveCount(1);
+  await libraryGame
+    .getByRole("button", { name: "Edit purchase details for VALORANT" })
+    .click();
+  await expect(
+    libraryGame.getByText("Riot Client", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    libraryGame.getByRole("combobox", { name: /^Launcher/ }),
+  ).toHaveCount(0);
+  await expect(libraryGame.locator('a[href^="steam://"]')).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await expect(
+    libraryGame.getByRole("cell", { name: "Riot Client", exact: true }),
+  ).toBeVisible();
+  await expect(
+    libraryGame.getByRole("button", { name: /edit launcher/i }),
+  ).toHaveCount(0);
+  await expect(
+    libraryGame.getByRole("combobox", { name: /^Launcher/ }),
+  ).toHaveCount(0);
+  await expect(libraryGame.locator('a[href^="steam://"]')).toHaveCount(0);
 });
 
 test("deal filter pickers open one at a time and close on outside click or Escape", async ({

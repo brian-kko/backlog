@@ -74,14 +74,12 @@
 
   @media (min-width: 1024px) {
     .page-heading {
-      min-height: 216px;
       flex-direction: column;
       align-items: flex-start;
       /* Top-aligned so every page's title sits at the same height, however
          long its description. */
       justify-content: flex-start;
-      /* Reserve the artwork and its gap even before game data arrives. */
-      padding: 24px 304px 24px 0;
+      padding: 24px 0 8px;
     }
 
     .page-heading-content {
@@ -91,6 +89,14 @@
 
     .page-heading > .page-actions {
       max-width: min(100%, 640px);
+    }
+
+    .page-heading:not(:has(.cover-deck)) .page-heading-content {
+      max-width: 720px;
+    }
+
+    .page-heading:not(:has(.cover-deck)) > .page-actions:empty {
+      display: none;
     }
 
     .page-heading h1 {
@@ -105,10 +111,6 @@
   }
 
   @media (min-width: 1200px) {
-    .page-heading {
-      padding-right: 392px;
-    }
-
     .cover-mosaic {
       width: 360px;
     }
@@ -292,14 +294,14 @@
   }
 
   @media (768px <= width < 1024px) {
-    .page-heading.has-deck {
+    .page-heading:has(.cover-deck) {
       min-height: 182px;
       flex-direction: column;
       align-items: flex-start;
       justify-content: flex-start;
       padding: 12px 312px 12px 0;
     }
-    .page-heading.has-deck .page-heading-content {
+    .page-heading:has(.cover-deck) .page-heading-content {
       flex: none;
       width: 100%;
     }
@@ -331,9 +333,10 @@
   }
 
   @media (min-width: 1024px) {
-    .page-heading.has-deck {
+    .page-heading:has(.cover-deck) {
       /* Reserve room for the leftmost card at full fan and lift. */
-      padding-right: 416px;
+      min-height: 216px;
+      padding: 24px 416px 24px 0;
     }
     .cover-mosaic.is-deck {
       --mosaic-w: 320px;
@@ -363,7 +366,7 @@
   }
 
   @media (min-width: 1200px) {
-    .page-heading.has-deck {
+    .page-heading:has(.cover-deck) {
       padding-right: 536px;
     }
     .cover-mosaic.is-deck {

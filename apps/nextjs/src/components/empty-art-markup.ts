@@ -1,10 +1,28 @@
 /*
- * Empty-state illustrations (drawn with Gemini, adapted for Gemuzu).
+ * Empty-state illustrations for Gemuzu.
  * Inlined so they follow the theme through the --art-* variables; their
  * animation classes are prefixed "ea-" and animated in styles/art.css.
  * The markup is static and ours, never user input.
  */
+export const home = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 170" focusable="false">
+    <g class="ea-card-hand" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <g stroke="var(--art-muted)" fill="var(--card)">
+        <rect x="71" y="36" width="53" height="80" rx="6" transform="rotate(-17 97 76)" />
+        <rect x="136" y="36" width="53" height="80" rx="6" transform="rotate(17 163 76)" />
+      </g>
+      <rect x="102" y="28" width="56" height="84" rx="6" stroke="var(--art-ink)" fill="var(--card)" />
+      <rect x="109" y="35" width="42" height="70" rx="3" stroke="var(--art-muted)" fill="none" />
+      <path d="M130 56l11 14-11 14-11-14z" stroke="var(--art-accent)" fill="var(--art-accent)" fill-opacity="0.1" />
+    </g>
+    <g stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M46 135h168v8H46z" stroke="var(--art-ink)" />
+      <path d="M60 143v9m140-9v9" stroke="var(--art-muted)" />
+    </g>
+  </svg>`;
+
 export const emptyArt = {
+  home,
   library:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 26 260 170" focusable="false"><g stroke="var(--art-ink, currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"> <line x1="42" y1="164" x2="258" y2="164" /> <line x1="56" y1="164" x2="56" y2="169" /> <line x1="244" y1="164" x2="244" y2="169" /> </g> <g stroke="var(--art-muted, #b6bcad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="var(--art-ink, currentColor)" fill-opacity="0.08"> <rect x="56" y="112" width="28" height="52" rx="3" /> <rect x="96" y="112" width="28" height="52" rx="3" /> <rect x="176" y="112" width="28" height="52" rx="3" /> <rect x="216" y="112" width="28" height="52" rx="3" /> </g> <g class="ea-slot-glow" stroke="var(--art-accent, #c8ed78)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"> <rect x="136" y="112" width="28" height="52" rx="3" /> </g> <g class="ea-cart" stroke="var(--art-ink, currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <rect x="136" y="52" width="28" height="50" rx="4" fill="var(--art-ink, currentColor)" fill-opacity="0.12" /> <rect x="141" y="64" width="18" height="24" rx="2" fill="var(--art-ink, currentColor)" fill-opacity="0.08" /> <line x1="142" y1="96" x2="158" y2="96" stroke="var(--art-muted, #b6bcad)" /> </g></svg>',
   wishlist:
