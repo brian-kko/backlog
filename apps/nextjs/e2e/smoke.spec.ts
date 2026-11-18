@@ -1876,7 +1876,10 @@ test("Game Hub consolidates an outage and retries details, prices and news", asy
       endpoint: "/api/trpc",
       router,
       createContext: () => ({}),
-      req: new Request(route.request().url()),
+      // Keep the client's headers (trpc-accept asks for a streamed batch).
+      req: new Request(route.request().url(), {
+        headers: await route.request().allHeaders(),
+      }),
     });
     await route.fulfill({
       status: response.status,
@@ -2469,7 +2472,10 @@ test("retained prices stay stale until a successful refresh after reconnect", as
       endpoint: "/api/trpc",
       router,
       createContext: () => ({}),
-      req: new Request(route.request().url()),
+      // Keep the client's headers (trpc-accept asks for a streamed batch).
+      req: new Request(route.request().url(), {
+        headers: await route.request().allHeaders(),
+      }),
     });
     await route.fulfill({
       status: response.status,
@@ -2766,6 +2772,9 @@ test("Home and Library share purchase-price coverage and count a recorded zero",
     [1245620, "12.34"],
   ] as const) {
     await page.goto(`/game/${appId}`);
+    // Wait for the saved collection to load: the field remounts with it, and
+    // typing earlier would be lost.
+    await expect(page.getByText("Saved in this browser")).toBeVisible();
     const field = page.getByLabel("Amount paid", { exact: true });
     await field.fill(amount);
     await field.press("Tab");
@@ -3531,13 +3540,22 @@ test("imported Riot wishlist entries follow updates without price targets or Ste
     "Backup restored.",
   );
 
+  // Record price queries for Riot IDs only. A batch can mix Steam price
+  // queries with the Riot game's (allowed) news query.
   const priceRequests: string[] = [];
   page.on("request", (request) => {
-    if (
-      request.url().includes("/api/trpc/") &&
-      request.url().includes("getGamePrices")
-    )
-      priceRequests.push(request.url());
+    const url = new URL(request.url());
+    if (!url.pathname.startsWith("/api/trpc/")) return;
+    const procedures = url.pathname.replace("/api/trpc/", "").split(",");
+    const inputs = JSON.parse(url.searchParams.get("input") ?? "{}") as Record<
+      string,
+      { json?: { steamAppId?: number } }
+    >;
+    procedures.forEach((procedure, index) => {
+      const id = inputs[String(index)]?.json?.steamAppId;
+      if (procedure === "backlog.getGamePrices" && id && id >= 2_000_000_000)
+        priceRequests.push(`${procedure}:${id}`);
+    });
   });
   await page.getByTestId("nav-home").click();
   const alerts = page
