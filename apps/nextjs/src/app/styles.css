@@ -8,6 +8,7 @@
 @import "./styles/updates.css";
 @import "./styles/patch.css";
 @import "./styles/home.css";
+@import "./styles/chrome.css";
 
 @source "../../../../packages/ui/src/*.{ts,tsx}";
 
