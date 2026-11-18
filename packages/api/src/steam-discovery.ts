@@ -17,6 +17,7 @@ import {
 } from "@acme/validators";
 
 import { catalogVerifiedAt, curatedGames } from "./curated-games";
+import { recordPriceSnapshots } from "./price-history";
 import { fetchRiotFeed, riotMetadata } from "./riot-discovery";
 
 const jsonCache = new Map<string, { expiresAt: number; value: unknown }>();
@@ -25,7 +26,7 @@ const cacheTtlMs = 5 * 60 * 1000;
 
 // All upstream I/O, including reading JSON, has a deadline and fails closed into
 // the next provider. Provider outages must never become failed public tRPC calls.
-async function fetchJson(
+export async function fetchJson(
   url: string,
   // Background batches give up sooner, so one slow upstream can't stack
   // seconds onto every row; a search the user is waiting on gets longer.
@@ -259,7 +260,7 @@ export async function fetchGameMetadata(
   return cached ? { name: cached.title, header_image: cached.thumb } : null;
 }
 
-function steamPrice(game: SteamGame | null) {
+export function steamPrice(game: SteamGame | null) {
   if (game?.is_free) return { current: 0, normal: 0 };
   return game?.price_overview
     ? {
@@ -479,7 +480,17 @@ const gamePricesSchema = z.object({
     thumb: z.string().optional(),
   }),
   cheapestPriceEver: z
-    .object({ price: providerPrice })
+    .object({
+      price: providerPrice,
+      date: z
+        .number()
+        .int()
+        .positive()
+        .max(253_402_300_799) // Last second with a four-digit ISO year.
+        .transform((seconds) => new Date(seconds * 1000).toISOString())
+        .optional()
+        .catch(undefined),
+    })
     .nullish()
     .catch(undefined),
   deals: z.array(z.unknown()).default([]),
@@ -503,6 +514,7 @@ async function fetchPriceFallback(
     historicalLow: cached ? Math.min(cached.historicalLow, currentPrice) : null,
     historicalLowSource: cached ? ("catalog" as const) : null,
     historicalLowAsOf: cached ? catalogVerifiedAt : null,
+    historicalLowDate: null,
     source: live ? ("steam" as const) : ("catalog" as const),
     verifiedAt: live ? new Date().toISOString() : catalogVerifiedAt,
     deals: [
@@ -518,12 +530,7 @@ async function fetchPriceFallback(
   };
 }
 
-export async function fetchGamePrices(
-  steamAppId: number,
-  metadata?: Promise<SteamGame | null>,
-) {
-  // Free in the Riot Client and sold by no PC store: nothing to compare.
-  if (isRiotGame(steamAppId)) return null;
+async function fetchCheapSharkPriceData(steamAppId: number) {
   const matches = z
     .array(z.object({ gameID: z.string() }))
     .safeParse(
@@ -539,8 +546,24 @@ export async function fetchGamePrices(
         ),
       )
     : null;
-  if (parsed?.success) {
-    const data = parsed.data;
+  return parsed?.success ? parsed.data : null;
+}
+
+export async function fetchCheapSharkAllTimeLow(steamAppId: number) {
+  const low = (await fetchCheapSharkPriceData(steamAppId))?.cheapestPriceEver;
+  return low?.date
+    ? { price: low.price, date: low.date, source: "cheapshark" as const }
+    : null;
+}
+
+export async function fetchGamePrices(
+  steamAppId: number,
+  metadata?: Promise<SteamGame | null>,
+) {
+  // Free in the Riot Client and sold by no PC store: nothing to compare.
+  if (isRiotGame(steamAppId)) return null;
+  const data = await fetchCheapSharkPriceData(steamAppId);
+  if (data) {
     const deals = data.deals
       .flatMap((row) => {
         const deal = priceDealSchema.safeParse(row);
@@ -574,12 +597,21 @@ export async function fetchGamePrices(
       const catalogLow = curatedGames.find(
         (item) => item.steamAppId === steamAppId,
       )?.historicalLow;
-      const historicalLow = recordedLow ?? catalogLow;
+      const verifiedAt = new Date().toISOString();
+      void recordPriceSnapshots(
+        steamAppId,
+        verifiedAt,
+        deals.map((deal) => ({
+          ...deal,
+          source: steamLive && deal.storeID === "1" ? "steam" : "cheapshark",
+        })),
+      );
       return {
         title: data.info.title,
         currentPrice: best,
         historicalLow:
-          historicalLow == null ? null : Math.min(historicalLow, best),
+          recordedLow ??
+          (catalogLow == null ? null : Math.min(catalogLow, best)),
         // Where "lowest ever" comes from: the live price history, or a saved
         // catalog snapshot that may be out of date.
         historicalLowSource:
@@ -590,14 +622,22 @@ export async function fetchGamePrices(
               : null,
         historicalLowAsOf:
           recordedLow == null && catalogLow != null ? catalogVerifiedAt : null,
+        historicalLowDate: data.cheapestPriceEver?.date ?? null,
         deals,
         steamPrice: steam,
         source: "cheapshark" as const,
-        verifiedAt: new Date().toISOString(),
+        verifiedAt,
       };
     }
   }
-  return fetchPriceFallback(steamAppId, metadata);
+  const fallback = await fetchPriceFallback(steamAppId, metadata);
+  if (fallback?.source === "steam")
+    void recordPriceSnapshots(
+      steamAppId,
+      fallback.verifiedAt,
+      fallback.deals.map((deal) => ({ ...deal, source: "steam" })),
+    );
+  return fallback;
 }
 
 const storeHeader = (id: number) =>

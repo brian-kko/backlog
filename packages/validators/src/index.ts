@@ -7,8 +7,10 @@ export const unused = z.string().describe(
   `,
 );
 export * from "./backlog-parser";
+export * from "./edition-match";
 export * from "./game-search";
 export * from "./news-digest";
 export * from "./patch-notes";
+export * from "./price-history";
 export * from "./steam-compare";
 export * from "./riot";

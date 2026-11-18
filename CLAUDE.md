@@ -20,7 +20,7 @@
    - Drizzle ORM PostgreSQL table definitions in `src/schema.ts` (`games`, `gameFeedItems`, `userBacklog` incl. `purchaseStore` seller and `platform` launcher) and auth tables in `src/auth-schema.ts`. SQL migrations in `migrations/`.
 3. **`packages/api` (`@acme/api`)**:
    - Shared tRPC v11 routers (`src/router/backlog.ts` registered in `src/root.ts`).
-   - All public discovery routes (`getSteamFeed`, `getCollectionFeed`, `searchDeals`, `searchGames`, `getGamePrices`, `getSteamPrices`, `getGameDetails`) MUST use `publicProcedure` and work for unauthenticated Guest users out of the box.
+   - All public discovery routes (`getSteamFeed`, `getCollectionFeed`, `searchDeals`, `searchGames`, `getGamePrices`, `getPriceHistory`, `getSteamPrices`, `getGameDetails`) MUST use `publicProcedure` and work for unauthenticated Guest users out of the box.
 4. **`apps/nextjs` (`@acme/nextjs`)**:
    - Multi-page Next.js App Router web application with a persistent top navigation bar (`src/components/navbar.tsx`).
    - Game launching uses `src/utils/launcher.ts` (checks for `window.__TAURI__` for the desktop companion app, falling back to `steam://rungameid/<steamAppId>`). Launch is gated by `canLaunch()` in `src/components/collection.ts` (owned and plays on Steam) and hidden on touch devices.

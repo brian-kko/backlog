@@ -1,5 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
+  date,
   integer,
   numeric,
   pgTable,
@@ -26,6 +29,34 @@ export const games = pgTable("games", {
   }).notNull(),
   lastCheckedAt: timestamp("last_checked_at").defaultNow().notNull(),
 });
+
+export const priceSnapshots = pgTable(
+  "price_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    steamAppId: integer("steam_app_id").notNull(),
+    storeId: text("store_id").notNull(),
+    price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+    regularPrice: numeric("regular_price", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    source: text("source", { enum: ["cheapshark", "steam"] }).notNull(),
+    observedOn: date("observed_on").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "price_snapshots_source_check",
+      sql`${t.source} in ('cheapshark', 'steam')`,
+    ),
+    uniqueIndex("price_snapshots_app_store_day_idx").on(
+      t.steamAppId,
+      t.storeId,
+      t.observedOn,
+    ),
+  ],
+);
 
 export const gameFeedItems = pgTable("game_feed_items", {
   id: uuid("id").defaultRandom().primaryKey(),
