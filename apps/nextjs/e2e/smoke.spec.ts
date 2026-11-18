@@ -127,6 +127,14 @@ function searchFixtureDeals(input: z.infer<typeof SearchDealsInputSchema>) {
   return result;
 }
 const patchPost = `[h3]Stratagems[/h3][p][i]AMW-20 APEX[/i][/p][p]Problem we want to solve:[/p][list][*]Demolition strength was too low[/*][/list][p]Changes:[/p][list][*]Decreased caliber from 60 to 20[/*][*]Increased demolition strength to 30[/*][/list][p][i]SG-22 BUSHWACKER[/i][/p][list][*]Increased damage from 405 to 486[/*][/list][h3]Fixes[/h3][list][*]Fixed a crash when joining a squad[/*][/list]`;
+const deadlockPatchPost = [
+  "[h3]Heroes[/h3][list]",
+  "[*]Scorn - Heal from heroes increased from 1.2x to 1.3x[/*]",
+  "[*]Sand Blast - T2 slow from -24% Slow and -26% Dash distance to -28% for both[/*]",
+  "[*]Radiant Daggers - Range reduced from 30m to 25m (moved to T2)[/*]",
+  "[*]Lurking Terrors - Fear buildup time reduced from 2s to 1.75s[/*]",
+  "[/list]",
+].join("");
 const browserErrors = new WeakMap<Page, string[]>();
 
 // Browser integration uses the actual tRPC serialization protocol with deterministic
@@ -249,7 +257,10 @@ test.beforeEach(async ({ page }) => {
       getPatchNotes: t.procedure
         .input(PatchNotesInputSchema)
         .query(({ input }) => {
-          const patch = parsePatchNotes(patchPost, "Devoid of Liberty: 7.2.2");
+          const patch = parsePatchNotes(
+            input.steamAppId === 1422450 ? deadlockPatchPost : patchPost,
+            "Devoid of Liberty: 7.2.2",
+          );
           return {
             steamAppId: input.steamAppId,
             gid: input.gid,
@@ -1622,6 +1633,9 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
   const glance = page.getByRole("region", { name: "Patch at a glance" });
   await expect(glance.locator(".patch-legend")).toContainText("1 nerf change");
   await expect(glance.locator(".patch-legend")).toContainText("2 buff changes");
+  await expect(glance.locator(".patch-glance-note")).toHaveText(
+    "Sorted automatically from the notes; open Full patch notes for the source wording.",
+  );
   await expect(page.locator("#change-0-0")).toBeVisible();
   await expect(
     page.getByRole("tab", { name: "Full patch notes" }),
@@ -1672,6 +1686,39 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
     ),
   ).toBeVisible();
   await expect(page.getByText("Sorted by AI summary")).toBeVisible();
+});
+
+test("patch reader shows compact Deadlock values and a chip for every change", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/patch/1422450/1847920302234123");
+  const rows = page.locator(".patch-changes li");
+  await expect(rows).toHaveCount(4);
+  await expect(rows.locator(".change-kind")).toHaveCount(4);
+
+  const scorn = rows.filter({ hasText: "Scorn - Heal" });
+  await expect(scorn.locator(".patch-change-values")).toHaveText("1.2x → 1.3x");
+  await expect(scorn.locator(".patch-change-values")).toBeVisible();
+
+  const sandBlast = rows.filter({ hasText: "Sand Blast" });
+  await expect(sandBlast.locator(".patch-change-values")).toHaveCount(0);
+  await expect(sandBlast.locator(".change-kind")).toHaveText("↻Change");
+
+  const daggers = rows.filter({ hasText: "Radiant Daggers" });
+  await expect(daggers.locator(".patch-change-values")).toHaveText("30m → 25m");
+  await expect(daggers.locator(".patch-change-text")).toContainText(
+    "(moved to T2)",
+  );
+
+  const terrors = rows.filter({ hasText: "Lurking Terrors" });
+  await expect(terrors.locator(".change-kind")).toHaveAttribute(
+    "data-kind",
+    "buff",
+  );
+  await expect(terrors.locator(".patch-change-values")).toHaveText(
+    "2s → 1.75s",
+  );
 });
 
 test("guest quota failures preserve edits for export even after sample metadata changes", async ({

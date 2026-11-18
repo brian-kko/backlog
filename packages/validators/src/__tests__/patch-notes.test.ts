@@ -225,6 +225,32 @@ describe("Digest wording stays defensible", () => {
 });
 
 describe("Deadlock-style wording", () => {
+  it.each([
+    ["Scorn - Heal from heroes increased from 1.2x to 1.3x", "buff"],
+    [
+      "Sand Blast - T2 slow from -24% Slow and -26% Dash distance to -28% for both",
+      "note",
+    ],
+    ["Radiant Daggers - Range reduced from 30m to 25m (moved to T2)", "nerf"],
+    ["Lurking Terrors - Fear buildup time reduced from 2s to 1.75s", "buff"],
+  ])("preserves the source wording and classifies %s as %s", (text, kind) => {
+    const parsed = parsePatchNotes(`[list][*]${text}[/*][/list]`);
+    expect(parsed.sections[0]?.subjects[0]?.changes).toEqual([{ text, kind }]);
+    expect(classifyChange(text)).toBe(kind);
+  });
+
+  it.each(["buildup", "build-up", "build up"])(
+    "treats longer %s time as a nerf and shorter time as a buff",
+    (stat) => {
+      expect(classifyChange(`Fear ${stat} time increased from 2s to 3s`)).toBe(
+        "nerf",
+      );
+      expect(classifyChange(`Fear ${stat} time reduced from 2s to 1.75s`)).toBe(
+        "buff",
+      );
+    },
+  );
+
   it("treats a longer cycle time as a nerf, like a longer cooldown", () => {
     expect(
       classifyChange("Baba's Brew - Cycle time increased from 1.5s to 1.6s"),
