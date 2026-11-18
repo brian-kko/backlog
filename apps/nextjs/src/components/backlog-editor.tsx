@@ -42,7 +42,9 @@ export function BacklogEditor({
     ),
   );
   const prices = game.data?.prices;
+  const riot = isRiotGame(steamAppId);
   const free = prices?.currentPrice === 0;
+  const canSetTarget = !riot && !free;
   const freeOffer = prices?.deals.find((deal) => deal.price === 0);
   const { items, save, isGuest, isLoading } = useBacklog();
   const item = items.find((value) => value.steamAppId === steamAppId);
@@ -84,7 +86,7 @@ export function BacklogEditor({
               : "Not in your collection"}
         </span>
       </div>
-      {free && !item?.isOwned ? (
+      {free && !riot && !item?.isOwned ? (
         <FreePriceNotice
           steamAppId={steamAppId}
           saved={prices.source !== "cheapshark" && prices.source !== "steam"}
@@ -93,14 +95,20 @@ export function BacklogEditor({
         />
       ) : (
         <p className="text-muted-foreground text-sm">
-          {item
-            ? item.isOwned
-              ? "Track your progress and what you paid."
-              : "Set the price you’re willing to pay and we’ll flag it when a store hits it."
-            : "Add it to your library if you own it, or wishlist it to watch prices across stores."}
+          {riot
+            ? "Free to play · Riot Client"
+            : item
+              ? item.isOwned
+                ? "Track your progress and what you paid."
+                : "Set the price you’re willing to pay and we’ll flag it when a store hits it."
+              : "Add it to your library if you own it, or wishlist it to watch prices across stores."}
         </p>
       )}
-      <div className="membership-picker" aria-label="Collection membership">
+      <div
+        className="membership-picker"
+        role="group"
+        aria-label="Collection membership"
+      >
         {/* Labels say what a press does; the selected state reads as status. */}
         <button
           className="membership-option"
@@ -115,7 +123,7 @@ export function BacklogEditor({
                 ? "In library"
                 : "Move to library"}
           </strong>
-          <span>I own it</span>
+          <span>{riot ? "Track your progress" : "I own it"}</span>
         </button>
         <button
           className="membership-option"
@@ -124,13 +132,23 @@ export function BacklogEditor({
           onClick={() => void update({ isOwned: false })}
         >
           <strong>
-            {!item
-              ? "Add to wishlist"
-              : item.isOwned
-                ? "Move to wishlist"
-                : "On wishlist"}
+            {riot
+              ? item?.isOwned === false
+                ? "Following"
+                : "Follow updates"
+              : !item
+                ? "Add to wishlist"
+                : item.isOwned
+                  ? "Move to wishlist"
+                  : "On wishlist"}
           </strong>
-          <span>{free ? "Keep it on your list" : "Watch the price"}</span>
+          <span>
+            {riot
+              ? "Riot patch notes"
+              : free
+                ? "Keep it on your list"
+                : "Watch the price"}
+          </span>
         </button>
       </div>
       {item && (
@@ -193,39 +211,46 @@ export function BacklogEditor({
                     )}
                   </select>
                 </label>
-                <label className="field-label col-span-full">
-                  <span>Plays on</span>
-                  <select
-                    className="form-control w-full"
-                    value={item.platform ?? ""}
-                    disabled={disabled}
-                    onChange={(event) =>
-                      void update({
-                        platform: (event.target.value || undefined) as
-                          | Platform
-                          | undefined,
-                      })
-                    }
-                  >
-                    <option value="">
-                      {`${platformNames[defaultPlatform(item.purchaseStore, item.steamAppId)]}${isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}`}
-                    </option>
-                    {(Object.keys(platformNames) as Platform[]).map((key) => (
-                      <option key={key} value={key}>
-                        {platformNames[key]}
+                {riot ? (
+                  <p className="field-label col-span-full">
+                    <span>Plays on</span> <span>{platformNames.riot}</span>
+                  </p>
+                ) : (
+                  <label className="field-label col-span-full">
+                    <span>Plays on</span>
+                    <select
+                      className="form-control w-full"
+                      value={item.platform ?? ""}
+                      disabled={disabled}
+                      onChange={(event) =>
+                        void update({
+                          platform: (event.target.value || undefined) as
+                            | Platform
+                            | undefined,
+                        })
+                      }
+                    >
+                      <option value="">
+                        {platformNames[defaultPlatform(item.purchaseStore)]}{" "}
+                        (unconfirmed)
                       </option>
-                    ))}
-                  </select>
-                  {!item.platform && !isRiotGame(item.steamAppId) && (
-                    <span className="field-hint">
-                      Not confirmed. Change it if this plays elsewhere.
-                    </span>
-                  )}
-                </label>
+                      {(Object.keys(platformNames) as Platform[]).map((key) => (
+                        <option key={key} value={key}>
+                          {platformNames[key]}
+                        </option>
+                      ))}
+                    </select>
+                    {!item.platform && (
+                      <span className="field-hint">
+                        Not confirmed. Change it if this plays elsewhere.
+                      </span>
+                    )}
+                  </label>
+                )}
               </div>
             </>
-          ) : free ? null : (
-            <>
+          ) : (
+            canSetTarget && (
               <PriceField
                 label="Target price"
                 value={item.targetPrice}
@@ -233,9 +258,9 @@ export function BacklogEditor({
                 hint="Leave blank to be flagged only at an all-time low."
                 onSave={(targetPrice) => update({ targetPrice })}
               />
-            </>
+            )
           )}
-          {(item.isOwned || !free) && (
+          {(item.isOwned || canSetTarget) && (
             <p className="filter-help">Changes save automatically.</p>
           )}
           <div className="editor-footer">

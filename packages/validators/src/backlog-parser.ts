@@ -95,13 +95,14 @@ export function defaultPlatform(
       : "steam";
 }
 
-/** Resolved launcher for an item: explicit choice, else inferred from store. */
+/** Riot games use the Riot Client. Other games use the override or store default. */
 export function itemPlatform(item: {
   platform?: Platform | null;
   purchaseStore?: PurchaseStore | null;
   steamAppId?: number;
 }): Platform {
-  return item.platform ?? defaultPlatform(item.purchaseStore, item.steamAppId);
+  if (isRiotGame(item.steamAppId)) return "riot";
+  return item.platform ?? defaultPlatform(item.purchaseStore);
 }
 
 export const UpsertBacklogItemSchema = z.object({
