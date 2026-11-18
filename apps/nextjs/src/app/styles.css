@@ -10,6 +10,7 @@
 @import "./styles/home.css";
 @import "./styles/chrome.css";
 @import "./styles/art.css";
+@import "./styles/radar-chart.css";
 
 @source "../../../../packages/ui/src/*.{ts,tsx}";
 
