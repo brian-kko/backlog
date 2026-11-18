@@ -255,3 +255,15 @@ Housekeeping:
 - Worktrees `r9-*` and branches `codex/r9-*` can be removed (they're
   merged).
 
+**Owner's next features (2026-11-18):**
+1. **Edition matching:** ITAD lookup gives editions a Steam comparison.
+2. **Price history:** a 90-day sparkline and dated 3- and 12-month lows,
+   from ITAD plus our own snapshots.
+3. **Steam import:** owned games, playtime and wishlist from a public
+   profile.
+4. **Patch alerts:** keyword watch on parsed patch notes; delivery needs
+   the site deployed with a scheduled job.
+
+Masthead concepts are still being explored (astra's consult plus a
+brainstorm). The deck stays until a direction is chosen.
+
