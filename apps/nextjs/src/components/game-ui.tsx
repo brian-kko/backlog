@@ -835,8 +835,8 @@ function CoverDeck({
               }}
               src={coverArt(card.steamAppId)}
               alt=""
-              width={88}
-              height={132}
+              width={124}
+              height={186}
               decoding="async"
               onLoad={(event) => {
                 if (isFallbackArt(event.currentTarget)) reject(card.steamAppId);

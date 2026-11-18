@@ -228,24 +228,28 @@
   }
 
   .cover-deck {
-    --spread: 20px;
-    --tilt: 5deg;
+    --card-w: 104px;
+    --card-h: 156px;
+    --spread: 22px;
+    --tilt: 6deg;
     position: absolute;
     left: 50%;
-    bottom: 40px;
+    bottom: 28px;
     width: 0;
-    height: 132px;
+    height: var(--card-h);
     pointer-events: auto;
+    /* The whole hand is held at an angle, like cards in a player's hand. */
+    transform: rotate(-9deg);
   }
 
   .deck-card {
     --o: calc(var(--i) - (var(--count) - 1) / 2);
     position: absolute;
     bottom: 0;
-    left: -44px;
-    width: 88px;
-    height: 132px;
-    border-radius: 8px;
+    left: calc(var(--card-w) / -2);
+    width: var(--card-w);
+    height: var(--card-h);
+    border-radius: 10px;
     transform-origin: 50% 120%;
     transform: translateX(calc(var(--o) * var(--spread)))
       rotate(calc(var(--o) * var(--tilt))) translateY(var(--lift, 0px));
@@ -257,7 +261,7 @@
     width: 100%;
     height: 100%;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     background: var(--card);
     object-fit: cover;
   }
@@ -271,7 +275,7 @@
     }
     /* …and the card under the pointer rises out of it. */
     .deck-card:hover {
-      --lift: -22px;
+      --lift: -26px;
       z-index: 10;
     }
     .deck-card:hover img {
@@ -280,8 +284,13 @@
   }
 
   @media (min-width: 1200px) {
+    .cover-deck {
+      --card-w: 124px;
+      --card-h: 186px;
+      bottom: 20px;
+    }
     .cover-deck:hover {
-      --spread: 42px;
+      --spread: 40px;
       --tilt: 8deg;
     }
   }
