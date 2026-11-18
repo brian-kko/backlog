@@ -32,38 +32,41 @@ const categoryLabel = (category: NewsItem["category"]) =>
 function PatchSummary({ item }: { item: NewsItem }) {
   const counts = item.patchCounts;
   if (!counts) return null;
-  const changes = counts.adjusted + counts.new + counts.fix + counts.removed;
-  if (counts.nerf + counts.buff + changes === 0) return null;
-  const neutralLabel =
-    counts.nerf + counts.buff === 0 && counts.fix > changes / 2
-      ? changes === 1
-        ? "fix"
-        : "fixes"
-      : changes === 1
-        ? "change"
-        : "changes";
+  // Same buckets and words as the patch reader's legend, so the numbers a
+  // reader clicks on are the numbers they land on.
+  const chips = [
+    { kind: "nerf", icon: "▼", count: counts.nerf, words: ["nerf", "nerfs"] },
+    { kind: "buff", icon: "▲", count: counts.buff, words: ["buff", "buffs"] },
+    {
+      kind: "new",
+      icon: "+",
+      count: counts.new,
+      words: ["addition", "additions"],
+    },
+    {
+      kind: "adjusted",
+      icon: "↻",
+      count: counts.adjusted + counts.removed,
+      words: ["change", "changes"],
+    },
+    { kind: "fix", icon: "✓", count: counts.fix, words: ["fix", "fixes"] },
+  ].filter((chip) => chip.count > 0);
+  if (!chips.length) return null;
   return (
     <Link
       className="news-patch-summary"
       href={`/patch/${item.steamAppId}/${item.id}`}
     >
-      {counts.nerf > 0 && (
-        <span className="news-patch-count" data-kind="nerf">
-          <span aria-hidden="true">▼</span> {counts.nerf}{" "}
-          {counts.nerf === 1 ? "nerf" : "nerfs"}
+      {chips.map((chip) => (
+        <span
+          key={chip.kind}
+          className="news-patch-count"
+          data-kind={chip.kind}
+        >
+          <span aria-hidden="true">{chip.icon}</span> {chip.count}{" "}
+          {chip.count === 1 ? chip.words[0] : chip.words[1]}
         </span>
-      )}
-      {counts.buff > 0 && (
-        <span className="news-patch-count" data-kind="buff">
-          <span aria-hidden="true">▲</span> {counts.buff}{" "}
-          {counts.buff === 1 ? "buff" : "buffs"}
-        </span>
-      )}
-      {changes > 0 && (
-        <span className="news-patch-count" data-kind="adjusted">
-          <span aria-hidden="true">↻</span> {changes} {neutralLabel}
-        </span>
-      )}
+      ))}
       <span className="sr-only">: Read patch notes for {item.title}</span>
     </Link>
   );

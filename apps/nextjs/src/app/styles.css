@@ -962,11 +962,14 @@
     content: "";
     @apply absolute inset-0;
     background:
-      /* Top fade keeps the transparent nav readable over bright art. */
+      /* Top fade keeps the transparent nav and the back link at ≥4.5:1
+         even over pure yellow art; it clears before the title art. */
       linear-gradient(
         to bottom,
-        color-mix(in srgb, var(--background) 82%, transparent) 0,
-        transparent 120px
+        color-mix(in srgb, var(--background) 92%, transparent) 0,
+        color-mix(in srgb, var(--background) 85%, transparent)
+          calc(var(--nav-h) + 56px),
+        transparent calc(var(--nav-h) + 160px)
       ),
       linear-gradient(
         to top,
@@ -1223,10 +1226,13 @@
   .spotlight-art::after {
     content: "";
     @apply absolute inset-0;
+    /* Deep enough at the label line that "Playing" stays ≥4.5:1 on
+       bright art. */
     background: linear-gradient(
       to top,
       #121411 6%,
-      color-mix(in srgb, #121411 55%, transparent) 50%,
+      color-mix(in srgb, #121411 78%, transparent) 50%,
+      color-mix(in srgb, #121411 30%, transparent) 85%,
       transparent
     );
   }
@@ -1241,6 +1247,11 @@
     font-family: var(--font-display);
     @apply w-full text-xs font-semibold tracking-[0.12em] uppercase;
     color: #d8f08a;
+  }
+  /* A small ink chip: readable (≈13:1) over any cover art. */
+  .spotlight-status > span {
+    @apply inline-block rounded px-1.5 py-0.5;
+    background: #121411;
   }
   .spotlight-list {
     @apply grid gap-1;

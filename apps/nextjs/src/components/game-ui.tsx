@@ -461,6 +461,7 @@ export function GameArt({
   src,
   priority = false,
   onMissing,
+  onArtLoad,
 }: {
   appId?: number | null;
   title: string;
@@ -468,6 +469,8 @@ export function GameArt({
   priority?: boolean;
   /** Called when no real artwork exists (only the placeholder can show). */
   onMissing?: () => void;
+  /** Called with the image once real artwork (not the plate) has loaded. */
+  onArtLoad?: (image: HTMLImageElement) => void;
 }) {
   const [failed, setFailed] = useState<string[]>([]);
   // A blank thumbnail string falls back to the Steam header art.
@@ -490,7 +493,9 @@ export function GameArt({
     <Image
       ref={(image) => {
         // Images that finish before hydration never fire onLoad.
-        if (image?.complete && isFallbackArt(image)) reject(resolved);
+        if (!image?.complete || !image.naturalWidth) return;
+        if (isFallbackArt(image)) reject(resolved);
+        else onArtLoad?.(image);
       }}
       className="game-art"
       src={resolved}
@@ -502,6 +507,7 @@ export function GameArt({
       loading={priority ? "eager" : "lazy"}
       onLoad={(event) => {
         if (isFallbackArt(event.currentTarget)) reject(resolved);
+        else onArtLoad?.(event.currentTarget);
       }}
       onError={() => reject(resolved)}
     />

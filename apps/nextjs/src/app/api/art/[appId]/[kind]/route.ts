@@ -31,7 +31,16 @@ function appdetailsArtUrls(data: unknown, kind: keyof typeof assets): string[] {
   // a missing capsule stays missing and the client hides or swaps the slot.
   if (kind === "capsule") return [];
   const header = "header_image" in data ? data.header_image : undefined;
-  const candidates = [header];
+  // Hero art sits behind a title, so prefer logo-free, full-size art over
+  // the 460×215 header (its baked-in wordmark would ghost behind the text):
+  // the store page background (atmospheric, no UI), then a screenshot.
+  const screenshot =
+    "screenshots" in data && Array.isArray(data.screenshots)
+      ? (data.screenshots[0] as { path_full?: unknown } | undefined)?.path_full
+      : undefined;
+  const background = "background_raw" in data ? data.background_raw : undefined;
+  const candidates =
+    kind === "hero" ? [background, screenshot, header] : [header];
   const urls = new Set<string>();
   for (const candidate of candidates) {
     if (typeof candidate !== "string") continue;
@@ -98,7 +107,8 @@ async function resolveArt(
   }
   try {
     const response = await fetch(
-      `https://store.steampowered.com/api/appdetails?appids=${appId}&filters=basic`,
+      // Unfiltered: screenshots and background_raw aren't in filters=basic.
+      `https://store.steampowered.com/api/appdetails?appids=${appId}`,
       {
         next: { revalidate: 86400 },
         redirect: "error",

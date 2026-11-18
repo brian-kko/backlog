@@ -289,7 +289,7 @@ function PlayNext() {
         </div>
         <div className="spotlight-body">
           <p className="spotlight-status">
-            {statusLabel[featured.completionStatus ?? "backlog"]}
+            <span>{statusLabel[featured.completionStatus ?? "backlog"]}</span>
           </p>
           <h3 className="queue-title">
             <Link href={`/game/${featured.steamAppId}`}>{featured.title}</Link>

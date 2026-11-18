@@ -322,3 +322,26 @@ describe("Deadlock-style wording", () => {
     expect(classifyChange("See you on the battlefield")).toBe("note");
   });
 });
+
+describe("classifyChange context notes", () => {
+  it("treats a line that introduces values as a note", () => {
+    expect(classifyChange("The correct values are:")).toBe("note");
+  });
+
+  it("treats context about an earlier patch as a note", () => {
+    expect(
+      classifyChange(
+        "The Bushwacker changes in the previous patch were calculated incorrectly",
+      ),
+    ).toBe("note");
+  });
+
+  it("still counts a change that leads with what was done", () => {
+    expect(
+      classifyChange("Reverted the recoil changes from the previous patch"),
+    ).not.toBe("note");
+    expect(classifyChange("Fixed a crash introduced in the last update")).toBe(
+      "fix",
+    );
+  });
+});

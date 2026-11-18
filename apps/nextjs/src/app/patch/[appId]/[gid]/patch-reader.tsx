@@ -69,7 +69,8 @@ const kinds: Record<ChangeKind, { label: string; icon: string }> = {
   adjusted: { label: "Change", icon: "↻" },
   removed: { label: "Removed", icon: "−" },
   fix: { label: "Fix", icon: "✓" },
-  note: { label: "Change", icon: "↻" },
+  // Developer context, not a change: muted and uncounted.
+  note: { label: "Note", icon: "·" },
 };
 // Fixed, validated order for the proportion bar (see styles: --kind-*).
 const barKinds = ["new", "nerf", "buff", "adjusted", "fix"] as const;

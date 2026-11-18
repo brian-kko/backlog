@@ -87,7 +87,18 @@ const versionPattern =
  * Classifies one change line. "Increased" is a buff unless the stat is one
  * where more is worse (cooldown, cost, recoil, ...), where it's a nerf.
  */
+// A line that leads with what was done is a change even when it mentions an
+// earlier patch ("Reverted the changes from the previous patch").
+const leadingChange =
+  /^\W*(?:fixed|added|increased|decreased|reduced|removed|adjusted|improved|resolved|corrected|rebalanced|changed|reworked|updated|tweaked|reverted|lowered|raised)\b/i;
+const previousPatch = /\b(?:previous|last|prior) (?:patch|update|hotfix)\b/i;
+
 export function classifyChange(text: string): ChangeKind {
+  // "The correct values are:" introduces values; it isn't a change itself.
+  if (text.trim().endsWith(":")) return "note";
+  // Context about an earlier patch ("…changes in the previous patch were
+  // calculated incorrectly") explains this one rather than changing anything.
+  if (previousPatch.test(text) && !leadingChange.test(text)) return "note";
   if (fixPattern.test(text)) return "fix";
   if (removedPattern.test(text)) return "removed";
   if (newPattern.test(text)) return "new";

@@ -96,6 +96,15 @@
     margin-left: -12px;
   }
 
+  /* One or two covers take the centre of the art panel, not its edge. */
+  .cover-mosaic-track:not(:has(img:nth-child(3))) {
+    left: 0;
+    justify-content: center;
+  }
+  .cover-mosaic-track img:only-child {
+    transform: rotate(-4deg);
+  }
+
   .cover-mosaic-track img:first-child {
     transform: rotate(-6deg);
   }

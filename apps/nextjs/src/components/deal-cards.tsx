@@ -294,6 +294,8 @@ function DealCard({
 }) {
   const { deal } = group;
   const [noArt, setNoArt] = useState(false);
+  // Art much narrower than the billboard sits at its own size, not stretched.
+  const [inset, setInset] = useState(false);
   const gap = steamGap(deal, steam);
   return (
     <article
@@ -301,6 +303,7 @@ function DealCard({
         "game-card deal-card",
         featured && "deal-featured",
         featured && noArt && "no-art",
+        featured && inset && "art-inset",
       )}
       data-testid="deal-card"
     >
@@ -316,6 +319,15 @@ function DealCard({
           }
           priority={featured}
           onMissing={featured ? () => setNoArt(true) : undefined}
+          onArtLoad={
+            featured
+              ? (image) => {
+                  const card = image.closest(".deal-featured");
+                  if (card)
+                    setInset(image.naturalWidth < card.clientWidth * 0.8);
+                }
+              : undefined
+          }
         />
       </div>
       <div className="deal-content">
