@@ -8,6 +8,11 @@ these files are ready to paste.
   type "Do the task in the attached file." Save the reply where
   `GEMINI-HANDOFF.md` says. Models: A, D and E need the strongest
   reasoning/multimodal model; B1, B2 and C need the image-generation model.
+- **Brand direction (2026-11-18):** cards and decks, not cartridges. The
+  cartridge is only the boot intro. Use the v2 tasks:
+  `tasks/B-card-back-v2.md` (SVG code, strongest model) and
+  `tasks/C-share-background-v2.md` (image model). They replace B1, B2 and C.
+  Save the v2 outputs in `reviews/` as before.
 - **`GEMINI-HANDOFF.md`:** the same tasks with context and checklists, for
   reading, not for dropping into Gemini.
 - **`ART-BRIEF.md`:** original art (empty-state illustrations, fallback
