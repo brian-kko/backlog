@@ -313,3 +313,24 @@ CheapShark's dated low; edition matching uses Steam's store search.
 Next: a masthead worker (`r10-mastheads`: Deals Price Radar and the Wishlist
 arrow chart) once `r10-data` merges.
 
+**Round 10 merged (2026-11-18):** `r10-price`, `r10-polish`, `r10-data`
+and `r10-mastheads`.
+- **Deals:** the Price Radar replaces the deck. It spans 0–100% below Steam,
+  with rings at 25%, 50% and 75%.
+- **Wishlist:** the arrow price chart replaces the deck. It's sparse ("1
+  price observed") until snapshots accumulate.
+- **Local database:** Postgres runs via `docker compose up -d postgres`;
+  `0003_price_snapshots.sql` is applied by hand (the project has no migrate
+  script, only `db:push`).
+- **Tests:** e2e 98/99; "compact masthead decks clear the heading" is a
+  load flake that passes alone.
+
+Follow-ups:
+- **Edition matching:** title search rarely matches editions (2 of 40).
+  Match against the base game's `package_groups` in Steam appdetails
+  instead.
+- **Updates masthead:** still undecided.
+- **Next:** the round-10 audit and reviews.
+- **Later features:** Steam import, then patch alerts (which need a
+  deployment and scheduled job).
+
