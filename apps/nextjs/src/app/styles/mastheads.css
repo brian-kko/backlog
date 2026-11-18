@@ -222,24 +222,31 @@
   /* Lifted and fanned cards may leave the art box; the art itself is masked. */
   .cover-mosaic.is-deck {
     overflow: visible;
+    /* The hand ends where the toolbar begins (64px below the art box with
+       the sample banner, under the toolbar without it), so it reads as
+       tucked behind the controls, never peeking out under them. The top
+       edge stops a lifted card short of the navbar. */
+    clip-path: inset(-28px -480px -64px -480px);
   }
 
   .cover-deck {
-    --card-w: 104px;
-    --card-h: 156px;
+    --card-w: 170px;
+    --card-h: 255px;
     /* --fan is the outermost card's angle; it is shared across the cards so
        the hand keeps its width with 3 or 7 games. */
-    --fan: 9deg;
-    --spread: 4px;
+    --fan: 12deg;
+    --spread: 12px;
     --tilt: calc(var(--fan) / max(1, (var(--count) - 1) / 2));
     position: absolute;
-    left: 50%;
-    bottom: 28px;
+    left: 40%;
+    /* Big cards: the hand reaches below the masthead and tucks under the
+       toolbar, which sits above it (see the stacking rules below). */
+    bottom: -104px;
     width: 0;
     height: var(--card-h);
     pointer-events: auto;
     /* The whole hand is held at an angle, like cards in a player's hand. */
-    transform: rotate(-9deg);
+    transform: rotate(-6deg);
   }
 
   .deck-card {
@@ -249,9 +256,9 @@
     left: calc(var(--card-w) / -2);
     width: var(--card-w);
     height: var(--card-h);
-    border-radius: 10px;
+    border-radius: 12px;
     /* A low pivot puts the fanned cards on an arc, like a held hand. */
-    transform-origin: 50% 220%;
+    transform-origin: 50% 160%;
     transform: translateX(calc(var(--o) * var(--spread)))
       rotate(calc(var(--o) * var(--tilt))) translateY(var(--lift, 0px))
       scale(var(--pop, 1));
@@ -263,44 +270,77 @@
     width: 100%;
     height: 100%;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--card);
     object-fit: cover;
   }
 
   @media (hover: hover) and (pointer: fine) {
     /* The hand fans out when the pointer reaches it… */
-    /* A 14° fan keeps the hand near the 280px art box at laptop widths. */
+    /* A 15° fan keeps the hand inside the content edge at laptop widths. */
     .cover-deck:hover {
-      --fan: 14deg;
-      --spread: 6px;
+      --fan: 15deg;
+      --spread: 12px;
     }
     /* …and the card under the pointer rises out of it. */
     .deck-card:hover {
-      --lift: -28px;
-      --pop: 1.06;
+      --lift: -32px;
+      --pop: 1.05;
       z-index: 10;
+      /* A clear lime ring and a deeper shadow mark the card you're on. */
+      box-shadow:
+        0 0 0 3px var(--signal),
+        0 0 0 9px color-mix(in srgb, var(--signal) 22%, transparent),
+        0 26px 48px rgb(0 0 0 / 0.55);
     }
     .deck-card:hover img {
-      border-color: var(--signal);
+      border-color: transparent;
     }
   }
 
   @media (min-width: 1200px) {
     .cover-deck {
-      --card-w: 124px;
-      --card-h: 186px;
-      bottom: 20px;
+      --card-w: 196px;
+      --card-h: 294px;
+      bottom: -138px;
+      /* Keep the fanned hand clear of the content's right edge. */
+      left: 40%;
     }
     .cover-deck:hover {
-      --fan: 15deg;
-      --spread: 8px;
+      --fan: 17deg;
+      --spread: 22px;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .deck-card {
       transition: none;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .page-heading:has(.is-deck) {
+      padding-right: 344px;
+    }
+    .cover-mosaic.is-deck {
+      width: 320px;
+    }
+    /* Everything after the masthead sits above the deck's lower half. */
+    .page-heading:has(.is-deck) ~ * {
+      position: relative;
+      z-index: 1;
+    }
+    .page-heading:has(.is-deck) ~ .collection-toolbar .segmented {
+      background: var(--card);
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .page-heading:has(.is-deck) {
+      padding-right: 472px;
+    }
+    .cover-mosaic.is-deck {
+      width: 440px;
     }
   }
 
