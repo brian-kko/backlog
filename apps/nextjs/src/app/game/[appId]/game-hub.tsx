@@ -5,7 +5,12 @@ import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@acme/ui";
-import { itemPlatform, platformNames, riotGame } from "@acme/validators";
+import {
+  compareToSteam,
+  itemPlatform,
+  platformNames,
+  riotGame,
+} from "@acme/validators";
 
 import type { Prices } from "~/components/price-ui";
 import { useAmbientTint } from "~/components/ambient";
@@ -150,28 +155,34 @@ function StorePrices({
             </span>
           </li>
         )}
-        {visible.map((deal) => (
-          <li key={deal.dealID}>
-            <a href={deal.url} target="_blank" rel="noreferrer">
-              {storeName(deal.storeID)}
-              <span aria-hidden="true"> ↗</span>
-            </a>
-            <span className="store-price">
-              {steam != null && deal.price < steam && (
-                <span className="store-saving">
-                  −{money(steam - deal.price)}
-                </span>
-              )}
-              {deal.retailPrice > deal.price && (
-                <s>
-                  <span className="sr-only">was </span>
-                  {money(deal.retailPrice)}
-                </s>
-              )}
-              <strong>{price(deal.price)}</strong>
-            </span>
-          </li>
-        ))}
+        {visible.map((deal) => {
+          const comparison =
+            prices.source === "catalog"
+              ? null
+              : compareToSteam(deal.price, steam);
+          return (
+            <li key={deal.dealID}>
+              <a href={deal.url} target="_blank" rel="noreferrer">
+                {storeName(deal.storeID)}
+                <span aria-hidden="true"> ↗</span>
+              </a>
+              <span className="store-price">
+                {comparison?.kind === "cheaper" && (
+                  <span className="store-saving">
+                    −{price(comparison.savingCents / 100)}
+                  </span>
+                )}
+                {deal.retailPrice > deal.price && (
+                  <s>
+                    <span className="sr-only">was </span>
+                    {money(deal.retailPrice)}
+                  </s>
+                )}
+                <strong>{price(deal.price)}</strong>
+              </span>
+            </li>
+          );
+        })}
       </ul>
       {others.length > preview && (
         <button
@@ -443,7 +454,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
                   {lowLabel(prices)}{" "}
                   {prices.historicalLow == null
                     ? "not recorded"
-                    : money(prices.historicalLow)}
+                    : price(prices.historicalLow)}
                   {item && !item.isOwned ? ` · ${targetGap(item, prices)}` : ""}
                 </p>
               </div>

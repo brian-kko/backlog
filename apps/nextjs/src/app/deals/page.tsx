@@ -655,7 +655,7 @@ export default function DealsPage() {
           </p>
         ) : filtered.length ? (
           <DealCards
-            deals={filtered}
+            groups={groups}
             steamPrices={steamPrices.data}
             bestDeals={filters.sort === "deals"}
           />

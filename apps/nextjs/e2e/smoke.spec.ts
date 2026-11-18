@@ -108,8 +108,10 @@ const deals = Array.from({ length: 12 }, (_, index) => ({
   thumb:
     "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1091500/header.jpg",
 }));
+const storeLedgerAppId = 424242;
+
 function fixturePrices(steamAppId: number) {
-  return {
+  const prices = {
     title: titles[steamAppId] ?? "Game",
     currentPrice: 19.99,
     historicalLow: 14.99,
@@ -126,6 +128,32 @@ function fixturePrices(steamAppId: number) {
         savings: 67,
         url: "https://www.cheapshark.com/redirect?dealID=steam-deal",
       },
+    ],
+  };
+  if (steamAppId !== storeLedgerAppId) return prices;
+  return {
+    ...prices,
+    currentPrice: 14.98,
+    historicalLow: 0,
+    steamPrice: 19.99,
+    deals: [
+      {
+        storeID: "25",
+        dealID: "epic-deal",
+        price: 14.98,
+        retailPrice: 59.99,
+        savings: 75,
+        url: "https://www.cheapshark.com/redirect?dealID=epic-deal",
+      },
+      {
+        storeID: "7",
+        dealID: "gog-deal",
+        price: 19.989,
+        retailPrice: 59.99,
+        savings: 67,
+        url: "https://www.cheapshark.com/redirect?dealID=gog-deal",
+      },
+      ...prices.deals,
     ],
   };
 }
@@ -643,6 +671,9 @@ for (const width of [1024, 1440]) {
     await expect(page.locator(".page-stat")).toHaveText(
       "2 of 3 with a Steam price beat it",
     );
+    await expect(page.getByTestId("deal-card").getByRole("heading")).toHaveText(
+      [2, 1, 0, 3, 4, 5, 6].map((index) => `Comparison fixture ${index}`),
+    );
     await expect(page.locator(".deal-grid-pair > .deal-card")).toHaveCount(2);
     for (const card of await page
       .locator(".deal-grid-pair > .deal-card")
@@ -705,6 +736,80 @@ for (const width of [1024, 1440]) {
     await expect(page).toHaveURL(/price=14\.99/);
   });
 }
+
+for (const width of [390, 840, 1024]) {
+  test(`deals contain missing-art thumbnails at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route("**/api/art/1002/**", (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64"/>',
+      }),
+    );
+    const editionTitles = [
+      "Dead Space Digital Deluxe Edition",
+      "LEGO Star Wars: The Skywalker Saga Galactic Edition",
+    ];
+    const offers = deals.slice(1, 3).map((deal, index) => ({
+      ...deal,
+      title: editionTitles[index] ?? deal.title,
+      steamAppId: index === 0 ? null : deal.steamAppId,
+      storeId: "25",
+      cheapestPrice: 6.99,
+      thumb: "",
+    }));
+    await mockDealResults(page, offers, {});
+    await page.goto("/deals");
+    const rows = page.locator(".deal-row");
+    await expect(rows.getByRole("heading")).toHaveText(editionTitles);
+    for (const title of editionTitles) {
+      const row = rows.filter({
+        has: page.getByRole("heading", { name: title, exact: true }),
+      });
+      const art = row.getByRole("img", { name: title, exact: true });
+      await expect(art).toHaveClass(/\bartwork-placeholder\b/);
+      await expect(art.locator("span")).toHaveCSS("display", "none");
+      await expect(art).toHaveCSS("padding", "0px");
+      await expect(art).toHaveCSS("background-size", "22px 22px, auto");
+      await expect(art).toHaveCSS("width", width === 390 ? "96px" : "120px");
+      await expect(art).toHaveCSS("height", width === 390 ? "45px" : "56px");
+      expect(
+        await art.evaluate(
+          (tile) =>
+            tile.scrollHeight <= tile.clientHeight &&
+            tile.scrollWidth <= tile.clientWidth,
+        ),
+      ).toBe(true);
+    }
+  });
+}
+
+test("deal controls change color instantly and the masthead drifts in 250ms", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/deals");
+  const nav = page.getByTestId("nav-deals");
+  await expect(nav).toHaveCSS("transition-duration", "0s");
+  await expect(
+    page.getByRole("button", { name: "Under $15", exact: true }),
+  ).toHaveCSS("transition-duration", "0s");
+  await page.locator(".store-picker summary").click();
+  await expect(
+    page.getByRole("button", { name: "All stores", exact: true }),
+  ).toHaveCSS("transition-duration", "0s");
+  await expect(page.locator(".cover-mosaic-hero")).toHaveCSS(
+    "transition-property",
+    "transform",
+  );
+  await expect(page.locator(".cover-mosaic-hero")).toHaveCSS(
+    "transition-duration",
+    "0.25s",
+  );
+});
 
 for (const width of [768, 840, 1024, 1440]) {
   test(`a singleton matched deal stays compact at ${width}px`, async ({
@@ -1250,6 +1355,23 @@ test("dynamic game hub displays prices, news, tracking and desktop launch", asyn
     page.getByText(
       "Price not recorded at GOG · plays on GOG Galaxy (unconfirmed)",
     ),
+  ).toBeVisible();
+});
+
+test("game store prices compare whole cents and show a free historical low", async ({
+  page,
+}) => {
+  await page.goto(`/game/${storeLedgerAppId}`);
+  const ledger = page.locator(".store-prices");
+  await expect(ledger.locator(".store-baseline strong")).toHaveText("$19.99");
+  const gog = ledger.getByRole("listitem").filter({
+    has: page.getByRole("link", { name: "GOG", exact: true }),
+  });
+  await expect(gog.locator("strong")).toHaveText("$19.99");
+  await expect(gog.locator(".store-saving")).toHaveCount(0);
+  await expect(ledger.locator(".store-saving")).toHaveText("−$5.01");
+  await expect(
+    page.getByText("Lowest ever Free", { exact: true }),
   ).toBeVisible();
 });
 
