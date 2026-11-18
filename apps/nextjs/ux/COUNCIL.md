@@ -151,4 +151,11 @@ for the reset. Opus reviews round 6 alone. Claude makes its fixes directly, not
 through Codex workers. When Codex is back: run the astra review (step 2 above)
 on the latest audit, then resume Codex workers.
 
+**Paused on the owner's request (2026-11-17) until Codex resets.** The last
+round-6 audit stopped early: the new logo check threw an error and aborted
+the run. Fixed since then (the check now records its result; the logo
+cut-off is 1.6, because Steam's 640×360 wordmarks are 1.78:1). Resume: run
+`pnpm --filter @acme/nextjs ux:audit`, then the astra and Opus round-6
+reviews.
+
 **Still open:** see the round-5 reviews (the workers above cover every blocking fix).

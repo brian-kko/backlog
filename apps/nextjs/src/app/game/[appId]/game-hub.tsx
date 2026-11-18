@@ -252,7 +252,9 @@ function HeroTitle({
   const [mode, setMode] = useState<"logo" | "text">("logo");
   const ref = useRef<HTMLImageElement>(null);
   const evaluate = useCallback((image: HTMLImageElement) => {
-    setMode(image.naturalWidth < image.naturalHeight * 2.5 ? "text" : "logo");
+    // Steam pads wordmarks onto a 640×360 canvas (1.78:1), so only
+    // near-square art (emblems) counts as "no usable wordmark".
+    setMode(image.naturalWidth < image.naturalHeight * 1.6 ? "text" : "logo");
   }, []);
   useEffect(() => {
     // Cached images can finish before React attaches the load handler.

@@ -378,14 +378,15 @@ async function auditPage(
     (viewport === "desktop" || viewport === "laptop") &&
     (route === "/game/1091500" || route === "/game/1422450")
   ) {
-    const title = page.locator(".hero-title");
-    const hasLogo = route === "/game/1091500";
-    if (hasLogo) await expect(title).toHaveClass(/\bhas-logo\b/);
-    else await expect(title).not.toHaveClass(/\bhas-logo\b/);
+    const expected = route === "/game/1091500";
+    const actual = await page
+      .locator(".hero-title")
+      .evaluate((element) => element.classList.contains("has-logo"));
+    // Recorded, not thrown, so one miss doesn't abort the whole audit.
     checks.push({
       name: `${id}: game title uses the expected logo treatment`,
-      pass: true,
-      detail: `${hasLogo ? "Cyberpunk" : "Deadlock"}: has-logo=${hasLogo}`,
+      pass: actual === expected,
+      detail: `${expected ? "Cyberpunk" : "Deadlock"}: expected has-logo=${expected}, got ${actual}`,
     });
   }
   const shot = await shoot(page, id);
