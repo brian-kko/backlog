@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -448,16 +448,26 @@ export function TrackActions({
   );
 }
 
+/**
+ * The art resolver answers 200 with a 96×64 plate when Steam has no image,
+ * so `onError` never fires; callers check the loaded size instead.
+ */
+export const isFallbackArt = (image: HTMLImageElement) =>
+  image.naturalWidth === 96 && image.naturalHeight === 64;
+
 export function GameArt({
   appId,
   title,
   src,
   priority = false,
+  onMissing,
 }: {
   appId?: number | null;
   title: string;
   src?: string;
   priority?: boolean;
+  /** Called when no real artwork exists (only the placeholder can show). */
+  onMissing?: () => void;
 }) {
   const [failed, setFailed] = useState<string[]>([]);
   // A blank thumbnail string falls back to the Steam header art.
@@ -466,8 +476,22 @@ export function GameArt({
   const resolved = [primary, appId ? headerArt(appId) : undefined].find(
     (value) => value && !failed.includes(value),
   );
+  const reject = useCallback(
+    (value: string) =>
+      setFailed((values) =>
+        values.includes(value) ? values : [...values, value],
+      ),
+    [],
+  );
+  useEffect(() => {
+    if (!resolved) onMissing?.();
+  }, [resolved, onMissing]);
   return resolved ? (
     <Image
+      ref={(image) => {
+        // Images that finish before hydration never fire onLoad.
+        if (image?.complete && isFallbackArt(image)) reject(resolved);
+      }}
       className="game-art"
       src={resolved}
       alt={title}
@@ -476,7 +500,10 @@ export function GameArt({
       unoptimized
       priority={priority}
       loading={priority ? "eager" : "lazy"}
-      onError={() => setFailed((values) => [...values, resolved])}
+      onLoad={(event) => {
+        if (isFallbackArt(event.currentTarget)) reject(resolved);
+      }}
+      onError={() => reject(resolved)}
     />
   ) : (
     <div className="game-art artwork-placeholder" role="img" aria-label={title}>
@@ -640,13 +667,6 @@ export function GameLink({
     </Link>
   );
 }
-
-/**
- * The art resolver answers 200 with a 96×64 plate when Steam has no image,
- * so `onError` never fires; callers check the loaded size instead.
- */
-export const isFallbackArt = (image: HTMLImageElement) =>
-  image.naturalWidth === 96 && image.naturalHeight === 64;
 
 function MastheadHero({ appId }: { appId: number }) {
   const [source, setSource] = useState<"hero" | "header" | "hidden">("hero");
