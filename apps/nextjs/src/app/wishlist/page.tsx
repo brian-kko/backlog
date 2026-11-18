@@ -9,6 +9,7 @@ import type { BacklogItem } from "~/components/backlog-provider";
 import type { AlertState, Prices, PriceState } from "~/components/price-ui";
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
+import { EmptyArt } from "~/components/empty-art";
 import {
   GameArt,
   GameLink,
@@ -716,6 +717,7 @@ export default function WishlistPage() {
           <p className="empty-state">No games match your search.</p>
         ) : (
           <div className="empty-state space-y-4">
+            <EmptyArt name="wishlist" />
             <p>
               Your wishlist is empty. Add a game to compare its price across
               stores and get flagged when it drops.

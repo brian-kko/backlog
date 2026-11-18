@@ -1,0 +1,102 @@
+@layer components {
+  /* Empty-state illustrations: themed through --art-*, decorative only. */
+  .empty-art {
+    --art-ink: var(--foreground);
+    --art-muted: var(--muted-foreground);
+    --art-accent: var(--signal);
+    color: var(--foreground);
+    width: min(240px, 72%);
+    margin: 0 auto 4px;
+  }
+
+  .empty-art svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Gentle loops that play a few times and then rest: transform/opacity
+     only, and none at all with reduced motion. */
+  .empty-art :is(.ea-cart, .ea-slot-glow, .ea-tag, .ea-target, .ea-lens) {
+    transform-box: fill-box;
+    animation-timing-function: ease-in-out;
+    animation-direction: alternate;
+    animation-iteration-count: 4;
+  }
+  .empty-art :is(.ea-arc1, .ea-arc2, .ea-arc3) {
+    animation: ea-signal 2.4s ease-in-out 4 alternate;
+  }
+  .empty-art .ea-arc2 {
+    animation-delay: 0.3s;
+  }
+  .empty-art .ea-arc3 {
+    animation-delay: 0.6s;
+  }
+  .empty-art .ea-cart {
+    transform-origin: center;
+    animation-name: ea-bob;
+    animation-duration: 3s;
+  }
+  .empty-art .ea-slot-glow {
+    animation-name: ea-glow;
+    animation-duration: 3s;
+  }
+  .empty-art .ea-tag {
+    transform-origin: 50% 0%;
+    animation-name: ea-swing;
+    animation-duration: 3.2s;
+  }
+  .empty-art .ea-target {
+    transform-origin: center;
+    animation-name: ea-pulse;
+    animation-duration: 2.4s;
+  }
+  .empty-art .ea-lens {
+    animation-name: ea-sweep;
+    animation-duration: 3.6s;
+  }
+
+  @keyframes ea-bob {
+    to {
+      transform: translateY(4px);
+    }
+  }
+  @keyframes ea-glow {
+    from {
+      opacity: 0.5;
+    }
+  }
+  @keyframes ea-swing {
+    from {
+      transform: rotate(-4deg);
+    }
+    to {
+      transform: rotate(4deg);
+    }
+  }
+  @keyframes ea-pulse {
+    from {
+      transform: scale(0.94);
+      opacity: 0.6;
+    }
+  }
+  @keyframes ea-sweep {
+    from {
+      transform: translateX(-6px);
+    }
+    to {
+      transform: translateX(6px);
+    }
+  }
+  @keyframes ea-signal {
+    from {
+      opacity: 0.35;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .empty-art * {
+      animation: none !important;
+    }
+  }
+}

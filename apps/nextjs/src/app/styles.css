@@ -9,6 +9,7 @@
 @import "./styles/patch.css";
 @import "./styles/home.css";
 @import "./styles/chrome.css";
+@import "./styles/art.css";
 
 @source "../../../../packages/ui/src/*.{ts,tsx}";
 

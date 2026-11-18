@@ -9,6 +9,7 @@ import { SearchDealsInputSchema, storeNames } from "@acme/validators";
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { DealCards, groupDeals, steamGap } from "~/components/deal-cards";
+import { EmptyArt } from "~/components/empty-art";
 import { GameArt, PageHeading, plural, price } from "~/components/game-ui";
 import {
   bestOffer,
@@ -664,6 +665,7 @@ export default function DealsPage() {
           />
         ) : cached && !loaded.length ? null : (
           <div className="empty-state space-y-3">
+            <EmptyArt name="deals" />
             <p>
               {loaded.length
                 ? "None of the offers loaded so far match your filters."

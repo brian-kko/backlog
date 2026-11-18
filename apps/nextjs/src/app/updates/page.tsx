@@ -6,6 +6,7 @@ import type { NewsTab } from "../_components/backlog-feed";
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { followedGames } from "~/components/collection";
+import { EmptyArt } from "~/components/empty-art";
 import { PageHeading } from "~/components/game-ui";
 import { markNewsSeen, useNewsSeen } from "~/components/news-seen";
 import {
@@ -102,6 +103,7 @@ export default function UpdatesPage() {
       </PageHeading>
       {!isLoading && !games.length ? (
         <div className="empty-state space-y-4">
+          <EmptyArt name="updates" />
           <p>
             Add games to your library or wishlist and their patch notes and
             events will appear here.

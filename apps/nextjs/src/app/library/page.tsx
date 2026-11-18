@@ -18,6 +18,7 @@ import type { BacklogItem } from "~/components/backlog-provider";
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { canLaunch } from "~/components/collection";
+import { EmptyArt } from "~/components/empty-art";
 import {
   GameArt,
   GameLink,
@@ -682,6 +683,7 @@ export default function LibraryPage() {
         <p role="status">Loading your library…</p>
       ) : !ownedAll.length ? (
         <div className="empty-state space-y-4">
+          <EmptyArt name="library" />
           <p>
             Your library is empty. Add the games you own to track progress and
             spending across stores.
