@@ -96,20 +96,6 @@ function ResultRow({
           </p>
         )}
       </div>
-      {added && (
-        <div className="col-span-full">
-          {added === "wishlist" ? (
-            <TargetPrompt
-              steamAppId={game.steamAppId}
-              title={game.title}
-              bestPrice={game.price}
-              priceLabel="Steam price"
-            />
-          ) : (
-            <OwnPrompt steamAppId={game.steamAppId} title={game.title} />
-          )}
-        </div>
-      )}
       <div className="search-result-actions">
         {existing && isSample(existing.steamAppId) ? (
           <button
@@ -154,6 +140,21 @@ function ResultRow({
           </>
         )}
       </div>
+      {/* After the actions, so they keep their column beside the result. */}
+      {added && (
+        <div className="col-span-full">
+          {added === "wishlist" ? (
+            <TargetPrompt
+              steamAppId={game.steamAppId}
+              title={game.title}
+              bestPrice={game.price}
+              priceLabel="Steam price"
+            />
+          ) : (
+            <OwnPrompt steamAppId={game.steamAppId} title={game.title} />
+          )}
+        </div>
+      )}
     </li>
   );
 }

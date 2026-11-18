@@ -4,6 +4,9 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
+  // The dev server compiles a route on its first visit; with every worker
+  // navigating at once that can pass the default 5s.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: "http://localhost:3000",
     // Functional tests run without decorative motion; the UX audit

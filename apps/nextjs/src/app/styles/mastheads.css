@@ -221,12 +221,29 @@
   /* ---------- Library deck: the top games as a hand of cards ---------- */
   /* Lifted and fanned cards may leave the art box; the art itself is masked. */
   .cover-mosaic.is-deck {
+    --mosaic-w: 320px;
     overflow: visible;
-    /* The hand ends where the toolbar begins (64px below the art box with
-       the sample banner, under the toolbar without it), so it reads as
-       tucked behind the controls, never peeking out under them. The top
-       edge stops a lifted card short of the navbar. */
-    clip-path: inset(-28px -480px -64px -480px);
+  }
+
+  /* The hand fades out over its last 96px and is gone where the toolbar
+     begins (64px below the art box with the sample banner, under the
+     toolbar without it), so it dissolves behind the controls instead of
+     ending on a line. The box's top edge keeps a lifted card off the
+     navbar; its sides leave room for the fanned hand. */
+  .deck-fade {
+    position: absolute;
+    /* Wide to the left for the fanned hand; barely past the content edge
+       on the right, so it never causes sideways scrolling. */
+    inset: -28px -16px -64px -200px;
+    /* Transformed (lifted, fanned) cards must not widen the page. */
+    overflow: clip;
+    pointer-events: none;
+    mask-image: linear-gradient(
+      to bottom,
+      #000 calc(100% - 96px),
+      rgb(0 0 0 / 0.35) calc(100% - 36px),
+      transparent
+    );
   }
 
   .cover-deck {
@@ -238,10 +255,13 @@
     --spread: 12px;
     --tilt: calc(var(--fan) / max(1, (var(--count) - 1) / 2));
     position: absolute;
-    left: 40%;
+    /* Left of centre in the art box (the fade box starts 200px to its
+       left), so the fanned hand's right edge stays inside the content. */
+    left: calc(200px + var(--mosaic-w) * var(--deck-x, 0.34));
     /* Big cards: the hand reaches below the masthead and tucks under the
-       toolbar, which sits above it (see the stacking rules below). */
-    bottom: -104px;
+       toolbar, which sits above it (see the stacking rules below). Offsets
+       are from the fade box, whose bottom is 64px below the art box. */
+    bottom: -40px;
     width: 0;
     height: var(--card-h);
     pointer-events: auto;
@@ -302,9 +322,8 @@
     .cover-deck {
       --card-w: 196px;
       --card-h: 294px;
-      bottom: -138px;
-      /* Keep the fanned hand clear of the content's right edge. */
-      left: 40%;
+      --deck-x: 0.4;
+      bottom: -74px;
     }
     .cover-deck:hover {
       --fan: 17deg;
@@ -323,7 +342,8 @@
       padding-right: 344px;
     }
     .cover-mosaic.is-deck {
-      width: 320px;
+      --mosaic-w: 320px;
+      width: var(--mosaic-w);
     }
     /* Everything after the masthead sits above the deck's lower half. */
     .page-heading:has(.is-deck) ~ * {
@@ -340,7 +360,8 @@
       padding-right: 472px;
     }
     .cover-mosaic.is-deck {
-      width: 440px;
+      --mosaic-w: 440px;
+      width: var(--mosaic-w);
     }
   }
 

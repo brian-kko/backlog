@@ -1739,7 +1739,7 @@ test("signed in library uses account data and exports the server backup", async 
   await owned.getByRole("button", { name: "I own this", exact: true }).click();
   // The card stays put so purchase details can be added; nothing is assumed.
   await expect(page.getByTestId("deal-card")).toHaveCount(11);
-  await expect(owned.getByText("Added to your library.")).toBeVisible();
+  await expect(owned.getByText("Added to your library")).toBeVisible();
   await expect(
     owned.getByLabel("Amount paid for Featured Game 1", { exact: true }),
   ).toHaveValue("");
@@ -2223,7 +2223,7 @@ test("wishlist moves stay coherent while saves are slow or fail", async ({
   await expect(panel.getByRole("button", { name: "Done" })).toBeDisabled();
   await expect(panel.getByRole("button", { name: "Undo" })).toBeDisabled();
   gates[1]?.();
-  await expect(panel.getByText("Saved.")).toBeVisible();
+  await expect(panel.locator(".save-status")).toContainText("Saved");
   await expect(panel.getByRole("button", { name: "Done" })).toBeEnabled();
   await page.unroute("**/api/trpc/**upsertBacklogItem**");
   // A failed purchase-detail save stays visible.
@@ -2241,7 +2241,7 @@ test("wishlist moves stay coherent while saves are slow or fail", async ({
   ).toBeVisible();
   await page.unroute("**/api/trpc/**upsertBacklogItem**");
   // A failed store write followed by a successful launcher write must not
-  // announce "Saved."; retrying the store clears its error.
+  // announce "Saved"; retrying the store clears its error.
   let calls = 0;
   await page.route("**/api/trpc/**upsertBacklogItem**", async (route) => {
     calls += 1;
@@ -2260,7 +2260,7 @@ test("wishlist moves stay coherent while saves are slow or fail", async ({
       "Couldn’t save the amount paid and store. Try changing them again.",
     ),
   ).toBeVisible();
-  await expect(panel.getByText("Saved.")).toHaveCount(0);
+  await expect(panel.locator(".save-status-text.is-saved")).toHaveCount(0);
   await panel
     .getByLabel("Store Cyberpunk 2077 was bought from", { exact: true })
     .selectOption("fanatical");
@@ -2274,7 +2274,10 @@ test("wishlist moves stay coherent while saves are slow or fail", async ({
     .getByLabel("Amount paid for Cyberpunk 2077", { exact: true })
     .press("Tab");
   await expect(panel.getByRole("alert")).toHaveCount(0);
-  await expect(panel.getByText("Saved.")).toBeVisible();
+  // The confirmation names what was stored.
+  await expect(panel.locator(".save-status")).toContainText(
+    "Saved: Paid $6.00",
+  );
   await page.unroute("**/api/trpc/**upsertBacklogItem**");
   // Undo returns the card and puts focus back on its button.
   await panel.getByRole("button", { name: "Undo" }).click();

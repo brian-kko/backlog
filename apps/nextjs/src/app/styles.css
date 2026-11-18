@@ -447,6 +447,14 @@
     color: var(--signal);
     @apply min-h-5 text-xs;
   }
+  /* Any "Saved." message reads as a clear confirmation, not a footnote. */
+  .save-feedback:not(:empty) {
+    @apply rounded-full px-2.5 py-0.5 text-[13px] font-semibold;
+    width: fit-content;
+    color: color-mix(in srgb, var(--signal) 70%, var(--foreground));
+    background: color-mix(in srgb, var(--signal) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--signal) 40%, transparent);
+  }
   .save-state {
     @apply text-muted-foreground text-xs;
   }
@@ -1431,6 +1439,42 @@
   }
   .own-prompt-title {
     @apply text-muted-foreground col-span-full text-xs;
+  }
+  /* Follow-up after adding a game: say plainly that it worked, then confirm
+     each detail as it saves. */
+  .target-prompt {
+    @apply grid gap-2 pt-1;
+  }
+  .prompt-added {
+    @apply col-span-full flex items-center gap-1.5 text-sm font-semibold;
+  }
+  .prompt-added > span {
+    color: var(--signal);
+  }
+  .save-status {
+    @apply min-h-7;
+  }
+  .save-status-text {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[13px];
+    color: var(--muted-foreground);
+  }
+  .save-status-text.is-saved {
+    @apply font-semibold;
+    color: color-mix(in srgb, var(--signal) 70%, var(--foreground));
+    background: color-mix(in srgb, var(--signal) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--signal) 40%, transparent);
+    animation: save-pop 240ms ease-out;
+  }
+  @keyframes save-pop {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.97);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .save-status-text.is-saved {
+      animation: none;
+    }
   }
   .card-heading {
     @apply flex items-start justify-between gap-2;

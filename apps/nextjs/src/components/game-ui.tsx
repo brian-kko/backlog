@@ -121,6 +121,34 @@ export function FreePriceNotice({
 }
 
 /** After wishlisting, asks for a target only when there is a price to watch. */
+/**
+ * One clear confirmation for follow-up details: "Saving…", then a check and
+ * what was saved, re-announced (and re-animated) on every save.
+ */
+function SaveStatus({
+  state,
+  count,
+  children,
+}: {
+  state: "idle" | "saving" | "saved";
+  count: number;
+  children?: React.ReactNode;
+}) {
+  // The live region stays mounted (so it's announced); only its content is
+  // keyed, which replays the pop-in on each save.
+  return (
+    <p role="status" className="save-status col-span-full">
+      {state === "saving" ? (
+        <span className="save-status-text">Saving…</span>
+      ) : state === "saved" ? (
+        <span key={count} className="save-status-text is-saved">
+          <span aria-hidden="true">✓</span> {children ?? "Saved"}
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
 export function TargetPrompt({
   steamAppId,
   title,
@@ -140,6 +168,8 @@ export function TargetPrompt({
 }) {
   const trpc = useTRPC();
   const { items, save } = useBacklog();
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saves, setSaves] = useState(0);
   const item = items.find((value) => value.steamAppId === steamAppId);
   // Search results do not pass their source; verify a zero before claiming free.
   const verify = bestPrice === 0 && saved === undefined && !offer?.source;
@@ -186,19 +216,37 @@ export function TargetPrompt({
     );
   }
   return (
-    <PriceField
-      label="Your target price (optional)"
-      ariaLabel={`Target price for ${title}`}
-      value={item.targetPrice}
-      hint={
-        currentPrice != null
-          ? `${currentLabel} ${price(currentPrice)}. Leave blank to be flagged at its lowest ever price.`
-          : "Leave blank to be flagged at its lowest ever price."
-      }
-      onSave={(targetPrice) =>
-        save({ steamAppId, title, isOwned: false, targetPrice })
-      }
-    />
+    <div className="target-prompt">
+      <p className="prompt-added">
+        <span aria-hidden="true">✓</span> Added to your wishlist
+      </p>
+      <PriceField
+        label="Your target price (optional)"
+        ariaLabel={`Target price for ${title}`}
+        value={item.targetPrice}
+        hint={
+          currentPrice != null
+            ? `${currentLabel} ${price(currentPrice)}. Leave blank to be flagged at its lowest ever price.`
+            : "Leave blank to be flagged at its lowest ever price."
+        }
+        onSave={async (targetPrice) => {
+          setStatus("saving");
+          try {
+            await save({ steamAppId, title, isOwned: false, targetPrice });
+            setStatus("saved");
+            setSaves((value) => value + 1);
+          } catch (failure) {
+            setStatus("idle");
+            throw failure;
+          }
+        }}
+      />
+      <SaveStatus state={status} count={saves}>
+        {item.targetPrice == null
+          ? "Target cleared: you’ll be flagged at its lowest ever price"
+          : `Target saved: we’ll flag ${title} at ${price(item.targetPrice)} or less`}
+      </SaveStatus>
+    </div>
   );
 }
 
@@ -227,6 +275,7 @@ export function OwnPrompt({
   // field clears it, so an unrelated success can't mask a failure.
   const [failedFields, setFailedFields] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saves, setSaves] = useState(0);
   // Counts overlapping writes; "Saved." and the parent's pending flag only
   // settle once every outstanding write has finished.
   const outstanding = useRef(0);
@@ -254,6 +303,7 @@ export function OwnPrompt({
       outstanding.current -= 1;
       if (outstanding.current === 0) {
         setStatus(failures.current.size ? "idle" : "saved");
+        if (!failures.current.size) setSaves((value) => value + 1);
         onPendingChange?.(false);
       }
     }
@@ -269,13 +319,22 @@ export function OwnPrompt({
     paid != null &&
     item.amountPaid === undefined &&
     item.purchaseStore === undefined;
+  // Name what is now stored, so "Saved" is never ambiguous.
+  const summary = [
+    item.amountPaid != null &&
+      (item.amountPaid === 0
+        ? "Got it free"
+        : `Paid ${price(item.amountPaid)}`),
+    item.purchaseStore && `from ${purchaseStoreNames[item.purchaseStore]}`,
+    item.platform && `plays on ${platformNames[item.platform]}`,
+  ].filter(Boolean);
   return (
     <div className="own-prompt">
+      <p className="prompt-added">
+        <span aria-hidden="true">✓</span> Added to your library
+      </p>
       <p className="own-prompt-title">
-        Added to your library. Add purchase details (optional):{" "}
-        <span role="status" className="save-feedback">
-          {status === "saving" ? "Saving…" : status === "saved" ? "Saved." : ""}
-        </span>
+        Purchase details are optional and save as you change them.
       </p>
       {suggest && (
         <button
@@ -347,6 +406,9 @@ export function OwnPrompt({
           ))}
         </select>
       </label>
+      <SaveStatus state={status} count={saves}>
+        {summary.length ? `Saved: ${summary.join(" · ")}` : "Saved"}
+      </SaveStatus>
       {error && (
         <p role="alert" className="field-error col-span-full">
           {error}
@@ -801,40 +863,44 @@ function CoverDeck({
   return (
     <div className="cover-mosaic is-deck" aria-hidden="true">
       <MastheadHero key={lead.steamAppId} appId={lead.steamAppId} />
-      <div
-        className="cover-deck"
-        style={{ "--count": shown.length } as React.CSSProperties}
-      >
-        {shown.map((card, index) => (
-          <Link
-            key={card.steamAppId}
-            className="deck-card"
-            href={`/game/${card.steamAppId}`}
-            tabIndex={-1}
-            title={card.title}
-            style={{ "--i": index } as React.CSSProperties}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              ref={(image) => {
-                if (
-                  image?.complete &&
-                  (image.naturalWidth === 0 || isFallbackArt(image))
-                )
-                  reject(card.steamAppId);
-              }}
-              src={coverArt(card.steamAppId)}
-              alt=""
-              width={216}
-              height={324}
-              decoding="async"
-              onLoad={(event) => {
-                if (isFallbackArt(event.currentTarget)) reject(card.steamAppId);
-              }}
-              onError={() => reject(card.steamAppId)}
-            />
-          </Link>
-        ))}
+      {/* Fades the hand out as it slides under the toolbar. */}
+      <div className="deck-fade">
+        <div
+          className="cover-deck"
+          style={{ "--count": shown.length } as React.CSSProperties}
+        >
+          {shown.map((card, index) => (
+            <Link
+              key={card.steamAppId}
+              className="deck-card"
+              href={`/game/${card.steamAppId}`}
+              tabIndex={-1}
+              title={card.title}
+              style={{ "--i": index } as React.CSSProperties}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                ref={(image) => {
+                  if (
+                    image?.complete &&
+                    (image.naturalWidth === 0 || isFallbackArt(image))
+                  )
+                    reject(card.steamAppId);
+                }}
+                src={coverArt(card.steamAppId)}
+                alt=""
+                width={216}
+                height={324}
+                decoding="async"
+                onLoad={(event) => {
+                  if (isFallbackArt(event.currentTarget))
+                    reject(card.steamAppId);
+                }}
+                onError={() => reject(card.steamAppId)}
+              />
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );
