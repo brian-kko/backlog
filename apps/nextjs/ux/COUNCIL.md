@@ -84,6 +84,7 @@ KEEP (what must not regress)
 | 3     | 8.7   | 8.4  | Mastheads, cinematic heroes, spotlight, Gemuzu rename, boot animation                           |
 | 4     | 9.1   | 8.7  | Codex workers: masthead art, deals billboard, wishlist cards, updates, patch reader; gate fixes |
 | 5     | 9.0 (9.2 capped) | 8.9 | All round-4 fixes in; astra capped by honesty (free follow-up store) and stability (art 404s) |
+| 6     | 9.4   | 9.1  | All gates pass; open: hashed Steam art, singleton deal card, nav/back link over hero, digest "would" bug, phone edition rows |
 
 ## Status and open items
 
@@ -146,16 +147,22 @@ wishlist, updates, art-audit (each covers its round-5 blocking fixes; see
 `ux/reviews/*-r5.md`). Checks pass: validators (154 tests), typecheck,
 e2e (61).
 
-**Codex usage ran out on 2026-11-17** (2% left). The round-6 astra review waits
-for the reset. Opus reviews round 6 alone. Claude makes its fixes directly, not
-through Codex workers. When Codex is back: run the astra review (step 2 above)
-on the latest audit, then resume Codex workers.
+**Round 6 (2026-11-17): astra 9.4, Opus 9.1, every gate passes.** Reviews:
+`ux/reviews/astra-r6.md`, `ux/reviews/opus-r6.md`. Round-7 workers (specs in
+`../gemuzu-wt/specs7/`, worktrees `../gemuzu-wt/<task>`, branches
+`codex/<task>`):
 
-**Paused on the owner's request (2026-11-17) until Codex resets.** The last
-round-6 audit stopped early: the new logo check threw an error and aborted
-the run. Fixed since then (the check now records its result; the logo
-cut-off is 1.6, because Steam's 640×360 wordmarks are 1.78:1). Resume: run
-`pnpm --filter @acme/nextjs ux:audit`, then the astra and Opus round-6
-reviews.
+- `art`: resolve hashed Steam art via appdetails; hide fallback covers in
+  the masthead (astra 4, Opus 1, resolver and masthead side).
+- `deal-layout`: singleton matched card from 768px, phone edition rows,
+  billboard without art (astra 3 + 4 billboard side, Opus 1 billboard side,
+  Opus 2, Opus 4).
+- `chrome`: readable wrapped nav over game heroes at 640–1023px, touch back-link
+  spacing and arrow (astra 1, Opus 3).
+- `digest`: "Fixed … would occur" leads, no generic subjects, Known Issues
+  aren't changes, bounded fallback excerpt, phone topic separator (astra 2,
+  Opus 5).
 
-**Still open:** see the round-5 reviews (the workers above cover every blocking fix).
+`isFallbackArt` (game-ui.tsx) and the `X-Gemuzu-Art: fallback` header were
+added before the workers branched. Next: merge workers, verify, re-audit,
+round-7 reviews.
