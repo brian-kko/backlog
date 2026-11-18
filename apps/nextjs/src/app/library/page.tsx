@@ -611,6 +611,7 @@ export default function LibraryPage() {
           ) : null
         }
         deck={deckGames(ownedAll)}
+        deckTucked
       >
         Every game you own, how far you’ve got, and what you paid at each store.
       </PageHeading>

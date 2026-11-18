@@ -797,128 +797,140 @@ function MastheadHero({ appId }: { appId: number }) {
   );
 }
 
+/** One card in a masthead deck: a Steam (or Riot) game, or a store offer. */
+export interface DeckCard {
+  steamAppId?: number | null;
+  title: string;
+  /** Offer art for editions without a Steam game (Deals). */
+  image?: string;
+}
+
+const deckKey = (card: DeckCard) =>
+  card.steamAppId != null
+    ? String(card.steamAppId)
+    : (card.image ?? card.title);
+
 /**
- * Portrait cover first, then the wide header cropped to the card (Riot's
- * games and newer Steam apps have no portrait cover), then nothing.
+ * Portrait cover first, then the wide hero cropped to the card (Riot's games
+ * and newer Steam apps have no portrait cover; the hero is logo-free and the
+ * resolver falls back to the header), then nothing. Offer art has one try.
  */
 function useCoverFallbacks() {
-  const [stages, setStages] = useState<Record<number, number>>({});
-  const stage = (appId: number) => stages[appId] ?? 0;
-  const reject = (appId: number, from: number) =>
+  const [stages, setStages] = useState<Record<string, number>>({});
+  const stage = (card: DeckCard) => stages[deckKey(card)] ?? 0;
+  const reject = (card: DeckCard) => {
+    const key = deckKey(card);
+    const from = stage(card);
     setStages((values) =>
-      (values[appId] ?? 0) === from ? { ...values, [appId]: from + 1 } : values,
+      (values[key] ?? 0) === from ? { ...values, [key]: from + 1 } : values,
     );
-  const source = (appId: number) =>
-    stage(appId) === 0 ? coverArt(appId) : headerArt(appId);
-  return { stage, reject, source, gone: (appId: number) => stage(appId) > 1 };
-}
-
-/** The page's own games, composed in a separate decorative art region. */
-export function CoverMosaic({ appIds }: { appIds: number[] }) {
-  const covers = useCoverFallbacks();
-  const lead = appIds[0];
-  if (lead === undefined) return null;
-  const shownCovers = appIds.slice(1, 4);
-  return (
-    <div className="cover-mosaic" aria-hidden="true">
-      <MastheadHero key={lead} appId={lead} />
-      <div className="cover-mosaic-track">
-        {shownCovers.map((appId, index) =>
-          covers.gone(appId) ? null : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={`${appId}-${index}-${covers.stage(appId)}`}
-              ref={(image) => {
-                // Cached images may finish before hydration attaches onLoad.
-                if (
-                  image?.complete &&
-                  (image.naturalWidth === 0 || isFallbackArt(image))
-                )
-                  covers.reject(appId, covers.stage(appId));
-              }}
-              src={covers.source(appId)}
-              alt=""
-              width={88}
-              height={132}
-              loading="lazy"
-              decoding="async"
-              onLoad={(event) => {
-                if (isFallbackArt(event.currentTarget))
-                  covers.reject(appId, covers.stage(appId));
-              }}
-              onError={() => covers.reject(appId, covers.stage(appId))}
-            />
-          ),
-        )}
-      </div>
-    </div>
-  );
+  };
+  const source = (card: DeckCard) =>
+    card.steamAppId == null
+      ? card.image
+      : stage(card) === 0
+        ? coverArt(card.steamAppId)
+        : libraryHero(card.steamAppId);
+  const gone = (card: DeckCard) =>
+    card.steamAppId == null ? !card.image || stage(card) > 0 : stage(card) > 1;
+  return { stage, reject, source, gone };
 }
 
 /**
- * The Library's masthead art: the top games as a hand of cards. The deck
- * fans out on hover and the card under the pointer lifts, like a card game.
- * Mouse users can click a card to open the game; keyboard and screen-reader
- * users get the same games in the grid below, so the deck stays decorative.
+ * Masthead art on every main page: the page's own games as a hand of cards.
+ * The deck fans out on hover and the card under the pointer lifts, like a
+ * card game. Hovering uses fixed, invisible hit areas (one per card, in deck
+ * order) that never move or restack, so a lifted card can't cover its
+ * neighbours' slivers and the pointer never skips a card. Mouse users can
+ * click a game's card to open it; keyboard and screen-reader users reach the
+ * same games in the page itself, so the deck stays decorative.
  */
 function CoverDeck({
-  cards,
+  cards: all,
+  tucked = false,
 }: {
-  cards: { steamAppId: number; title: string }[];
+  cards: DeckCard[];
+  /** Run the hand under a solid toolbar that follows (Library). */
+  tucked?: boolean;
 }) {
   const covers = useCoverFallbacks();
-  const lead = cards[0];
-  if (!lead) return null;
-  const shown = cards.filter((card) => !covers.gone(card.steamAppId));
+  const [active, setActive] = useState<number | null>(null);
+  const cards = all
+    .filter(
+      (card, index) =>
+        all.findIndex((other) => deckKey(other) === deckKey(card)) === index,
+    )
+    .slice(0, 7);
+  const lead = cards.find((card) => card.steamAppId != null)?.steamAppId;
+  const shown = cards.filter((card) => !covers.gone(card));
+  if (!shown.length) return null;
   return (
-    <div className="cover-mosaic is-deck" aria-hidden="true">
-      <MastheadHero key={lead.steamAppId} appId={lead.steamAppId} />
-      {/* Fades the hand out as it slides under the toolbar. */}
+    <div
+      className={cn("cover-mosaic is-deck", tucked && "is-tucked")}
+      aria-hidden="true"
+    >
+      {lead != null && <MastheadHero key={lead} appId={lead} />}
+      {/* Fades the hand out as it slides under what follows. */}
       <div className="deck-fade">
         <div
           className="cover-deck"
           style={{ "--count": shown.length } as React.CSSProperties}
+          onMouseLeave={() => setActive(null)}
         >
           {shown.map((card, index) => (
-            <Link
-              key={card.steamAppId}
-              className="deck-card"
-              href={`/game/${card.steamAppId}`}
-              tabIndex={-1}
-              title={card.title}
+            <div
+              key={deckKey(card)}
+              className={cn("deck-card", active === index && "is-active")}
               style={{ "--i": index } as React.CSSProperties}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                key={covers.stage(card.steamAppId)}
+                key={covers.stage(card)}
                 ref={(image) => {
+                  // Cached images may finish before hydration attaches onLoad.
                   if (
                     image?.complete &&
-                    (image.naturalWidth === 0 || isFallbackArt(image))
+                    (image.naturalWidth === 0 ||
+                      isFallbackArt(image) ||
+                      (card.steamAppId == null && image.naturalHeight < 200))
                   )
-                    covers.reject(
-                      card.steamAppId,
-                      covers.stage(card.steamAppId),
-                    );
+                    covers.reject(card);
                 }}
-                src={covers.source(card.steamAppId)}
+                src={covers.source(card)}
                 alt=""
                 width={216}
                 height={324}
                 decoding="async"
                 onLoad={(event) => {
-                  if (isFallbackArt(event.currentTarget))
-                    covers.reject(
-                      card.steamAppId,
-                      covers.stage(card.steamAppId),
-                    );
+                  const image = event.currentTarget;
+                  // Store thumbnails can be tiny strips; too blurry for a card.
+                  const tooSmall =
+                    card.steamAppId == null && image.naturalHeight < 200;
+                  if (isFallbackArt(image) || tooSmall) covers.reject(card);
                 }}
-                onError={() =>
-                  covers.reject(card.steamAppId, covers.stage(card.steamAppId))
-                }
+                onError={() => covers.reject(card)}
               />
-            </Link>
+            </div>
           ))}
+          {shown.map((card, index) => {
+            const hit = {
+              className: "deck-hit",
+              title: card.title,
+              style: { "--i": index } as React.CSSProperties,
+              onMouseEnter: () => setActive(index),
+            };
+            return card.steamAppId != null ? (
+              <Link
+                key={`hit-${deckKey(card)}`}
+                {...hit}
+                href={`/game/${card.steamAppId}`}
+                tabIndex={-1}
+              />
+            ) : (
+              // An edition without a Steam game has no page to open.
+              <span key={`hit-${deckKey(card)}`} {...hit} />
+            );
+          })}
         </div>
       </div>
     </div>
@@ -934,8 +946,8 @@ export function PageHeading({
   children,
   actions,
   stat,
-  art,
   deck,
+  deckTucked,
 }: {
   title: string;
   children?: React.ReactNode;
@@ -943,16 +955,18 @@ export function PageHeading({
   /** One live number for this page, e.g. "5 of 18 beat Steam"; pass null
    * while it loads to keep its line reserved. */
   stat?: React.ReactNode;
-  /** Steam AppIDs whose covers form the masthead collage. */
-  art?: number[];
-  /** Show the art as a hand of cards (Library) instead of a collage. */
-  deck?: { steamAppId: number; title: string }[];
+  /** The page's own games, most relevant first, shown as a hand of cards. */
+  deck?: DeckCard[];
+  /** The page has a solid toolbar right below, so the hand can slide under. */
+  deckTucked?: boolean;
 }) {
   // The page's own games colour its background glow.
-  useAmbientPalette(deck?.map((card) => card.steamAppId) ?? art);
+  useAmbientPalette(
+    deck?.flatMap((card) => (card.steamAppId != null ? [card.steamAppId] : [])),
+  );
   return (
     <header className="page-heading">
-      {deck ? <CoverDeck cards={deck} /> : art && <CoverMosaic appIds={art} />}
+      {deck && <CoverDeck cards={deck} tucked={deckTucked} />}
       <div className="page-heading-content space-y-2">
         {/* null reserves the line while data loads, so nothing shifts. */}
         {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}

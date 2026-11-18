@@ -407,7 +407,13 @@ function HomeSummary() {
 
 export default function HomePage() {
   const { items, isLoading } = useBacklog();
-  const dashboardArt = isLoading ? [] : items.map((item) => item.steamAppId);
+  // The hand you'd play: playing first, then unplayed, wishlist, finished.
+  const dashboardDeck = isLoading
+    ? []
+    : followedGames(items).map(({ steamAppId, title }) => ({
+        steamAppId,
+        title,
+      }));
   const wished = items.filter((item) => !item.isOwned).length;
   return (
     <main className="page-shell home-page">
@@ -423,7 +429,7 @@ export default function HomePage() {
             ) : null
           }
           actions={<CollectionCounts />}
-          art={dashboardArt}
+          deck={dashboardDeck}
         >
           What’s worth buying, what changed in your games, and what to play
           next, with prices from {Object.keys(storeNames).length} stores, not

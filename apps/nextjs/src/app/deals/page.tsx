@@ -292,9 +292,13 @@ export default function DealsPage() {
             )
           ) : null
         }
-        art={groups
-          .map((group) => group.deal.steamAppId)
-          .filter((id): id is number => id != null)}
+        // The best deals on the page, one card per game; editions without a
+        // Steam game use the store's own art.
+        deck={groups.map(({ deal }) => ({
+          steamAppId: deal.steamAppId,
+          title: deal.title,
+          image: deal.thumb || undefined,
+        }))}
       >
         Compare prices across {Object.keys(storeNames).length} PC stores, not
         just Steam.

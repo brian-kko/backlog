@@ -60,73 +60,10 @@
     );
   }
 
-  .cover-mosaic-track {
-    position: absolute;
-    top: 50%;
-    right: 24px;
-    display: flex;
-    align-items: center;
-    translate: 0 -50%;
-  }
-
-  /* A soft contact shadow grounds the covers and the deck on the page. */
-  .cover-mosaic-track::after,
-  .cover-deck::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: -16px;
-    width: 220px;
-    height: 28px;
-    translate: -50% 0;
-    z-index: -1;
-    background: radial-gradient(closest-side, rgb(0 0 0 / 0.45), transparent);
-  }
-
-  :root:not(.dark) .cover-mosaic-track::after,
-  :root:not(.dark) .cover-deck::before {
-    background: radial-gradient(closest-side, rgb(30 36 14 / 0.2), transparent);
-  }
-
   /* On paper the art reads as ink rather than a milky wash. */
   :root:not(.dark) .cover-mosaic-hero {
     --masthead-hero-opacity: 0.3;
     mix-blend-mode: multiply;
-  }
-
-  .cover-mosaic-track img {
-    flex: 0 0 88px;
-    width: 88px;
-    height: 132px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--card);
-    object-fit: cover;
-  }
-
-  .cover-mosaic-track img + img {
-    margin-left: -12px;
-  }
-
-  /* One or two covers take the centre of the art panel, not its edge. */
-  .cover-mosaic-track:not(:has(img:nth-child(3))) {
-    left: 0;
-    justify-content: center;
-  }
-  .cover-mosaic-track img:only-child {
-    transform: rotate(-4deg);
-  }
-
-  .cover-mosaic-track img:first-child {
-    transform: rotate(-6deg);
-  }
-
-  .cover-mosaic-track img:nth-child(2) {
-    transform: rotate(0deg);
-  }
-
-  .cover-mosaic-track img:nth-child(3) {
-    transform: rotate(6deg);
   }
 
   @media (min-width: 768px) {
@@ -165,16 +102,6 @@
       width: 280px;
       animation: masthead-art-in 220ms ease-out both;
     }
-
-    .cover-mosaic-track img {
-      flex-basis: 72px;
-      width: 72px;
-      height: 108px;
-    }
-
-    .cover-mosaic-track img + img {
-      margin-left: -10px;
-    }
   }
 
   @media (min-width: 1200px) {
@@ -185,44 +112,50 @@
     .cover-mosaic {
       width: 360px;
     }
-
-    .cover-mosaic-track img {
-      flex-basis: 88px;
-      width: 88px;
-      height: 132px;
-    }
-
-    .cover-mosaic-track img + img {
-      margin-left: -12px;
-    }
   }
 
-  /* Hovering the masthead fans the covers out and drifts the artwork:
-     transform only, mouse users only, off with reduced motion. */
+  /* Hovering the masthead drifts the artwork behind the deck: transform
+     only, mouse users only, off with reduced motion. */
   @media (hover: hover) and (pointer: fine) and (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
-    .cover-mosaic-hero,
-    .cover-mosaic-track img {
+    .cover-mosaic-hero {
       transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
     }
     .page-heading:hover .cover-mosaic-hero {
       transform: scale(1.04) translateX(-6px);
     }
-    .page-heading:hover .cover-mosaic-track img:first-child {
-      transform: translate(-14px, 4px) rotate(-11deg);
-    }
-    .page-heading:hover .cover-mosaic-track img:nth-child(2) {
-      transform: translateY(-8px) scale(1.04);
-    }
-    .page-heading:hover .cover-mosaic-track img:nth-child(3) {
-      transform: translate(14px, 4px) rotate(11deg);
-    }
   }
 
-  /* ---------- Library deck: the top games as a hand of cards ---------- */
+  /* A soft contact shadow grounds the deck on the page. */
+  .cover-deck::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -16px;
+    width: 220px;
+    height: 28px;
+    translate: -50% 0;
+    z-index: -1;
+    background: radial-gradient(closest-side, rgb(0 0 0 / 0.45), transparent);
+  }
+
+  :root:not(.dark) .cover-deck::before {
+    background: radial-gradient(closest-side, rgb(30 36 14 / 0.2), transparent);
+  }
+
+  /* ---------- Masthead deck: the page's games as a hand of cards ---------- */
   /* Lifted and fanned cards may leave the art box; the art itself is masked. */
   .cover-mosaic.is-deck {
     --mosaic-w: 320px;
+    /* How far the hand runs under what follows: only where a solid toolbar
+       follows (Library). Elsewhere it ends at the masthead's edge, so it
+       never runs behind text. */
+    --deck-tuck: 0px;
+    --deck-fade-len: 52px;
     overflow: visible;
+  }
+  .cover-mosaic.is-deck.is-tucked {
+    --deck-tuck: 64px;
+    --deck-fade-len: 96px;
   }
 
   /* The hand fades out over its last 96px and is gone where the toolbar
@@ -234,21 +167,21 @@
     position: absolute;
     /* Wide to the left for the fanned hand; barely past the content edge
        on the right, so it never causes sideways scrolling. */
-    inset: -28px -16px -64px -200px;
+    inset: -28px -16px calc(-1 * var(--deck-tuck)) -200px;
     /* Transformed (lifted, fanned) cards must not widen the page. */
     overflow: clip;
     pointer-events: none;
     mask-image: linear-gradient(
       to bottom,
-      #000 calc(100% - 96px),
-      rgb(0 0 0 / 0.35) calc(100% - 36px),
+      #000 calc(100% - var(--deck-fade-len)),
+      rgb(0 0 0 / 0.35) calc(100% - var(--deck-fade-len) * 0.375),
       transparent
     );
   }
 
   .cover-deck {
-    --card-w: 170px;
-    --card-h: 255px;
+    --card-w: 136px;
+    --card-h: 204px;
     /* --fan is the outermost card's angle; it is shared across the cards so
        the hand keeps its width with 3 or 7 games. */
     --fan: 12deg;
@@ -261,7 +194,9 @@
     /* Big cards: the hand reaches below the masthead and tucks under the
        toolbar, which sits above it (see the stacking rules below). Offsets
        are from the fade box, whose bottom is 64px below the art box. */
-    bottom: -40px;
+    /* The card's foot sits 56px below the art box, clipped and faded, which
+       keeps a lifted card clear of the navbar. */
+    bottom: calc(var(--deck-tuck) - 56px);
     width: 0;
     height: var(--card-h);
     pointer-events: auto;
@@ -269,7 +204,8 @@
     transform: rotate(-6deg);
   }
 
-  .deck-card {
+  .deck-card,
+  .deck-hit {
     --o: calc(var(--i) - (var(--count) - 1) / 2);
     position: absolute;
     bottom: 0;
@@ -279,6 +215,33 @@
     border-radius: 12px;
     /* A low pivot puts the fanned cards on an arc, like a held hand. */
     transform-origin: 50% 160%;
+  }
+
+  /* Library's hand is bigger and slides under its toolbar. */
+  .is-tucked .cover-deck {
+    --card-w: 170px;
+    --card-h: 255px;
+    bottom: calc(var(--deck-tuck) - 104px);
+  }
+
+  /* The pointer targets: each card's fanned position, but never its lift or
+     stacking, so neighbours stay reachable through their own slivers. */
+  .deck-hit {
+    z-index: 20;
+    transform: translateX(calc(var(--o) * var(--spread)))
+      rotate(calc(var(--o) * var(--tilt)));
+    transition: transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  /* Covers the lifted part of the active card, so it doesn't drop the hover. */
+  .deck-hit::before {
+    content: "";
+    position: absolute;
+    inset: -40px 0 auto;
+    height: 40px;
+  }
+
+  .deck-card {
+    pointer-events: none;
     transform: translateX(calc(var(--o) * var(--spread)))
       rotate(calc(var(--o) * var(--tilt))) translateY(var(--lift, 0px))
       scale(var(--pop, 1));
@@ -303,7 +266,7 @@
       --spread: 12px;
     }
     /* …and the card under the pointer rises out of it. */
-    .deck-card:hover {
+    .deck-card.is-active {
       --lift: -32px;
       --pop: 1.05;
       z-index: 10;
@@ -313,17 +276,22 @@
         0 0 0 9px color-mix(in srgb, var(--signal) 22%, transparent),
         0 26px 48px rgb(0 0 0 / 0.55);
     }
-    .deck-card:hover img {
+    .deck-card.is-active img {
       border-color: transparent;
     }
   }
 
   @media (min-width: 1200px) {
     .cover-deck {
+      --card-w: 150px;
+      --card-h: 225px;
+      --deck-x: 0.36;
+      bottom: calc(var(--deck-tuck) - 64px);
+    }
+    .is-tucked .cover-deck {
       --card-w: 196px;
       --card-h: 294px;
-      --deck-x: 0.4;
-      bottom: -74px;
+      bottom: calc(var(--deck-tuck) - 138px);
     }
     .cover-deck:hover {
       --fan: 17deg;
@@ -332,7 +300,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .deck-card {
+    .deck-card,
+    .deck-hit {
       transition: none;
     }
   }
@@ -345,10 +314,11 @@
       --mosaic-w: 320px;
       width: var(--mosaic-w);
     }
-    /* Everything after the masthead sits above the deck's lower half. */
-    .page-heading:has(.is-deck) ~ * {
+    /* Everything after the masthead paints above the deck's lower half
+       (positioned elements paint in document order). No z-index, so
+       dropdowns inside a toolbar can still rise above later sections. */
+    :is(.page-heading, .dash-hero):has(.is-deck) ~ * {
       position: relative;
-      z-index: 1;
     }
     .page-heading:has(.is-deck) ~ .collection-toolbar .segmented {
       background: var(--card);

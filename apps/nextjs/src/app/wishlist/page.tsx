@@ -470,7 +470,10 @@ export default function WishlistPage() {
             )
           ) : null
         }
-        art={rows.map((row) => row.item.steamAppId)}
+        deck={rows.map(({ item }) => ({
+          steamAppId: item.steamAppId,
+          title: item.title,
+        }))}
       >
         Set the price you’re willing to pay. Each time you open Gemuzu it
         compares stores and flags games at your target or their lowest price

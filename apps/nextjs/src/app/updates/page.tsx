@@ -95,7 +95,7 @@ export default function UpdatesPage() {
             </>
           ) : null
         }
-        art={following.map((game) => game.steamAppId)}
+        deck={following.map(({ steamAppId, title }) => ({ steamAppId, title }))}
       >
         Official patch notes and events from the games you own and watch, in one
         feed. Store promotions are left out.
