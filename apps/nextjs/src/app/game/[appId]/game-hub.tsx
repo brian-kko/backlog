@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 
@@ -250,6 +250,18 @@ function HeroTitle({
   // (missing, or a square emblem that doesn't say the name), so the name
   // itself is the big title.
   const [mode, setMode] = useState<"logo" | "text">("logo");
+  const ref = useRef<HTMLImageElement>(null);
+  const evaluate = useCallback((image: HTMLImageElement) => {
+    setMode(image.naturalWidth < image.naturalHeight * 2.5 ? "text" : "logo");
+  }, []);
+  useEffect(() => {
+    // Cached images can finish before React attaches the load handler.
+    const image = ref.current;
+    if (image?.complete) {
+      if (image.naturalWidth) evaluate(image);
+      else setMode("text");
+    }
+  }, [evaluate]);
   return (
     <h1 className={cn("hero-title", mode === "logo" && "has-logo")}>
       <span className={mode === "logo" ? "hero-eyebrow" : "hero-name"}>
@@ -258,14 +270,12 @@ function HeroTitle({
       {mode === "logo" && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={ref}
           className="hero-logo"
           src={gameLogo(steamAppId)}
           alt=""
           aria-hidden="true"
-          onLoad={(event) => {
-            const image = event.currentTarget;
-            if (image.naturalWidth < image.naturalHeight * 2) setMode("text");
-          }}
+          onLoad={(event) => evaluate(event.currentTarget)}
           onError={() => setMode("text")}
         />
       )}
@@ -309,7 +319,7 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
         />
         <div className="hero-body">
           <BackLink fallbackHref={back.href} fallbackLabel={back.label} />
-          <HeroTitle steamAppId={steamAppId} title={title} />
+          <HeroTitle key={steamAppId} steamAppId={steamAppId} title={title} />
           {/* Space for three lines is held while Steam's description loads,
               so the hero doesn't grow once it arrives. */}
           <p
