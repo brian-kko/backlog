@@ -1,7 +1,8 @@
 # Gemini review, round 8
 
 Pasted by the owner from the Gemini app (task E in `ux/handoff/gemini/`).
-The text is kept as returned; only this header was added.
+Condensed by Claude: the scores, blocking issues, verdicts and lists are
+kept, the wording is shortened, and the JSON summary is omitted.
 
 SCORE: 9.0/10 (categories: value 9.2, craft 9.1, hierarchy 8.9, interaction 9.2, responsive 8.3, a11y 9.0, honesty 9.4, states 8.6)
 
