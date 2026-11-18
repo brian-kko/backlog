@@ -1,0 +1,9 @@
+@layer components {
+  @media (min-width: 640px) and (max-width: 1023px) {
+    /* Both wrapped rows need a solid surface, independent of the hero art.
+       The light-theme hero nav already inherits the dark poster tokens. */
+    body:has(.game-hero) .site-nav:not([data-scrolled]) {
+      background: var(--background);
+    }
+  }
+}

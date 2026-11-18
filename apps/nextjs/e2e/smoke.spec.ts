@@ -1181,7 +1181,7 @@ for (const width of [1024, 1440]) {
       if (hasLogo) await expect(heading).toHaveClass(/has-logo/);
       else await expect(heading).not.toHaveClass(/has-logo/);
 
-      for (const viewport of [width, 840, 390]) {
+      for (const viewport of [width, 840, 768, 390]) {
         await page.setViewportSize({ width: viewport, height: 900 });
         const back = page.locator(".hero-body .back-link");
         await expect(back).toHaveCSS("position", "static");
@@ -1205,6 +1205,119 @@ for (const width of [1024, 1440]) {
       else await expect(heading).not.toHaveClass(/has-logo/);
     });
   }
+}
+
+test.describe("touch detail back links", () => {
+  test.use({ hasTouch: true });
+
+  for (const theme of ["dark", "light"]) {
+    test(`keep their name, arrow gap and heading clearance in ${theme} theme`, async ({
+      page,
+    }) => {
+      await page.addInitScript(
+        (mode) => localStorage.setItem("theme-mode", mode),
+        theme,
+      );
+      for (const width of [390, 768, 840]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto("/updates");
+        for (const path of [
+          "/game/1091500",
+          "/game/1422450",
+          "/patch/1422450/1847920302234123",
+        ]) {
+          await page.goto(path);
+          const back = page.locator("main .back-link");
+          await expect(back).toHaveAccessibleName("Back to Updates");
+          await expect(back).toHaveCSS("display", /^(inline-)?flex$/);
+          await expect
+            .poll(() =>
+              back.evaluate(
+                (element) => element.getBoundingClientRect().height,
+              ),
+            )
+            .toBeGreaterThanOrEqual(44);
+          await expect
+            .poll(() =>
+              back.evaluate((element) => {
+                const [arrow, label] = element.children;
+                if (!arrow || !label) return 0;
+                return (
+                  label.getBoundingClientRect().left -
+                  arrow.getBoundingClientRect().right
+                );
+              }),
+            )
+            .toBeGreaterThanOrEqual(6);
+          await expect
+            .poll(async () => {
+              const backBottom = await back.evaluate(
+                (element) => element.getBoundingClientRect().bottom,
+              );
+              const titleTop = await page
+                .locator(".hero-title > span, .patch-hero .patch-game")
+                .evaluate((element) => element.getBoundingClientRect().top);
+              return titleTop - backBottom;
+            })
+            .toBeGreaterThanOrEqual(24);
+          await back.click();
+          await expect(page).toHaveURL(/\/updates$/);
+        }
+      }
+    });
+  }
+});
+
+for (const theme of ["dark", "light"]) {
+  test(`wrapped game navigation has a solid readable surface in ${theme} theme`, async ({
+    page,
+  }) => {
+    await page.addInitScript(
+      (mode) => localStorage.setItem("theme-mode", mode),
+      theme,
+    );
+    await page.goto("/game/1091500");
+    const nav = page.locator(".site-nav");
+    for (const width of [640, 768, 840, 1023]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(nav).toHaveCSS("background-color", "rgb(18, 20, 17)");
+      const contrasts = await nav.evaluate((element) => {
+        const luminance = (color: string) => {
+          const [red = 0, green = 0, blue = 0] = (color.match(/[\d.]+/g) ?? [])
+            .slice(0, 3)
+            .map((channel) => {
+              const value = Number(channel) / 255;
+              return value <= 0.04045
+                ? value / 12.92
+                : ((value + 0.055) / 1.055) ** 2.4;
+            });
+          return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+        };
+        const surface = luminance(getComputedStyle(element).backgroundColor);
+        return [
+          ...element.querySelectorAll(
+            ".brand, .nav-link, .nav-count, .nav-controls .action",
+          ),
+        ].map((label) => {
+          const style = getComputedStyle(label);
+          const background = label.matches(
+            ".nav-count, .action:not(.secondary)",
+          )
+            ? luminance(style.backgroundColor)
+            : surface;
+          const foreground = luminance(style.color);
+          return (
+            (Math.max(foreground, background) + 0.05) /
+            (Math.min(foreground, background) + 0.05)
+          );
+        });
+      });
+      for (const contrast of contrasts)
+        expect(contrast).toBeGreaterThanOrEqual(4.5);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(nav).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  });
 }
 
 test("games you don't own offer buying instead of launching", async ({
