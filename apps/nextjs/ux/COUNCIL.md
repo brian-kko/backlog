@@ -141,23 +141,14 @@ or a fix lands, so a fresh context can resume without the conversation.
 **Round 5 (2026-11-17):** astra 9.0 (9.2 weighted, capped by gates), Opus 8.9.
 Full reviews: `ux/reviews/opus-r5.md`, `ux/reviews/astra-r5.md`. PR 8 merged.
 
-**Round-6 workers running** (branch `feat/ui-council-6`, worktrees in
-`/home/brian/projects/gemuzu-wt/<task>`, specs/outputs/logs in
-`/home/brian/projects/gemuzu-wt/specs6/`):
-- deals: Opus 1, 2, 6 and astra 1. Edition rows share one column grid; the
-  billboard price line is fixed; the count is "N of M with a Steam price";
-  the free follow-up names the real store.
-- heroes: Opus 3 and astra 2. HeroTitle evaluates the logo after hydration;
-  the back link has its own spacing; light-theme patch heroes are readable.
-- wishlist: Opus 4 and astra 5. Local dates; one freshness line; honest
-  offline copy.
-- updates: Opus 5 and astra 4. The server computes the digest from the full
-  notes; no zero chips; one chip line; greeting leads are skipped.
-- art-audit: astra 3. `/api/art/<appId>/<kind>` returns fallback art
-  (no 404s); the audit exemption is removed; empty states are isolated;
-  logo assertion.
+**Round-6 workers merged** into `feat/ui-council-6`: deals, heroes,
+wishlist, updates, art-audit (each covers its round-5 blocking fixes; see
+`ux/reviews/*-r5.md`). Checks pass: validators (154 tests), typecheck,
+e2e (61).
 
-Next: review and commit each worker, merge into `feat/ui-council-6`, run the
-verification commands and the audit, then round 6 reviews.
+**Codex usage ran out on 2026-11-17** (2% left). The round-6 astra review waits
+for the reset. Opus reviews round 6 alone. Claude makes its fixes directly, not
+through Codex workers. When Codex is back: run the astra review (step 2 above)
+on the latest audit, then resume Codex workers.
 
 **Still open:** see the round-5 reviews (the workers above cover every blocking fix).
