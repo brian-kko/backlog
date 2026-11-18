@@ -71,14 +71,22 @@ describe("Riot catalog", () => {
     expect(searchRiotGames("hades")).toEqual([]);
   });
 
-  it("runs Riot games in the Riot Client unless the user says otherwise", () => {
+  it("defaults Riot games to the Riot Client", () => {
     expect(defaultPlatform(undefined, league.id)).toBe("riot");
     expect(defaultPlatform("steam", league.id)).toBe("riot");
     expect(defaultPlatform(undefined, 1091500)).toBe("steam");
-    expect(itemPlatform({ steamAppId: league.id })).toBe("riot");
-    expect(itemPlatform({ steamAppId: league.id, platform: "other" })).toBe(
-      "other",
-    );
+  });
+
+  it.each(riotGames)("$title always resolves to the Riot Client", ({ id }) => {
+    expect(itemPlatform({ steamAppId: id })).toBe("riot");
+    expect(
+      itemPlatform({
+        steamAppId: id,
+        purchaseStore: "steam",
+        platform: "steam",
+      }),
+    ).toBe("riot");
+    expect(itemPlatform({ steamAppId: id, platform: "other" })).toBe("riot");
   });
 });
 

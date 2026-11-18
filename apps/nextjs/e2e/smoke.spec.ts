@@ -386,7 +386,11 @@ test.beforeEach(async ({ page }) => {
 
       getGamePrices: t.procedure
         .input(z.object({ steamAppId: z.number() }))
-        .query(({ input }) => ({ prices: fixturePrices(input.steamAppId) })),
+        .query(({ input }) => ({
+          prices: riotGame(input.steamAppId)
+            ? null
+            : fixturePrices(input.steamAppId),
+        })),
       upsertBacklogItem: t.procedure
         .input(UpsertBacklogItemSchema)
         .mutation(({ input }) => {
@@ -2614,6 +2618,11 @@ test("Riot games can be added, run in the Riot Client and link to Riot's notes",
   await page.goto("/game/2000000001");
   await expect(page.locator(".hub-price")).toHaveText("Free");
   await expect(page.getByText("Plays on Riot Client.")).toBeVisible();
+  const editor = page.getByRole("region", { name: "Your backlog status" });
+  await expect(editor.getByText("Riot Client", { exact: true })).toBeVisible();
+  await expect(editor.getByRole("combobox", { name: "Plays on" })).toHaveCount(
+    0,
+  );
   await expect(page.getByTestId("launch-game-btn")).toHaveCount(0);
   await expect(
     page.getByRole("link", { name: /^League of Legends site/ }),
@@ -2626,6 +2635,87 @@ test("Riot games can be added, run in the Riot Client and link to Riot's notes",
   await expect(page.getByText("Include community and press posts")).toHaveCount(
     0,
   );
+});
+
+test("imported Riot wishlist entries follow updates without price targets or Steam launches", async ({
+  page,
+}) => {
+  await page.goto("/library");
+  await page.getByRole("button", { name: "Clear sample games" }).click();
+  await expect(page.getByText("Showing sample games.")).toHaveCount(0);
+  const valorantBackup: Backup = {
+    ...backup,
+    items: [
+      {
+        steamAppId: 2_000_000_002,
+        title: "VALORANT",
+        isOwned: false,
+        targetPrice: 5,
+        platform: "steam",
+      },
+    ],
+  };
+  await page.getByLabel("Import JSON", { exact: true }).setInputFiles({
+    name: "valorant.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(valorantBackup)),
+  });
+  await expect(page.locator(".backup-panel").getByRole("status")).toHaveText(
+    "Backup restored.",
+  );
+
+  await page.goto("/wishlist");
+  const card = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "VALORANT", exact: true }),
+  });
+  await expect(
+    card.getByText("Free to play · Riot Client", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    card.getByText("Following updates", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Check prices now" }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel(/^Target price/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /target price/i })).toHaveCount(
+    0,
+  );
+  await expect(page.locator('a[href^="steam://"]')).toHaveCount(0);
+
+  await card.getByRole("link", { name: "VALORANT", exact: true }).click();
+  await expect(page).toHaveURL(/\/game\/2000000002$/);
+  const editor = page.getByRole("region", { name: "Your backlog status" });
+  const following = editor.getByRole("button", {
+    name: /^Following/,
+    pressed: true,
+  });
+  await expect(following).toBeVisible();
+  await expect(editor.getByText("Watch the price")).toHaveCount(0);
+  await expect(page.getByLabel(/^Target price/)).toHaveCount(0);
+  await expect(page.locator('a[href^="steam://"]')).toHaveCount(0);
+
+  await editor.getByRole("link", { name: "Open your wishlist" }).click();
+  await card.getByRole("button", { name: "Add to library" }).click();
+  const moved = page.getByRole("complementary", { name: "Moved to library" });
+  await expect(moved.getByRole("status")).toHaveText(
+    "VALORANT moved to your library.",
+  );
+  await expect(moved.getByRole("combobox")).toHaveCount(0);
+  await expect(card).toHaveCount(0);
+
+  await page.goto("/game/2000000002");
+  await expect(page.getByText("Plays on Riot Client.")).toBeVisible();
+  await expect(editor.getByText("Riot Client", { exact: true })).toBeVisible();
+  await expect(editor.getByRole("combobox", { name: "Plays on" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("launch-game-btn")).toHaveCount(0);
+  await expect(page.locator('a[href^="steam://"]')).toHaveCount(0);
+  await expect(editor.getByText("Move to wishlist")).toHaveCount(0);
+  await editor.getByRole("button", { name: /^Follow updates/ }).click();
+  await expect(following).toBeVisible();
+  await expect(page.getByLabel(/^Target price/)).toHaveCount(0);
 });
 
 test("deal filter pickers open one at a time and close on outside click or Escape", async ({

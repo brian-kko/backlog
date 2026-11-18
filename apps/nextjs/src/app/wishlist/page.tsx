@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-import { purchaseStoreFromDeal } from "@acme/validators";
+import { isRiotGame, purchaseStoreFromDeal } from "@acme/validators";
 
 import type { BacklogItem } from "~/components/backlog-provider";
 import type { AlertState, Prices, PriceState } from "~/components/price-ui";
@@ -321,8 +321,53 @@ function WatchCard({
   );
 }
 
+function FollowCard({
+  item,
+  moveBusy,
+  onOwned,
+}: {
+  item: BacklogItem;
+  moveBusy: boolean;
+  onOwned: () => void;
+}) {
+  return (
+    <article className="game-card watch-card">
+      <GameArt appId={item.steamAppId} title={item.title} />
+      <div className="card-body">
+        <div className="watch-heading">
+          <div className="card-heading">
+            <h2 className="card-title">
+              <Link href={`/game/${item.steamAppId}`}>{item.title}</Link>
+            </h2>
+            <SampleTag item={item} />
+          </div>
+          <p className="text-muted-foreground text-sm">Following updates</p>
+        </div>
+        <p className="text-sm">Free to play · Riot Client</p>
+        <div className="card-actions">
+          <button
+            className="action secondary"
+            disabled={moveBusy}
+            data-own-button={item.steamAppId}
+            onClick={onOwned}
+          >
+            Add to library
+          </button>
+        </div>
+        <div className="card-links">
+          <GameLink steamAppId={item.steamAppId} />
+          <RemoveGameButton steamAppId={item.steamAppId} title={item.title} />
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function WishlistPage() {
   const { items, isLoading, error } = useBacklog();
+  const following = items.filter(
+    (item) => !item.isOwned && isRiotGame(item.steamAppId),
+  );
   const {
     rows,
     alerts,
@@ -332,7 +377,12 @@ export default function WishlistPage() {
     checkedAt,
     refresh,
     refreshing,
-  } = useWishlistPrices(items);
+  } = useWishlistPrices(items.filter((item) => !isRiotGame(item.steamAppId)));
+  const wishlist = [
+    ...rows,
+    ...following.map((item) => ({ item, prices: undefined })),
+  ];
+  const hasPriceWatches = rows.length > 0;
   const checked = useRelativeTime(checkedAt);
   const { save, isSample } = useBacklog();
   // Moving a game to the library is owned by the page, not the card (which
@@ -414,7 +464,7 @@ export default function WishlistPage() {
         ...(moved.wasSample ? {} : { targetPrice: moved.item.targetPrice }),
       });
       if (transaction.current !== id) return;
-      // Focus the returned card's "I own this" button once it renders, or the
+      // Focus the returned card's library action once it renders, or the
       // results region if a search keeps that card hidden.
       focusTarget.current = { appId: steamAppId, until: Date.now() + 1000 };
       setMoved(null);
@@ -431,23 +481,25 @@ export default function WishlistPage() {
   }
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("alerts");
-  const distance = (row: (typeof rows)[number]) =>
+  const distance = (row: (typeof wishlist)[number]) =>
     row.prices?.currentPrice == null
       ? Infinity
       : row.prices.currentPrice -
         (row.item.targetPrice ?? row.prices.historicalLow ?? 0);
-  const rank = (row: (typeof rows)[number]) =>
-    alerts.includes(row) ? 0 : row.state === "unavailable" ? 2 : 1;
-  const visible = rows
+  const rank = (row: (typeof wishlist)[number]) => {
+    if (!("state" in row)) return 3;
+    return alerts.includes(row) ? 0 : row.state === "unavailable" ? 2 : 1;
+  };
+  const visible = wishlist
     .filter(({ item }) =>
       item.title.toLowerCase().includes(search.trim().toLowerCase()),
     )
     .sort((a, b) =>
-      sort === "price"
-        ? (a.prices?.currentPrice ?? Infinity) -
-          (b.prices?.currentPrice ?? Infinity)
-        : sort === "title"
-          ? a.item.title.localeCompare(b.item.title)
+      !hasPriceWatches || sort === "title"
+        ? a.item.title.localeCompare(b.item.title)
+        : sort === "price"
+          ? (a.prices?.currentPrice ?? Infinity) -
+            (b.prices?.currentPrice ?? Infinity)
           : rank(a) - rank(b) || distance(a) - distance(b),
     );
   return (
@@ -455,7 +507,7 @@ export default function WishlistPage() {
       <PageHeading
         title="Wishlist"
         stat={
-          rows.length > 0 && !pending ? (
+          hasPriceWatches && !pending ? (
             unchecked.length === rows.length ? (
               "Prices unavailable"
             ) : unchecked.length ? (
@@ -470,17 +522,17 @@ export default function WishlistPage() {
             )
           ) : null
         }
-        deck={rows.map(({ item }) => ({
+        deck={wishlist.map(({ item }) => ({
           steamAppId: item.steamAppId,
           title: item.title,
         }))}
       >
-        Set the price you’re willing to pay. Each time you open Gemuzu it
-        compares stores and flags games at your target or their lowest price
-        ever.
+        {following.length && !hasPriceWatches
+          ? "Follow updates for Riot games you’ve saved."
+          : "Set the price you’re willing to pay. Each time you open Gemuzu it compares stores and flags games at your target or their lowest price ever."}
       </PageHeading>
       <GuestBanner compact />
-      {rows.length > 0 && (
+      {hasPriceWatches && (
         <div className="summary-row">
           <p className="summary-line" aria-live="polite">
             {offline
@@ -583,22 +635,23 @@ export default function WishlistPage() {
               Couldn’t undo. Please try again.
             </p>
           )}
-          {(moved.status === "done" || moved.status === "undo-error") && (
-            <OwnPrompt
-              steamAppId={moved.item.steamAppId}
-              title={moved.item.title}
-              onPendingChange={setDetailsSaving}
-              paid={moved.prices?.currentPrice}
-              store={
-                moved.prices?.deals[0]
-                  ? purchaseStoreFromDeal(moved.prices.deals[0].storeID)
-                  : undefined
-              }
-            />
-          )}
+          {!isRiotGame(moved.item.steamAppId) &&
+            (moved.status === "done" || moved.status === "undo-error") && (
+              <OwnPrompt
+                steamAppId={moved.item.steamAppId}
+                title={moved.item.title}
+                onPendingChange={setDetailsSaving}
+                paid={moved.prices?.currentPrice}
+                store={
+                  moved.prices?.deals[0]
+                    ? purchaseStoreFromDeal(moved.prices.deals[0].storeID)
+                    : undefined
+                }
+              />
+            )}
         </aside>
       )}
-      {rows.length > 0 && (
+      {wishlist.length > 0 && (
         <div className="collection-search">
           <input
             type="search"
@@ -609,17 +662,19 @@ export default function WishlistPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <select
-            className="form-control"
-            aria-label="Sort wishlist"
-            value={sort}
-            disabled={isLoading}
-            onChange={(event) => setSort(event.target.value)}
-          >
-            <option value="alerts">Best to buy first</option>
-            <option value="price">Lowest price</option>
-            <option value="title">Title A–Z</option>
-          </select>
+          {hasPriceWatches && (
+            <select
+              className="form-control"
+              aria-label="Sort wishlist"
+              value={sort}
+              disabled={isLoading}
+              onChange={(event) => setSort(event.target.value)}
+            >
+              <option value="alerts">Best to buy first</option>
+              <option value="price">Lowest price</option>
+              <option value="title">Title A–Z</option>
+            </select>
+          )}
         </div>
       )}
       <div
@@ -632,23 +687,32 @@ export default function WishlistPage() {
         {isLoading ? (
           <p role="status">Loading your wishlist…</p>
         ) : visible.length ? (
-          <section data-reveal aria-label="Price watches" className="card-grid">
-            {visible.map(({ item, prices, state, alert }) => (
-              <WatchCard
-                key={item.steamAppId}
-                item={item}
-                prices={prices}
-                state={state}
-                alert={alert}
-                offline={offline}
-                moveBusy={moveBusy}
-                onOwned={(owned, ownedPrices) =>
-                  void moveToLibrary(owned, ownedPrices)
-                }
-              />
-            ))}
+          <section data-reveal aria-label="Saved games" className="card-grid">
+            {visible.map((row) =>
+              "state" in row ? (
+                <WatchCard
+                  key={row.item.steamAppId}
+                  item={row.item}
+                  prices={row.prices}
+                  state={row.state}
+                  alert={row.alert}
+                  offline={offline}
+                  moveBusy={moveBusy}
+                  onOwned={(owned, ownedPrices) =>
+                    void moveToLibrary(owned, ownedPrices)
+                  }
+                />
+              ) : (
+                <FollowCard
+                  key={row.item.steamAppId}
+                  item={row.item}
+                  moveBusy={moveBusy}
+                  onOwned={() => void moveToLibrary(row.item, undefined)}
+                />
+              ),
+            )}
           </section>
-        ) : rows.length ? (
+        ) : wishlist.length ? (
           <p className="empty-state">No games match your search.</p>
         ) : (
           <div className="empty-state space-y-4">

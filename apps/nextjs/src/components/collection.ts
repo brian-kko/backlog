@@ -1,4 +1,4 @@
-import { itemPlatform } from "@acme/validators";
+import { isRiotGame, itemPlatform } from "@acme/validators";
 
 import type { BacklogItem } from "./backlog-provider";
 
@@ -18,5 +18,9 @@ export function followedGames(items: BacklogItem[]) {
 
 /** Owned games that run in Steam (the default unless set otherwise). */
 export function canLaunch(item: BacklogItem | undefined) {
-  return Boolean(item?.isOwned && itemPlatform(item) === "steam");
+  return Boolean(
+    item?.isOwned &&
+      !isRiotGame(item.steamAppId) &&
+      itemPlatform(item) === "steam",
+  );
 }
