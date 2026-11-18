@@ -309,6 +309,64 @@ async function auditPage(
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   const metrics = await measure(page, viewport === "phone");
+  const pageChecks = await page.evaluate(() => {
+    const visible = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.visibility !== "hidden" &&
+        style.display !== "none"
+      );
+    };
+    const accessibleName = (element: Element) => {
+      const labelledBy = element.getAttribute("aria-labelledby");
+      const referencedName = labelledBy
+        ?.split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ");
+      const name = [
+        element.getAttribute("aria-label"),
+        referencedName,
+        (element as HTMLElement).innerText,
+        element.getAttribute("title"),
+      ].find((value) => value && value.length > 0);
+      return (name ?? "").trim().replace(/\s+/g, " ");
+    };
+    const price = document.querySelector(".watch-current-price, .deal-price");
+    const heading = document.querySelector(".page-heading h1");
+    const backLink = [...document.querySelectorAll("a.back-link")].find(
+      visible,
+    );
+    const backName = backLink ? accessibleName(backLink) : "";
+    return {
+      priceFont: price ? getComputedStyle(price).fontFamily : null,
+      headingFont: heading ? getComputedStyle(heading).fontFamily : null,
+      backVisible: Boolean(backLink),
+      backName,
+    };
+  });
+  if (route === "/deals" || route === "/wishlist") {
+    const priceFont = pageChecks.priceFont ?? "missing price element";
+    const headingFont = pageChecks.headingFont ?? "missing .page-heading h1";
+    checks.push({
+      name: `${id}: price uses IBM Plex Mono and page heading uses Barlow Condensed`,
+      pass:
+        priceFont.toLowerCase().includes("plex") &&
+        headingFont.toLowerCase().includes("barlow"),
+      detail: `price font=${priceFont}; heading font=${headingFont}`,
+    });
+  }
+  if (route.startsWith("/game/") || route.startsWith("/patch/")) {
+    checks.push({
+      name: `${id}: detail page shows a named back link`,
+      pass: pageChecks.backVisible && pageChecks.backName.length > 0,
+      detail: pageChecks.backVisible
+        ? `visible back-link name="${pageChecks.backName || "(empty)"}"`
+        : "no visible a.back-link",
+    });
+  }
   const shot = await shoot(page, id);
   pages.push({
     id,
