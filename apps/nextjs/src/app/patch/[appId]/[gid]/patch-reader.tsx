@@ -533,15 +533,12 @@ export function PatchReader({
           return changes ? (
             <p className="glance-caption">
               {changes} {changes === 1 ? "change" : "changes"} across {items}{" "}
-              {items === 1 ? "item" : "items"}
+              {items === 1 ? "item" : "items"}, sorted automatically from the
+              notes
             </p>
           ) : null;
         })()}
         <ProportionBar counts={summary.counts} />
-        <p className="patch-glance-note">
-          Sorted automatically from the notes; open Full patch notes for the
-          source wording.
-        </p>
         {!summary.groups.length && (
           <p className="filter-help">
             This post has no itemised changes to chart.

@@ -708,12 +708,17 @@ test("updates count recent categories and link classified patch summaries", asyn
               ...feed.patchNotes.map((item, index) => ({
                 ...item,
                 id: `${id}${index}`,
-                contents:
-                  index === 0
-                    ? patchPost
-                    : index === 1
-                      ? "[list][*]Reduced damage from 10 to 5[/*][*]Increased health from 10 to 20[/*][/list]"
-                      : "Thank you for playing.",
+                // The API sends counts computed from the notes, not the notes.
+                patchCounts: summarizePatch(
+                  parsePatchNotes(
+                    index === 0
+                      ? patchPost
+                      : index === 1
+                        ? "[list][*]Reduced damage from 10 to 5[/*][*]Increased health from 10 to 20[/*][/list]"
+                        : "Thank you for playing.",
+                    item.title,
+                  ),
+                ).counts,
                 publishedAt: new Date(
                   index === 2 ? "2026-09-01T12:00:00Z" : "2026-10-22T12:00:00Z",
                 ),
@@ -722,11 +727,15 @@ test("updates count recent categories and link classified patch summaries", asyn
             ];
           }),
         })),
+      // The collection feed is batched with the price checks.
+      getGamePrices: t.procedure
+        .input(z.object({ steamAppId: z.number() }))
+        .query(({ input }) => ({ prices: fixturePrices(input.steamAppId) })),
     }),
   });
   await page.route("**/api/trpc/**", async (route) => {
     const request = route.request();
-    if (!new URL(request.url()).pathname.endsWith("/backlog.getCollectionFeed"))
+    if (!new URL(request.url()).pathname.includes("backlog.getCollectionFeed"))
       return route.fallback();
     const response = await fetchRequestHandler({
       endpoint: "/api/trpc",
@@ -761,7 +770,7 @@ test("updates count recent categories and link classified patch summaries", asyn
     "/patch/1091500/10915000",
   );
   await expect(
-    detailed.getByRole("link", { name: /^Read patch notes:/ }),
+    detailed.getByRole("link", { name: /^Read patch notes\b/ }),
   ).toHaveAttribute("href", "/patch/1091500/10915000");
   const gameCount = await page.locator(".updates-filter .pill-count").count();
   await expect(feed.locator(".news-patch-summary")).toHaveCount(gameCount);
@@ -1633,8 +1642,8 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
   const glance = page.getByRole("region", { name: "Patch at a glance" });
   await expect(glance.locator(".patch-legend")).toContainText("1 nerf change");
   await expect(glance.locator(".patch-legend")).toContainText("2 buff changes");
-  await expect(glance.locator(".patch-glance-note")).toHaveText(
-    "Sorted automatically from the notes; open Full patch notes for the source wording.",
+  await expect(glance.locator(".glance-caption")).toContainText(
+    "sorted automatically from the notes",
   );
   await expect(page.locator("#change-0-0")).toBeVisible();
   await expect(

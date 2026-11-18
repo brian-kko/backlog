@@ -81,7 +81,7 @@ export function NewsCards({
         const lead = line ?? item.cleanSummary;
         return (
           <article
-            key={item.id}
+            key={`${item.steamAppId}-${item.id}`}
             className={cn("news-entry", titles && "has-art")}
           >
             {titles && (
