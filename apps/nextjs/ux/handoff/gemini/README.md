@@ -3,6 +3,13 @@
 Gemini runs in the Gemini app (Brian's account), not from this repo, so
 these files are ready to paste.
 
+- **`tasks/*.md`:** one drop-in file per task. Open a new Gemini chat,
+  attach the task file (plus the 10 `review/*.png` screenshots for E), and
+  type "Do the task in the attached file." Save the reply where
+  `GEMINI-HANDOFF.md` says. Models: A, D and E need the strongest
+  reasoning/multimodal model; B1, B2 and C need the image-generation model.
+- **`GEMINI-HANDOFF.md`:** the same tasks with context and checklists, for
+  reading, not for dropping into Gemini.
 - **`ART-BRIEF.md`:** original art (empty-state illustrations, fallback
   game cards, the share-image background). Save the results to
   `apps/nextjs/public/art/`, then tell Claude "art is in".
