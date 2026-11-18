@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Platform, PurchaseStore } from "@acme/validators";
 import {
   defaultPlatform,
+  isRiotGame,
   platformNames,
   purchaseStoreNames,
 } from "@acme/validators";
@@ -207,7 +208,7 @@ export function BacklogEditor({
                     }
                   >
                     <option value="">
-                      {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
+                      {`${platformNames[defaultPlatform(item.purchaseStore, item.steamAppId)]}${isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}`}
                     </option>
                     {(Object.keys(platformNames) as Platform[]).map((key) => (
                       <option key={key} value={key}>
@@ -215,7 +216,7 @@ export function BacklogEditor({
                       </option>
                     ))}
                   </select>
-                  {!item.platform && (
+                  {!item.platform && !isRiotGame(item.steamAppId) && (
                     <span className="field-hint">
                       Not confirmed. Change it if this plays elsewhere.
                     </span>

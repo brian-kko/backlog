@@ -11,3 +11,4 @@ export * from "./game-search";
 export * from "./news-digest";
 export * from "./patch-notes";
 export * from "./steam-compare";
+export * from "./riot";

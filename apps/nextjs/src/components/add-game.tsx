@@ -78,9 +78,11 @@ function ResultRow({
           </p>
         )}
         <p className="search-result-meta">
-          {game.price == null
-            ? "Steam price not listed"
-            : `${price(game.price)} on Steam`}
+          {game.source === "riot"
+            ? "Free to play · Riot Client"
+            : game.price == null
+              ? "Steam price not listed"
+              : `${price(game.price)} on Steam`}
           {" · "}
           <Link
             className="text-link"
@@ -118,7 +120,8 @@ function ResultRow({
           <>
             {existing ? (
               <span className="collection-chip">♥ Wishlisted</span>
-            ) : (
+            ) : game.source === "riot" ? null : (
+              // Riot's games are free: there's no price to watch.
               <button
                 className="action secondary compact"
                 disabled={pending || isLoading}
@@ -247,7 +250,8 @@ export function AddGameProvider({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <p className="filter-help">
-              Search any Steam game, on sale or not. Add games you own to track
+              Search any Steam game, on sale or not, or League of Legends,
+              VALORANT and Teamfight Tactics. Add games you own to track
               progress and spending, or wishlist them to watch prices across
               stores.
             </p>

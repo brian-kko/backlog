@@ -14,7 +14,9 @@ import {
   GameSearchInputSchema,
   parsePatchNotes,
   PatchNotesInputSchema,
+  riotGame,
   SearchDealsInputSchema,
+  searchRiotGames,
   SteamFeedInputSchema,
   summarizePatch,
   UpsertBacklogItemSchema,
@@ -44,14 +46,19 @@ const titles: Record<number, string> = {
   1422450: "Deadlock",
 };
 function steamFeed(steamAppId: number) {
+  // Riot's games get Riot-sourced posts that open on Riot's site.
+  const riot = riotGame(steamAppId);
   const item = {
     steamAppId,
     cleanSummary: "Performance improvements and bug fixes.",
     digest: digestNews("Performance improvements and bug fixes.", ""),
     patchCounts: null,
-    url: `https://store.steampowered.com/news/app/${steamAppId}`,
+    url: riot
+      ? `${riot.site}/en-us/news/game-updates/patch-notes`
+      : `https://store.steampowered.com/news/app/${steamAppId}`,
     publishedAt: new Date("2026-10-22T12:00:00Z"),
     official: true,
+    source: riot ? ("riot" as const) : ("steam" as const),
   };
   return {
     available: true,
@@ -59,7 +66,7 @@ function steamFeed(steamAppId: number) {
       ...item,
       id: `patch-${index}`,
       category: "patch_note" as const,
-      title: `${titles[steamAppId] ?? steamAppId} Patch ${index + 1}`,
+      title: `${titles[steamAppId] ?? riot?.title ?? steamAppId} Patch ${index + 1}`,
     })),
     events: [
       {
@@ -286,16 +293,26 @@ test.beforeEach(async ({ page }) => {
         .input(GameSearchInputSchema)
         .query(({ input }) => ({
           source: "steam" as const,
-          results: Object.entries(titles)
-            .filter(([, title]) =>
-              title.toLowerCase().includes(input.query.toLowerCase()),
-            )
-            .map(([id, title]) => ({
-              steamAppId: Number(id),
-              title,
+          results: [
+            ...searchRiotGames(input.query).map((game) => ({
+              steamAppId: game.id,
+              title: game.title,
               image: "",
-              price: 19.99,
+              price: 0,
+              developer: "Riot Games",
+              source: "riot" as const,
             })),
+            ...Object.entries(titles)
+              .filter(([, title]) =>
+                title.toLowerCase().includes(input.query.toLowerCase()),
+              )
+              .map(([id, title]) => ({
+                steamAppId: Number(id),
+                title,
+                image: "",
+                price: 19.99,
+              })),
+          ],
         })),
       getCollectionFeed: t.procedure
         .input(CollectionFeedInputSchema)
@@ -410,10 +427,16 @@ test.beforeEach(async ({ page }) => {
           steamAppId: input.steamAppId,
           feed: steamFeed(input.steamAppId),
           metadata: {
-            name: titles[input.steamAppId] ?? `Steam App ${input.steamAppId}`,
+            name:
+              titles[input.steamAppId] ??
+              riotGame(input.steamAppId)?.title ??
+              `Steam App ${input.steamAppId}`,
             short_description: "A world waiting to be explored.",
           },
-          prices: fixturePrices(input.steamAppId),
+          // Riot's games aren't sold in PC stores.
+          prices: riotGame(input.steamAppId)
+            ? null
+            : fixturePrices(input.steamAppId),
         })),
     }),
   });
@@ -2557,3 +2580,50 @@ for (const width of [390, 1440]) {
     ).toBeFocused();
   });
 }
+
+test("Riot games can be added, run in the Riot Client and link to Riot's notes", async ({
+  page,
+}) => {
+  await page.goto("/library");
+  await page.getByRole("button", { name: "Add game" }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Search games").fill("lol");
+  const result = dialog.getByRole("listitem").filter({
+    has: page.getByText("League of Legends", { exact: true }),
+  });
+  await expect(result.getByText(/Free to play · Riot Client/)).toBeVisible();
+  // Free games have no price to watch.
+  await expect(
+    result.getByRole("button", { name: /^Wishlist: add League of Legends/ }),
+  ).toHaveCount(0);
+  await result
+    .getByRole("button", {
+      name: "I own it: add League of Legends to library",
+      exact: true,
+    })
+    .click();
+  await expect(dialog.getByText("Added to your library")).toBeVisible();
+  await expect(
+    dialog
+      .getByLabel("Launcher League of Legends plays on", { exact: true })
+      .locator("option:checked"),
+  ).toHaveText("Riot Client");
+  await page.keyboard.press("Escape");
+
+  const riot = riotGame(2_000_000_001);
+  await page.goto("/game/2000000001");
+  await expect(page.locator(".hub-price")).toHaveText("Free");
+  await expect(page.getByText("Plays on Riot Client.")).toBeVisible();
+  await expect(page.getByTestId("launch-game-btn")).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: /^League of Legends site/ }),
+  ).toHaveAttribute("href", riot?.site ?? "");
+  const read = page.getByRole("link", { name: /^Read on Riot Games/ }).first();
+  await expect(read).toHaveAttribute(
+    "href",
+    /^https:\/\/www\.leagueoflegends\.com\//,
+  );
+  await expect(page.getByText("Include community and press posts")).toHaveCount(
+    0,
+  );
+});

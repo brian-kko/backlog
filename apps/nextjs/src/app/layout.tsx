@@ -118,6 +118,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
                   <InstallButton />
                   <span>
                     Prices in USD from CheapShark and Steam · News from Steam
+                    and Riot Games
                   </span>
                 </footer>
               </AddGameProvider>

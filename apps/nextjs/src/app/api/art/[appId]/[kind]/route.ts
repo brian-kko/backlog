@@ -1,3 +1,6 @@
+import { riotArtUrl } from "@acme/api";
+import { isRiotGame } from "@acme/validators";
+
 const assets = {
   header: ["header.jpg"],
   hero: ["library_hero.jpg", "header.jpg"],
@@ -99,6 +102,13 @@ async function resolveArt(
   appId: number,
   kind: keyof typeof assets,
 ): Promise<Artwork> {
+  // Riot's games aren't on Steam: use their newest patch-notes banner as the
+  // header and hero. There's no portrait cover, so covers get the plate and
+  // the client hides or swaps them.
+  if (isRiotGame(appId)) {
+    const url = kind === "capsule" ? null : await riotArtUrl(appId);
+    return (url ? await fetchArt(url) : undefined) ?? fallbackArt();
+  }
   for (const asset of assets[kind]) {
     const resolved = await fetchArt(
       `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/${asset}`,

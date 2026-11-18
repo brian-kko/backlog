@@ -9,6 +9,7 @@ import type { Platform, PurchaseStore } from "@acme/validators";
 import { cn } from "@acme/ui";
 import {
   defaultPlatform,
+  isRiotGame,
   platformNames,
   purchaseStoreNames,
   storeNames,
@@ -397,7 +398,7 @@ export function OwnPrompt({
           }
         >
           <option value="">
-            {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
+            {`${platformNames[defaultPlatform(item.purchaseStore, item.steamAppId)]}${isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}`}
           </option>
           {(Object.keys(platformNames) as Platform[]).map((key) => (
             <option key={key} value={key}>

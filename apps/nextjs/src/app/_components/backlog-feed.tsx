@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
 import { cn } from "@acme/ui";
-import { isAboutSequel, stripNewsIntro } from "@acme/validators";
+import { isAboutSequel, isRiotGame, stripNewsIntro } from "@acme/validators";
 
 import { GameArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
@@ -165,12 +165,19 @@ export function NewsCards({
                 )}
                 {/^https?:\/\//i.test(item.url) && (
                   <a
-                    className="text-link"
+                    // Riot notes have no in-app reader, so this is the main link.
+                    className={cn(
+                      "text-link",
+                      item.source === "riot" && "news-read",
+                    )}
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Read on Steam<span className="sr-only">: {item.title}</span>{" "}
+                    {item.source === "riot"
+                      ? "Read on Riot Games"
+                      : "Read on Steam"}
+                    <span className="sr-only">: {item.title}</span>{" "}
                     <span aria-hidden="true">↗</span>
                   </a>
                 )}
@@ -358,12 +365,15 @@ function FeedStatus({
   error,
   retry,
   paused = false,
+  from = "Steam",
 }: {
   pending: boolean;
   error: boolean;
   retry: () => void;
   /** Query is waiting for the network to come back. */
   paused?: boolean;
+  /** Where this feed's posts come from. */
+  from?: "Steam" | "Riot Games";
 }) {
   if (paused)
     return (
@@ -371,14 +381,14 @@ function FeedStatus({
         You’re offline. News will load when you reconnect.
       </p>
     );
-  if (pending) return <p role="status">Loading Steam news…</p>;
+  if (pending) return <p role="status">Loading {from} news…</p>;
   if (error)
     return (
       // A designed outage state, not one line floating in empty space.
       <div role="alert" className="offline-panel">
         <p>
-          <strong>Steam news didn’t load.</strong> Your games, filters and read
-          state are saved; posts appear as soon as Steam responds.
+          <strong>{from} news didn’t load.</strong> Your games, filters and read
+          state are saved; posts appear as soon as {from} responds.
         </p>
         <button className="action secondary" onClick={retry}>
           Try again
@@ -403,6 +413,8 @@ export function BacklogFeed({
 } & NewsTabControls) {
   const trpc = useTRPC();
   const [includeCommunity, setIncludeCommunity] = useState(false);
+  // Riot's feed is all official posts; there are no community posts to add.
+  const riot = isRiotGame(steamAppId);
   // A failed server-side feed is retried here; fresh data replaces it.
   const query = useQuery(
     trpc.backlog.getSteamFeed.queryOptions(
@@ -418,6 +430,7 @@ export function BacklogFeed({
         pending={!feed && query.isPending}
         error={query.isError || feed?.available === false}
         retry={() => void query.refetch()}
+        from={riot ? "Riot Games" : "Steam"}
       />
     );
   const items = [...feed.patchNotes, ...feed.events]
@@ -431,19 +444,21 @@ export function BacklogFeed({
       onTabChange={onTabChange}
       countSince={countSince}
       emptyHint={
-        includeCommunity
+        includeCommunity || riot
           ? "for this game yet."
           : "from the developers yet. Community and press posts may have some."
       }
     >
-      <label className="check-label">
-        <input
-          type="checkbox"
-          checked={includeCommunity}
-          onChange={(event) => setIncludeCommunity(event.target.checked)}
-        />
-        Include community and press posts
-      </label>
+      {!riot && (
+        <label className="check-label">
+          <input
+            type="checkbox"
+            checked={includeCommunity}
+            onChange={(event) => setIncludeCommunity(event.target.checked)}
+          />
+          Include community and press posts
+        </label>
+      )}
     </NewsTabs>
   );
 }

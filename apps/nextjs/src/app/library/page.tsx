@@ -8,6 +8,7 @@ import { cn } from "@acme/ui";
 import {
   BacklogExportSchema,
   defaultPlatform,
+  isRiotGame,
   itemPlatform,
   platformNames,
   purchaseStoreNames,
@@ -116,7 +117,7 @@ function PlatformSelect({
       }
     >
       <option value="">
-        {`${platformNames[defaultPlatform(item.purchaseStore)]} (unconfirmed)`}
+        {`${platformNames[defaultPlatform(item.purchaseStore, item.steamAppId)]}${isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}`}
       </option>
       {(Object.keys(platformNames) as Platform[]).map((key) => (
         <option key={key} value={key}>
@@ -165,7 +166,8 @@ function purchaseSummary(item: BacklogItem) {
     : "";
   const platform = itemPlatform(item);
   // Make the launcher assumption visible until the user confirms it.
-  const plays = item.platform
+  const confirmed = Boolean(item.platform) || isRiotGame(item.steamAppId);
+  const plays = confirmed
     ? platform === "steam"
       ? ""
       : ` · plays on ${platformNames[platform]}`
@@ -333,11 +335,11 @@ function LibraryRow({ item }: { item: BacklogItem }) {
           <button
             type="button"
             className="cell-edit"
-            aria-label={`${platformNames[itemPlatform(item)]}${item.platform ? "" : " (unconfirmed)"}: edit launcher for ${item.title}`}
+            aria-label={`${platformNames[itemPlatform(item)]}${item.platform || isRiotGame(item.steamAppId) ? "" : " (unconfirmed)"}: edit launcher for ${item.title}`}
             onClick={() => setEditingPlatform(true)}
           >
             {platformNames[itemPlatform(item)]}
-            {!item.platform && (
+            {!item.platform && !isRiotGame(item.steamAppId) && (
               <span className="text-muted-foreground text-xs">
                 {" "}
                 (unconfirmed)

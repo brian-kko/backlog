@@ -7,14 +7,17 @@ import {
   DealItemSchema,
   digestNews,
   isPromotionalNews,
+  isRiotGame,
   parsePatchNotes,
   parseSteamStoreSearch,
   SearchDealsInputSchema,
+  searchRiotGames,
   stripNewsIntro,
   summarizePatch,
 } from "@acme/validators";
 
 import { catalogVerifiedAt, curatedGames } from "./curated-games";
+import { fetchRiotFeed, riotMetadata } from "./riot-discovery";
 
 const jsonCache = new Map<string, { expiresAt: number; value: unknown }>();
 const pendingJson = new Map<string, Promise<unknown>>();
@@ -84,6 +87,8 @@ const newsSchema = z.object({
  * Uses the same cached feed request as `fetchSteamFeed`.
  */
 export async function fetchSteamPost(steamAppId: number, gid: string) {
+  // Riot notes open on Riot's site; there is no Steam post to read.
+  if (isRiotGame(steamAppId)) return { available: true as const, post: null };
   const data = newsSchema.safeParse(
     await fetchJson(
       `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steamAppId}&count=30&maxlength=0&format=json&l=english`,
@@ -99,7 +104,29 @@ export async function fetchSteamPost(steamAppId: number, gid: string) {
   };
 }
 
-export async function fetchSteamFeed(steamAppId: number) {
+/** One news post from Steam or Riot, as pages consume it. */
+export interface FeedItem {
+  id: string;
+  steamAppId: number;
+  title: string;
+  official: boolean;
+  url: string;
+  publishedAt: Date;
+  category: "patch_note" | "event" | "general";
+  cleanSummary: string;
+  digest: { topics: string[]; line: string | null };
+  patchCounts: ReturnType<typeof summarizePatch>["counts"] | null;
+  /** Where the post lives; Riot posts open on Riot's site. */
+  source: "steam" | "riot";
+}
+
+export async function fetchSteamFeed(steamAppId: number): Promise<{
+  available: boolean;
+  patchNotes: FeedItem[];
+  events: FeedItem[];
+}> {
+  // Riot's games aren't on Steam; their news comes from Riot's own site.
+  if (isRiotGame(steamAppId)) return fetchRiotFeed(steamAppId);
   const data = newsSchema.safeParse(
     await fetchJson(
       `https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steamAppId}&count=30&maxlength=0&format=json&l=english`,
@@ -153,6 +180,7 @@ export async function fetchSteamFeed(steamAppId: number) {
       // Only the digest and counts travel to the client, not the full notes.
       digest: digestNews(cleanSteamText(item.contents), item.title, patch),
       patchCounts: patch ? summarizePatch(patch).counts : null,
+      source: "steam" as const,
     };
   });
   return {
@@ -210,6 +238,7 @@ type SteamGame = z.infer<typeof steamGameSchema>;
 export async function fetchGameMetadata(
   steamAppId: number,
 ): Promise<SteamGame | null> {
+  if (isRiotGame(steamAppId)) return riotMetadata(steamAppId);
   const response = z
     .record(
       z.string(),
@@ -415,7 +444,10 @@ const steamPriceMap = z.record(
  * several AppIDs when filtered to price_overview). Missing prices are omitted.
  */
 export async function fetchSteamPrices(steamAppIds: number[]) {
-  const ids = [...new Set(steamAppIds)].sort((a, b) => a - b);
+  // Riot's games have no Steam price to ask for.
+  const ids = [...new Set(steamAppIds)]
+    .filter((id) => !isRiotGame(id))
+    .sort((a, b) => a - b);
   if (!ids.length) return {};
   const parsed = steamPriceMap.safeParse(
     await fetchJson(
@@ -490,6 +522,8 @@ export async function fetchGamePrices(
   steamAppId: number,
   metadata?: Promise<SteamGame | null>,
 ) {
+  // Free in the Riot Client and sold by no PC store: nothing to compare.
+  if (isRiotGame(steamAppId)) return null;
   const matches = z
     .array(z.object({ gameID: z.string() }))
     .safeParse(
@@ -572,6 +606,26 @@ const storeHeader = (id: number) =>
 // Public title search for adding any game, not just games currently on sale.
 // When Steam is unreachable, saved catalog titles are offered without prices.
 export async function searchGames(query: string): Promise<{
+  source: "steam" | "catalog";
+  results: GameSearchResult[];
+}> {
+  const result = await searchSteamGames(query);
+  // Riot's PC games aren't on Steam; offer them first when the search fits.
+  const riot = searchRiotGames(query).map(
+    (game): GameSearchResult => ({
+      steamAppId: game.id,
+      title: game.title,
+      image: `/api/art/${game.id}/header`,
+      price: 0,
+      developer: "Riot Games",
+      releaseYear: game.releaseYear,
+      source: "riot",
+    }),
+  );
+  return { ...result, results: [...riot, ...result.results] };
+}
+
+async function searchSteamGames(query: string): Promise<{
   source: "steam" | "catalog";
   results: GameSearchResult[];
 }> {

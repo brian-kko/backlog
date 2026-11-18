@@ -19,3 +19,5 @@ type RouterOutputs = inferRouterOutputs<AppRouter>;
 export { type AppRouter, appRouter } from "./root";
 export { createTRPCContext } from "./trpc";
 export type { RouterInputs, RouterOutputs };
+/** Riot game art for the image resolver (no public Riot API). */
+export { riotArtUrl } from "./riot-discovery";

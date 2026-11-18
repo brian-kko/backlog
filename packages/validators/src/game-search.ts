@@ -16,6 +16,8 @@ export const GameSearchResultSchema = z.object({
   /** Tells same-named games apart in search ("Valve · 2024"). */
   developer: z.string().optional(),
   releaseYear: z.number().int().optional(),
+  /** Riot's games aren't on Steam: they're free in the Riot Client. */
+  source: z.enum(["steam", "riot"]).optional(),
 });
 export type GameSearchResult = z.infer<typeof GameSearchResultSchema>;
 

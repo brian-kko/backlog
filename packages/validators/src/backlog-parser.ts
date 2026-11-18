@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import { isRiotGame } from "./riot";
+
 // Match PostgreSQL integer IDs and numeric(10, 2) prices.
 const SteamAppIdSchema = z.number().int().positive().max(2147483647);
 const PriceSchema = z.number().min(0).max(99999999.99).multipleOf(0.01);
@@ -43,6 +45,7 @@ export const PlatformSchema = z.enum([
   "gog",
   "epic",
   "ubisoft",
+  "riot",
   "other",
 ]);
 export type Platform = z.infer<typeof PlatformSchema>;
@@ -51,6 +54,7 @@ export const platformNames: Readonly<Record<Platform, string>> = {
   gog: "GOG Galaxy",
   epic: "Epic Games Launcher",
   ubisoft: "Ubisoft Connect",
+  riot: "Riot Client",
   other: "Another launcher",
 };
 
@@ -80,7 +84,10 @@ export function purchaseStoreFromDeal(storeId: string | null | undefined) {
  */
 export function defaultPlatform(
   store: PurchaseStore | null | undefined,
+  /** Riot's games always run in the Riot Client, wherever they came from. */
+  steamAppId?: number,
 ): Platform {
+  if (isRiotGame(steamAppId)) return "riot";
   return store === "gog" || store === "epic" || store === "ubisoft"
     ? store
     : store === "other"
@@ -92,8 +99,9 @@ export function defaultPlatform(
 export function itemPlatform(item: {
   platform?: Platform | null;
   purchaseStore?: PurchaseStore | null;
+  steamAppId?: number;
 }): Platform {
-  return item.platform ?? defaultPlatform(item.purchaseStore);
+  return item.platform ?? defaultPlatform(item.purchaseStore, item.steamAppId);
 }
 
 export const UpsertBacklogItemSchema = z.object({

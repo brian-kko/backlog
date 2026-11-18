@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@acme/ui";
-import { itemPlatform, platformNames } from "@acme/validators";
+import { itemPlatform, platformNames, riotGame } from "@acme/validators";
 
 import type { Prices } from "~/components/price-ui";
 import { useAmbientTint } from "~/components/ambient";
@@ -242,14 +242,17 @@ function HeroBackdrop({
 function HeroTitle({
   steamAppId,
   title,
+  logo = true,
 }: {
   steamAppId: number;
   title: string;
+  /** False when Steam has no logo to try (Riot's games). */
+  logo?: boolean;
 }) {
   // "logo": wide wordmark under a small name; "text": no usable wordmark
   // (missing, or a square emblem that doesn't say the name), so the name
   // itself is the big title.
-  const [mode, setMode] = useState<"logo" | "text">("logo");
+  const [mode, setMode] = useState<"logo" | "text">(logo ? "logo" : "text");
   const ref = useRef<HTMLImageElement>(null);
   const evaluate = useCallback((image: HTMLImageElement) => {
     // Steam pads wordmarks onto a 640×360 canvas (1.78:1), so only
@@ -311,6 +314,8 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
     ?.replace(/<[^>]*>/g, "")
     .trim();
   const steamUrl = `https://store.steampowered.com/app/${steamAppId}/`;
+  // Riot's games live on Riot's site, are free, and aren't sold in PC stores.
+  const riot = riotGame(steamAppId);
   const back = item?.isOwned
     ? { href: "/library", label: "Library" }
     : item
@@ -325,7 +330,12 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
         />
         <div className="hero-body">
           <BackLink fallbackHref={back.href} fallbackLabel={back.label} />
-          <HeroTitle key={steamAppId} steamAppId={steamAppId} title={title} />
+          <HeroTitle
+            key={steamAppId}
+            steamAppId={steamAppId}
+            title={title}
+            logo={!riot}
+          />
           {/* Space for three lines is held while Steam's description loads,
               so the hero doesn't grow once it arrives. */}
           <p
@@ -355,6 +365,15 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
                 title={title}
                 testId="launch-game-btn"
               />
+            ) : riot && !item?.isOwned ? (
+              <a
+                className="action"
+                href={riot.site}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Play free at Riot Games <span aria-hidden="true">↗</span>
+              </a>
             ) : offer && !item?.isOwned ? (
               <a
                 className="action"
@@ -372,11 +391,12 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
             ) : null}
             <a
               className="action secondary"
-              href={steamUrl}
+              href={riot?.site ?? steamUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
-              Steam store page <span aria-hidden="true">↗</span>
+              {riot ? `${riot.title} site` : "Steam store page"}{" "}
+              <span aria-hidden="true">↗</span>
             </a>
           </div>
           {item?.isOwned && !canLaunch(item) && (
@@ -391,9 +411,17 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
         {/* Prices lead for every game: that's what Gemuzu adds over Steam. */}
         <div className="panel space-y-4">
           <div className="section-heading">
-            <h2>Prices across stores</h2>
+            <h2>{riot ? "Price" : "Prices across stores"}</h2>
           </div>
-          {game.fetchStatus === "paused" ? (
+          {riot ? (
+            <div className="space-y-1">
+              <p className="hub-price">Free</p>
+              <p className="text-muted-foreground text-sm">
+                Free to play in the Riot Client. Riot’s games aren’t sold in PC
+                stores, so there are no prices to compare.
+              </p>
+            </div>
+          ) : game.fetchStatus === "paused" ? (
             <p role="status" className="filter-help">
               You’re offline. Prices will load when you reconnect.
             </p>
@@ -487,7 +515,9 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
             You’re offline. News will load when you reconnect.
           </p>
         ) : game.isPending ? (
-          <p role="status">Loading Steam news…</p>
+          <p role="status">
+            {riot ? "Loading Riot news…" : "Loading Steam news…"}
+          </p>
         ) : (
           <BacklogFeed
             key={steamAppId}

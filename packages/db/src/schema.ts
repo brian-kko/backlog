@@ -75,7 +75,7 @@ export const userBacklog = pgTable(
       ],
     }),
     platform: text("platform", {
-      enum: ["steam", "gog", "epic", "ubisoft", "other"],
+      enum: ["steam", "gog", "epic", "ubisoft", "riot", "other"],
     }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
