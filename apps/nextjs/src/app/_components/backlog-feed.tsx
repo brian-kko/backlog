@@ -13,6 +13,14 @@ import { useTRPC } from "~/trpc/react";
 
 type Feed = RouterOutputs["backlog"]["getSteamFeed"];
 type NewsItem = Feed["events"][number];
+export type NewsTab = "patches" | "events";
+
+interface NewsTabControls {
+  tab?: NewsTab;
+  onTabChange?: (tab: NewsTab) => void;
+  /** Count recent posts while keeping older date groups available. */
+  countSince?: number;
+}
 
 const categoryLabel = (category: NewsItem["category"]) =>
   category === "patch_note"
@@ -20,6 +28,35 @@ const categoryLabel = (category: NewsItem["category"]) =>
     : category === "general"
       ? "Announcement"
       : "Event";
+
+function PatchSummary({ item }: { item: NewsItem }) {
+  const counts = item.patchCounts;
+  if (!counts) return null;
+  const other = counts.adjusted + counts.new + counts.fix + counts.removed;
+  // Unclassified prose is not evidence of a concrete change.
+  if (counts.nerf + counts.buff + other < 3) return null;
+  return (
+    <Link
+      className="news-patch-summary"
+      href={`/patch/${item.steamAppId}/${item.id}`}
+    >
+      <span className="news-patch-count" data-kind="nerf">
+        <span aria-hidden="true">▼</span> {counts.nerf}{" "}
+        {counts.nerf === 1 ? "nerf" : "nerfs"}
+      </span>
+      <span aria-hidden="true">·</span>
+      <span className="news-patch-count" data-kind="buff">
+        <span aria-hidden="true">▲</span> {counts.buff}{" "}
+        {counts.buff === 1 ? "buff" : "buffs"}
+      </span>
+      <span aria-hidden="true">·</span>
+      <span className="news-patch-count" data-kind="adjusted">
+        <span aria-hidden="true">↻</span> {other} other
+      </span>
+      <span className="sr-only">: Read patch notes for {item.title}</span>
+    </Link>
+  );
+}
 
 export function NewsCards({
   items,
@@ -89,6 +126,9 @@ export function NewsCards({
                 </time>
               </div>
               <h3>{item.title}</h3>
+              {item.category === "patch_note" && /^\d+$/.test(item.id) && (
+                <PatchSummary item={item} />
+              )}
               {topics.length > 0 && (
                 <ul className="news-topics" aria-label="Topics">
                   {topics.map((topic) => (
@@ -205,6 +245,9 @@ export function NewsTabs({
   newSince,
   level,
   children,
+  tab: controlledTab,
+  onTabChange,
+  countSince,
 }: {
   items: NewsItem[] | undefined;
   titles?: Map<number, string>;
@@ -212,8 +255,13 @@ export function NewsTabs({
   newSince?: number;
   level?: 2 | 3;
   children?: React.ReactNode;
-}) {
-  const [tab, setTab] = useState<"patches" | "events">("patches");
+} & NewsTabControls) {
+  const [localTab, setLocalTab] = useState<NewsTab>("patches");
+  const tab = controlledTab ?? localTab;
+  function setTab(value: NewsTab) {
+    setLocalTab(value);
+    onTabChange?.(value);
+  }
   const patches = items?.filter((item) => item.category === "patch_note");
   const events = items?.filter((item) => item.category !== "patch_note");
   const visible = tab === "patches" ? patches : events;
@@ -257,7 +305,11 @@ export function NewsTabs({
                 {value === "patches" ? "Patch notes" : "Events & announcements"}
               </span>
               <span className="tab-count">
-                {(value === "patches" ? patches : events)?.length ?? 0}
+                {(value === "patches" ? patches : events)?.filter(
+                  (item) =>
+                    countSince === undefined ||
+                    item.publishedAt.getTime() > countSince,
+                ).length ?? 0}
               </span>
             </button>
           ))}
@@ -325,11 +377,14 @@ export function BacklogFeed({
   steamAppId,
   initialFeed,
   level,
+  tab,
+  onTabChange,
+  countSince,
 }: {
   steamAppId: number;
   initialFeed?: Feed;
   level?: 2 | 3;
-}) {
+} & NewsTabControls) {
   const trpc = useTRPC();
   const [includeCommunity, setIncludeCommunity] = useState(false);
   // A failed server-side feed is retried here; fresh data replaces it.
@@ -356,6 +411,9 @@ export function BacklogFeed({
     <NewsTabs
       items={items}
       level={level}
+      tab={tab}
+      onTabChange={onTabChange}
+      countSince={countSince}
       emptyHint={
         includeCommunity
           ? "for this game yet."
@@ -422,12 +480,15 @@ export function CollectionFeed({
   newSince,
   level,
   children,
+  tab,
+  onTabChange,
+  countSince,
 }: {
   games: { steamAppId: number; title: string }[];
   newSince?: number;
   level?: 2 | 3;
   children?: React.ReactNode;
-}) {
+} & NewsTabControls) {
   const feed = useCollectionFeed(games.map((game) => game.steamAppId));
   const titles = new Map(games.map((game) => [game.steamAppId, game.title]));
   if (!feed.data)
@@ -455,6 +516,9 @@ export function CollectionFeed({
         titles={titles}
         newSince={newSince}
         level={level}
+        tab={tab}
+        onTabChange={onTabChange}
+        countSince={countSince}
         emptyHint="from your games recently."
       >
         {children}

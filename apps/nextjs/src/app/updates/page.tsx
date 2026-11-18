@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import type { NewsTab } from "../_components/backlog-feed";
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
 import { followedGames } from "~/components/collection";
@@ -10,6 +11,7 @@ import { markNewsSeen, useNewsSeen } from "~/components/news-seen";
 import {
   BacklogFeed,
   CollectionFeed,
+  ownPosts,
   useCollectionFeed,
 } from "../_components/backlog-feed";
 
@@ -24,6 +26,7 @@ export default function UpdatesPage() {
   const { items, isLoading } = useBacklog();
   const games = followedGames(items);
   const [selected, setSelected] = useState<number | "all">("all");
+  const [tab, setTab] = useState<NewsTab>("patches");
   const seen = useNewsSeen();
   // Posts newer than the previous visit stay marked "New" during this visit.
   const [newSince, setNewSince] = useState<number | null>(null);
@@ -52,16 +55,20 @@ export default function UpdatesPage() {
       : games.find((game) => game.steamAppId === selected);
   const following = games.slice(0, maxFollowed);
   const feed = useCollectionFeed(following.map((game) => game.steamAppId));
-  // Posts per game in the last 30 days, shown beside each game in the filter.
-  const [monthAgo] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const patchesThisMonth = (feed.data?.items ?? []).filter(
+  const [countSince] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const titles = new Map(games.map((game) => [game.steamAppId, game.title]));
+  const posts = ownPosts(feed.data?.items ?? [], titles);
+  const countLabel = tab === "patches" ? "Patch notes" : "Events";
+  const recentPosts = posts.filter(
     (item) =>
-      item.category === "patch_note" && item.publishedAt.getTime() > monthAgo,
-  ).length;
+      (tab === "patches"
+        ? item.category === "patch_note"
+        : item.category !== "patch_note") &&
+      item.publishedAt.getTime() > countSince,
+  );
   const recent = new Map<number, number>();
-  for (const item of feed.data?.items ?? [])
-    if (item.publishedAt.getTime() > monthAgo)
-      recent.set(item.steamAppId, (recent.get(item.steamAppId) ?? 0) + 1);
+  for (const item of recentPosts)
+    recent.set(item.steamAppId, (recent.get(item.steamAppId) ?? 0) + 1);
   const unread =
     (newSince ?? 0) > 0 &&
     Boolean(
@@ -76,8 +83,15 @@ export default function UpdatesPage() {
         stat={
           feed.data ? (
             <>
-              <strong>{patchesThisMonth}</strong>{" "}
-              {patchesThisMonth === 1 ? "patch" : "patches"} in the last 30 days
+              <strong>{recentPosts.length}</strong>{" "}
+              {tab === "patches"
+                ? recentPosts.length === 1
+                  ? "patch"
+                  : "patches"
+                : recentPosts.length === 1
+                  ? "event"
+                  : "events"}{" "}
+              in the last 30 days
             </>
           ) : null
         }
@@ -101,7 +115,9 @@ export default function UpdatesPage() {
               Your games
             </p>
             {games.length <= 8 && (
-              <p className="updates-count-help">Posts in the last 30 days</p>
+              <p className="updates-count-help">
+                {countLabel} in the last 30 days
+              </p>
             )}
             {games.length > 8 ? (
               <label className="inline-select self-start">
@@ -165,13 +181,10 @@ export default function UpdatesPage() {
                       <span
                         className="pill-count"
                         aria-hidden="true"
-                        title="Posts in the last 30 days"
+                        title={`${countLabel} in the last 30 days`}
                       >
                         {count ?? "—"}
-                        <span className="updates-count-period">
-                          {" "}
-                          this month
-                        </span>
+                        <span className="updates-count-period">in 30 days</span>
                       </span>
                       <span
                         className="sr-only"
@@ -179,9 +192,9 @@ export default function UpdatesPage() {
                       >
                         {count === undefined
                           ? feed.isPending && feed.fetchStatus !== "paused"
-                            ? "Loading post count"
-                            : "Post count unavailable"
-                          : `${count} ${count === 1 ? "post" : "posts"} in the last 30 days`}
+                            ? `Loading ${countLabel.toLowerCase()} count`
+                            : `${countLabel} count unavailable`
+                          : `${count} ${tab === "patches" ? (count === 1 ? "patch note" : "patch notes") : count === 1 ? "event" : "events"} in the last 30 days`}
                       </span>
                     </button>
                   );
@@ -198,6 +211,9 @@ export default function UpdatesPage() {
                 key={current.steamAppId}
                 steamAppId={current.steamAppId}
                 level={2}
+                tab={tab}
+                onTabChange={setTab}
+                countSince={countSince}
               />
             </section>
           ) : (
@@ -213,6 +229,9 @@ export default function UpdatesPage() {
                 games={following}
                 newSince={newSince ?? 0}
                 level={2}
+                tab={tab}
+                onTabChange={setTab}
+                countSince={countSince}
               >
                 {unread && (
                   <button

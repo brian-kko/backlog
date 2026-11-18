@@ -593,6 +593,7 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
 test("updates merge your games, filter by game, and keep tabs keyboard friendly", async ({
   page,
 }) => {
+  await page.clock.setFixedTime(new Date("2026-10-29T12:00:00Z"));
   await page.goto("/updates");
   const feed = page.getByRole("tabpanel");
   // All my games: official posts from every collection game, each labelled.
@@ -611,10 +612,38 @@ test("updates merge your games, filter by game, and keep tabs keyboard friendly"
   await expect(feed.locator(".news-lead").first()).toHaveText(
     "Performance improvements and bug fixes.",
   );
+  const gameCount = await page.locator(".updates-filter .pill-count").count();
+  await expect(page.locator(".updates-count-help")).toHaveText(
+    "Patch notes in the last 30 days",
+  );
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount * 3} patches in the last 30 days`,
+  );
+  await expect(
+    page.getByTestId("tab-patches").locator(".tab-count"),
+  ).toHaveText(String(gameCount * 3));
+  await expect(page.locator(".updates-count-period")).toHaveText(
+    Array.from({ length: gameCount }, () => "in 30 days"),
+  );
+  await expect(feed.locator(".news-patch-summary")).toHaveCount(0);
   await page.getByTestId("tab-events").click();
   await expect(page.getByTestId("tab-events")).toHaveAttribute(
     "aria-selected",
     "true",
+  );
+  await expect(page.locator(".updates-count-help")).toHaveText(
+    "Events in the last 30 days",
+  );
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount} events in the last 30 days`,
+  );
+  await expect(page.getByTestId("tab-events").locator(".tab-count")).toHaveText(
+    String(gameCount),
+  );
+  await expect(
+    page.locator('.updates-filter [id^="updates-count-"]'),
+  ).toHaveText(
+    Array.from({ length: gameCount }, () => "1 event in the last 30 days"),
   );
   await expect(
     feed.getByRole("heading", { name: "Night City Festival" }).first(),
@@ -649,6 +678,105 @@ test("updates merge your games, filter by game, and keep tabs keyboard friendly"
   await expect(
     page.getByRole("button", { name: "Elden Ring", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("updates count recent categories and link classified patch summaries", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-29T12:00:00Z"));
+  const t = initTRPC.create({ transformer: SuperJSON });
+  const router = t.router({
+    backlog: t.router({
+      getCollectionFeed: t.procedure
+        .input(CollectionFeedInputSchema)
+        .query(({ input }) => ({
+          unavailable: [],
+          items: input.steamAppIds.flatMap((id) => {
+            const feed = steamFeed(id);
+            return [
+              ...feed.patchNotes.map((item, index) => ({
+                ...item,
+                id: `${id}${index}`,
+                contents:
+                  index === 0
+                    ? patchPost
+                    : index === 1
+                      ? "[list][*]Reduced damage from 10 to 5[/*][*]Increased health from 10 to 20[/*][/list]"
+                      : "Thank you for playing.",
+                publishedAt: new Date(
+                  index === 2 ? "2026-09-01T12:00:00Z" : "2026-10-22T12:00:00Z",
+                ),
+              })),
+              ...feed.events.filter((item) => item.official),
+            ];
+          }),
+        })),
+    }),
+  });
+  await page.route("**/api/trpc/**", async (route) => {
+    const request = route.request();
+    if (!new URL(request.url()).pathname.endsWith("/backlog.getCollectionFeed"))
+      return route.fallback();
+    const response = await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      router,
+      createContext: () => ({}),
+      req: new Request(request.url(), {
+        method: request.method(),
+        headers: await request.allHeaders(),
+      }),
+    });
+    await route.fulfill({
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
+    });
+  });
+  await page.goto("/updates");
+  const feed = page.getByRole("tabpanel");
+  const detailed = feed.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: "Cyberpunk 2077 Patch 1",
+      exact: true,
+    }),
+  });
+  await expect(detailed.locator(".news-patch-count")).toHaveText([
+    "▼ 1 nerf",
+    "▲ 2 buffs",
+    "↻ 1 other",
+  ]);
+  await expect(detailed.locator(".news-patch-summary")).toHaveAttribute(
+    "href",
+    "/patch/1091500/10915000",
+  );
+  await expect(
+    detailed.getByRole("link", { name: /^Read patch notes:/ }),
+  ).toHaveAttribute("href", "/patch/1091500/10915000");
+  const gameCount = await page.locator(".updates-filter .pill-count").count();
+  await expect(feed.locator(".news-patch-summary")).toHaveCount(gameCount);
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount * 2} patches in the last 30 days`,
+  );
+  await expect(
+    page.getByTestId("tab-patches").locator(".tab-count"),
+  ).toHaveText(String(gameCount * 2));
+  await expect(
+    page.locator('.updates-filter [id^="updates-count-"]'),
+  ).toHaveText(
+    Array.from(
+      { length: gameCount },
+      () => "2 patch notes in the last 30 days",
+    ),
+  );
+  // The count excludes older posts without removing their date group.
+  await expect(
+    feed.getByRole("heading", { name: "Last 6 months" }),
+  ).toBeVisible();
+  await page.getByTestId("tab-events").click();
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount} events in the last 30 days`,
+  );
+  await expect(feed.locator(".news-patch-summary")).toHaveCount(0);
 });
 
 test("dynamic game hub displays prices, news, tracking and desktop launch", async ({
