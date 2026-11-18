@@ -1,11 +1,15 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 import type { RouterOutputs } from "@acme/api";
 import { cn } from "@acme/ui";
-import { compareToSteam, purchaseStoreFromDeal } from "@acme/validators";
+import {
+  compareToSteam,
+  purchaseStoreFromDeal,
+  toCents,
+} from "@acme/validators";
 
 import { AddGameButton } from "./add-game";
 import {
@@ -79,7 +83,7 @@ function OfferDetails({ deal }: { deal: Deal }) {
           {price(deal.normalPrice)}
         </s>
       )}
-      {deal.savingsPercent >= 1 && deal.cheapestPrice > 0 && (
+      {deal.savingsPercent >= 1 && (
         <span className="discount-label">
           −{Math.round(deal.savingsPercent)}%
         </span>
@@ -159,11 +163,13 @@ function SteamLine({
   deal,
   steam,
   checking,
+  featured = false,
 }: {
   deal: Deal;
   steam?: number;
   /** Steam prices for this batch are still loading. */
   checking: boolean;
+  featured?: boolean;
 }) {
   const reason = (text: string) => (
     <p className="steam-line steam-line-muted">{text}</p>
@@ -188,7 +194,14 @@ function SteamLine({
         ·
       </span>{" "}
       {gap > 0 ? (
-        <strong className="deal-comparison">save {price(gap / 100)}</strong>
+        <>
+          <strong className="deal-comparison">save {price(gap / 100)}</strong>{" "}
+          {featured && toCents(steam) > 0 && (
+            <span className="deal-steam-discount">
+              (−{Math.round((gap / toCents(steam)) * 100)}%)
+            </span>
+          )}
+        </>
       ) : (
         <span className="deal-comparison">
           {gap === 0 ? "same price" : "cheaper on Steam"}
@@ -221,15 +234,12 @@ export function DealCards({
     undefined,
   );
   const remaining = groups.filter((group) => group !== featured);
-  const ranked = bestDeals
-    ? [
-        ...remaining.filter((group) => gap(group) != null),
-        ...remaining.filter((group) => gap(group) == null),
-      ]
+  const matched = bestDeals
+    ? remaining.filter((group) => gap(group) != null)
     : remaining;
-  const firstUnmatched = bestDeals
-    ? ranked.findIndex((group) => gap(group) == null)
-    : -1;
+  const unmatched = bestDeals
+    ? remaining.filter((group) => gap(group) == null)
+    : [];
   return (
     <div className="deal-results">
       {featured && (
@@ -241,22 +251,28 @@ export function DealCards({
           featured
         />
       )}
-      {ranked.length > 0 && (
+      {matched.length > 0 && (
         <div className="deal-grid">
-          {ranked.map((group, index) => (
-            <Fragment key={group.deal.id}>
-              {index === firstUnmatched && (
-                <p className="deal-divider">
-                  Other editions · no Steam match to compare
-                </p>
-              )}
-              <DealCard
-                group={group}
-                steam={baseline(group)}
-                checking={steamPrices === undefined}
-              />
-            </Fragment>
+          {matched.map((group) => (
+            <DealCard
+              key={group.deal.id}
+              group={group}
+              steam={baseline(group)}
+              checking={steamPrices === undefined}
+            />
           ))}
+        </div>
+      )}
+      {unmatched.length > 0 && (
+        <div className="deal-editions">
+          <p className="deal-divider">
+            Other editions: no Steam match to compare
+          </p>
+          <div className="deal-edition-list">
+            {unmatched.map((group) => (
+              <DealRow key={group.deal.id} group={group} />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -292,12 +308,15 @@ function DealCard({
           }
           priority={featured}
         />
-        {gap != null && gap > 0 && (
-          <span className="deal-ribbon">Beats Steam −{price(gap / 100)}</span>
-        )}
       </div>
       <div className="deal-content">
-        <div className="deal-heading min-w-0 space-y-1">
+        <div className="deal-heading min-w-0">
+          {featured && (
+            <p className="deal-featured-eyebrow">Biggest saving vs Steam</p>
+          )}
+          {gap != null && gap > 0 && (
+            <span className="deal-ribbon">Beats Steam −{price(gap / 100)}</span>
+          )}
           <Title deal={deal} level={featured ? "h2" : "h3"} />
           <StoreLine group={group} />
         </div>
@@ -312,9 +331,11 @@ function DealCard({
             <span className="ledger-label" aria-hidden="true">
               {deal.source === "catalog"
                 ? "Saved"
-                : gap != null && gap < 0
-                  ? "Offer"
-                  : "Best"}{" "}
+                : deal.cheapestPrice === 0
+                  ? "Free"
+                  : gap != null && gap < 0
+                    ? "Offer"
+                    : "Best"}{" "}
               · {storeName(deal.storeId)}
             </span>
             <PriceLine deal={deal} />
@@ -322,53 +343,113 @@ function DealCard({
               {deal.source === "catalog"
                 ? "Check saved price"
                 : `at ${storeName(deal.storeId)}`}{" "}
-              ↗
+              <span aria-hidden="true">↗</span>
             </span>
           </a>
-          <SteamLine deal={deal} steam={steam} checking={checking} />
+          <SteamLine
+            deal={deal}
+            steam={steam}
+            checking={checking}
+            featured={featured}
+          />
         </div>
         <OfferDetails deal={deal} />
-        <div className="deal-actions">
-          {gap != null && gap < 0 && deal.steamAppId ? (
-            <a
-              className="action secondary deal-buy"
-              href={`https://store.steampowered.com/app/${deal.steamAppId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Buy at Steam<span aria-hidden="true">↗</span>
-            </a>
-          ) : (
-            <a
-              className={cn("action deal-buy", !featured && "secondary")}
-              href={offerUrl(deal)}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {deal.source === "catalog" ? "Check price at" : "Buy at"}{" "}
-              {storeName(deal.storeId)}
-              <span aria-hidden="true">↗</span>
-            </a>
-          )}
-          {deal.steamAppId ? (
-            <TrackToggle>
-              <TrackActions
-                steamAppId={deal.steamAppId}
-                title={deal.title}
-                price={deal.cheapestPrice}
-                store={purchaseStoreFromDeal(deal.storeId)}
-                saved={deal.source === "catalog"}
-              />
-            </TrackToggle>
-          ) : (
-            <AddGameButton
-              label="Find it on Steam to track"
-              initialQuery={deal.title}
-              className="action secondary deal-find"
-            />
-          )}
-        </div>
+        <DealActions group={group} gap={gap} featured={featured} />
       </div>
+    </article>
+  );
+}
+
+function DealActions({
+  group,
+  gap = null,
+  featured = false,
+  compact = false,
+}: {
+  group: DealGroup;
+  gap?: number | null;
+  featured?: boolean;
+  compact?: boolean;
+}) {
+  const { deal } = group;
+  return (
+    <div className="deal-actions">
+      {gap != null && gap < 0 && deal.steamAppId ? (
+        <a
+          className="action secondary deal-buy"
+          href={`https://store.steampowered.com/app/${deal.steamAppId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Buy at Steam<span aria-hidden="true">↗</span>
+        </a>
+      ) : (
+        <a
+          className={cn("action deal-buy", !featured && "secondary")}
+          href={offerUrl(deal)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {deal.source === "catalog"
+            ? "Check price at"
+            : deal.cheapestPrice === 0
+              ? "Get it free at"
+              : "Buy at"}{" "}
+          {storeName(deal.storeId)}
+          <span aria-hidden="true">↗</span>
+        </a>
+      )}
+      {deal.steamAppId ? (
+        <TrackToggle>
+          <TrackActions
+            steamAppId={deal.steamAppId}
+            title={deal.title}
+            price={deal.cheapestPrice}
+            store={purchaseStoreFromDeal(deal.storeId)}
+            saved={deal.source === "catalog"}
+          />
+        </TrackToggle>
+      ) : (
+        <AddGameButton
+          label={compact ? "Find on Steam" : "Find it on Steam to track"}
+          initialQuery={deal.title}
+          className="action secondary deal-find"
+        />
+      )}
+    </div>
+  );
+}
+
+/** Offers without a live Steam comparison stay scannable below the divider. */
+function DealRow({ group }: { group: DealGroup }) {
+  const { deal } = group;
+  return (
+    <article className="deal-row" data-testid="deal-card">
+      <div className="deal-row-art">
+        <GameArt appId={deal.steamAppId} title={deal.title} src={deal.thumb} />
+      </div>
+      <div className="deal-row-heading">
+        <Title deal={deal} level="h3" />
+        <StoreLine group={group} />
+      </div>
+      <div className="deal-row-price">
+        <a
+          className="price-link"
+          href={offerUrl(deal)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${deal.source === "catalog" ? "Saved price " : ""}${price(deal.cheapestPrice)} at ${storeName(deal.storeId)} (opens store)`}
+        >
+          {deal.cheapestPrice === 0 && (
+            <span className="ledger-label">
+              Free · {storeName(deal.storeId)}
+            </span>
+          )}
+          <PriceLine deal={deal} />
+        </a>
+        <OfferDetails deal={deal} />
+      </div>
+      <DealActions group={group} compact />
     </article>
   );
 }

@@ -445,22 +445,24 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
   await expect(page.getByTestId("deal-card")).toHaveCount(11);
   const featured = page.locator(".deal-featured");
   await expect(featured.getByRole("heading")).toHaveText("Featured Game 2");
+  await expect(featured.locator(".deal-featured-eyebrow")).toHaveText(
+    "Biggest saving vs Steam",
+  );
   await expect(featured.locator(".deal-price")).toHaveText("$31.99");
   await expect(featured.locator(".steam-line")).toHaveText(
-    "Steam $39.99 · save $8.00",
+    "Steam $39.99 · save $8.00 (−20%)",
   );
   await expect(page.locator(".deal-grid .deal-featured")).toHaveCount(0);
   await expect(page.locator(".deal-divider")).toHaveText(
-    "Other editions · no Steam match to compare",
+    "Other editions: no Steam match to compare",
   );
   const unmatched = page
     .getByTestId("deal-card")
     .filter({ hasText: "Featured Game 11" });
-  await expect(unmatched.locator(".steam-line")).toHaveText(
-    "Steam comparison unavailable for this edition",
-  );
+  await expect(unmatched).toHaveClass("deal-row");
+  await expect(unmatched.locator(".steam-line")).toHaveCount(0);
   await expect(
-    unmatched.getByRole("button", { name: "Find it on Steam to track" }),
+    unmatched.getByRole("button", { name: "Find on Steam", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Under $15", exact: true }).click();
   await expect(page.getByTestId("deal-card")).toHaveCount(1);
@@ -1357,11 +1359,9 @@ test("saved offers during a store outage are labelled and never promise savings"
   await expect(
     card.getByRole("link", { name: /Check price at/ }),
   ).toBeVisible();
-  // Saved offers keep the Steam slot but never claim a saving.
-  await expect(card.locator(".steam-line")).toHaveText(
-    /compare once prices are live/,
-  );
-  await expect(card.locator(".steam-line")).not.toContainText("save");
+  // Saved offers stay compact and never claim a live Steam comparison.
+  await expect(card).toHaveClass("deal-row");
+  await expect(card.locator(".steam-line")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Load more deals" }),
   ).toHaveCount(0);
