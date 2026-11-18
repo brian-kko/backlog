@@ -960,7 +960,7 @@ function CoverDeck({
 
 /**
  * Page masthead: a display title, one live stat about this page's data,
- * and (optionally) artwork from the page's own games beside it.
+ * and (optionally) a deck or a data visual beside it.
  */
 export function PageHeading({
   title,
@@ -969,6 +969,7 @@ export function PageHeading({
   stat,
   deck,
   deckTucked,
+  visual,
 }: {
   title: string;
   children?: React.ReactNode;
@@ -976,11 +977,16 @@ export function PageHeading({
   /** One live number for this page, e.g. "5 of 18 beat Steam"; pass null
    * while it loads to keep its line reserved. */
   stat?: React.ReactNode;
-  /** The page's own games, most relevant first, shown as a hand of cards. */
-  deck?: DeckCard[];
-  /** The page has a solid toolbar right below, so the hand can slide under. */
-  deckTucked?: boolean;
-}) {
+} & (
+  | {
+      /** The page's own games, most relevant first, shown as a hand of cards. */
+      deck?: DeckCard[];
+      /** Run the hand under the solid toolbar below. */
+      deckTucked?: boolean;
+      visual?: never;
+    }
+  | { visual?: React.ReactNode; deck?: never; deckTucked?: never }
+)) {
   // The page's own games colour its background glow.
   useAmbientPalette(
     deck?.flatMap((card) => (card.steamAppId != null ? [card.steamAppId] : [])),
@@ -996,6 +1002,9 @@ export function PageHeading({
       {actions && <div className="page-actions">{actions}</div>}
       {!!deck?.length && (
         <CoverDeck cards={deck} label={`${title} games`} tucked={deckTucked} />
+      )}
+      {visual != null && typeof visual !== "boolean" && (
+        <div className="page-heading-visual">{visual}</div>
       )}
     </header>
   );

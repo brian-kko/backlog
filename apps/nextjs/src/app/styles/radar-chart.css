@@ -1,0 +1,324 @@
+@layer components {
+  .page-heading-visual {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .page-heading-visual:has(.price-radar) {
+    display: none;
+  }
+
+  .price-radar,
+  .price-chart {
+    display: grid;
+    align-content: start;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    line-height: 1.3;
+  }
+
+  .price-visual-heading {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .price-radar-plot,
+  .price-chart-plot {
+    display: block;
+    width: 100%;
+  }
+
+  .price-radar-grid,
+  .price-chart-axis,
+  .price-chart-target {
+    fill: none;
+    stroke: color-mix(in srgb, var(--muted-foreground) 58%, var(--border));
+    stroke-width: 1;
+  }
+
+  :is(
+      .price-radar-grid,
+      .price-chart-axis,
+      .price-chart-target,
+      .price-chart-low
+    )
+    text {
+    fill: var(--muted-foreground);
+    stroke: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .price-radar-grid text {
+    font-size: 14px;
+  }
+
+  .price-visual-hit {
+    fill: transparent;
+    stroke: transparent;
+    stroke-width: 8px;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .price-radar-link,
+  .price-chart-step {
+    outline: none;
+  }
+
+  .price-radar-caption,
+  .price-chart-caption,
+  .price-chart-empty,
+  .price-chart-low-note {
+    color: var(--muted-foreground);
+  }
+
+  .price-radar-detail {
+    display: block;
+    min-height: 2.6em;
+    color: var(--foreground);
+    overflow-wrap: anywhere;
+  }
+
+  .price-radar-dot {
+    pointer-events: none;
+    color: var(--signal);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .price-radar-mark,
+  .price-chart-mark,
+  .price-chart-arrow {
+    fill: currentColor;
+  }
+
+  .price-radar-link[data-saving="tie"] .price-radar-dot {
+    color: var(--muted-foreground);
+  }
+
+  .price-radar-link[data-match="title"] .price-radar-mark {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2px;
+  }
+
+  .price-radar-best {
+    fill: none;
+    stroke: var(--signal);
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .price-radar-focus,
+  .price-chart-focus {
+    fill: none;
+    stroke: var(--foreground);
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
+    opacity: 0;
+  }
+
+  .price-radar-link:is(:hover, :focus-visible) .price-radar-focus,
+  .price-chart-step:is(:hover, :focus) .price-chart-focus {
+    opacity: 1;
+  }
+
+  .price-chart {
+    gap: 4px;
+    --price-chart-plot-height: 69px;
+  }
+
+  .price-chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .price-chart-periods {
+    display: flex;
+    flex: none;
+    overflow: visible;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .price-chart-periods button {
+    min-width: 32px;
+    min-height: 26px;
+    padding-inline: 3px;
+    border-radius: 4px;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+  }
+
+  .price-chart-periods button[aria-pressed="true"] {
+    background: var(--border);
+    color: var(--foreground);
+  }
+
+  .price-chart-periods button:enabled:hover {
+    color: var(--signal);
+  }
+
+  .price-chart-periods button:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: -2px;
+  }
+
+  .price-chart-plot {
+    height: var(--price-chart-plot-height);
+  }
+
+  .price-chart-step {
+    color: var(--signal);
+  }
+
+  .price-chart-step :is(.price-chart-mark, .price-chart-focus),
+  .price-chart-low {
+    pointer-events: none;
+  }
+
+  .price-chart-target path {
+    stroke: var(--muted-foreground);
+    stroke-dasharray: 4 3;
+  }
+
+  .price-chart-low circle {
+    fill: var(--muted-foreground);
+  }
+
+  .price-chart-line {
+    fill: none;
+    stroke: var(--signal);
+    stroke-width: 2px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .price-chart-arrow {
+    color: var(--signal);
+  }
+
+  .price-chart-reveal {
+    transform-box: fill-box;
+    transform-origin: left;
+  }
+
+  .price-chart-caption {
+    min-height: 1.3em;
+  }
+
+  .price-chart-empty {
+    display: grid;
+    align-content: center;
+    gap: 4px;
+    min-height: calc(var(--price-chart-plot-height) + 1.3em + 4px);
+  }
+
+  @media (pointer: coarse) {
+    .price-visual-hit {
+      stroke-width: 44px;
+    }
+
+    .price-chart-periods button {
+      min-width: 44px;
+      min-height: 44px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .page-heading:has(> .page-heading-visual) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      padding-block: 12px;
+    }
+
+    .page-heading:has(> .page-heading-visual) .page-heading-content {
+      width: 100%;
+    }
+
+    .page-heading > .page-heading-visual {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+    }
+
+    .page-heading-visual:has(.price-radar) {
+      display: block;
+      width: 220px;
+    }
+
+    .price-radar {
+      min-height: 180px;
+    }
+
+    .page-heading-visual:has(.price-chart) {
+      width: 260px;
+    }
+
+    .price-chart {
+      --price-chart-plot-height: 87px;
+      min-height: 160px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .page-heading:has(> .page-heading-visual) {
+      padding-block: 24px 8px;
+    }
+
+    .page-heading-visual:has(.price-radar) {
+      width: 280px;
+    }
+
+    .price-radar {
+      min-height: 220px;
+    }
+
+    .page-heading-visual:has(.price-chart) {
+      width: 320px;
+    }
+
+    .price-chart {
+      --price-chart-plot-height: 107px;
+      min-height: 190px;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .price-radar-dot {
+      animation: price-radar-appear 160ms ease-out both;
+    }
+
+    .price-chart-reveal {
+      animation: price-chart-draw 600ms ease-out both;
+    }
+  }
+
+  @keyframes price-radar-appear {
+    from {
+      opacity: 0;
+      transform: scale(0.65);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes price-chart-draw {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}

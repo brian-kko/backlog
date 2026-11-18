@@ -14,6 +14,8 @@ import {
   GameSearchInputSchema,
   parsePatchNotes,
   PatchNotesInputSchema,
+  PriceHistoryInputSchema,
+  priceHistorySteps,
   riotGame,
   SearchDealsInputSchema,
   searchRiotGames,
@@ -179,6 +181,7 @@ async function mockDealResults(
   page: Page,
   offers: ((typeof deals)[number] & {
     source?: "cheapshark" | "steam" | "catalog";
+    steamMatch?: { steamAppId: number; price: number; matchedBy: "title" };
   })[],
   steamPrices: Record<number, number> | (() => Promise<Record<number, number>>),
   live = true,
@@ -429,6 +432,35 @@ test.beforeEach(async ({ page }) => {
             ? null
             : fixturePrices(input.steamAppId),
         })),
+      getPriceHistory: t.procedure
+        .input(PriceHistoryInputSchema)
+        .query(({ input }) => {
+          const date = (ago: number) =>
+            new Date(Date.now() - ago * 86_400_000).toISOString();
+          const observations = [
+            { ago: 45, price: 34.99, storeId: "1" },
+            { ago: 44, price: 29.99, storeId: "7" },
+            { ago: 2, price: 24.99, storeId: "7" },
+          ];
+          const points =
+            input.steamAppId === 553850
+              ? observations
+                  .filter(({ ago }) => ago < input.days)
+                  .map(({ ago, price, storeId }) => ({
+                    date: date(ago).slice(0, 10),
+                    price,
+                    storeId,
+                  }))
+              : [];
+          return {
+            points,
+            steps: priceHistorySteps(points),
+            observedSince: points.length ? date(45).slice(0, 10) : null,
+            allTimeLow: points.length
+              ? { price: 17.99, date: date(105), source: "cheapshark" as const }
+              : null,
+          };
+        }),
       upsertBacklogItem: t.procedure
         .input(UpsertBacklogItemSchema)
         .mutation(({ input }) => {
@@ -590,17 +622,27 @@ test("empty mastheads collapse to their title blocks", async ({ page }) => {
     ["/wishlist", /^Your wishlist is empty/],
     ["/updates", /^Add games to your library or wishlist/],
     ["/", /^Nothing in progress/],
-    ["/deals?q=deckless", /^No store has a deal on “deckless”/],
   ] as const) {
     await page.goto(path);
     await expect(page.getByText(emptyCopy)).toBeVisible();
     await expectCompactMasthead();
   }
 
+  await page.goto("/deals?q=deckless");
+  await expect(
+    page.getByText(/^No store has a deal on “deckless”/),
+  ).toBeVisible();
+  const radar = masthead.getByRole("group", { name: "Price Radar" });
+  await expect(radar).toContainText(
+    "No Steam prices to compare in these results",
+  );
+  await expect(radar.getByRole("link")).toHaveCount(0);
+
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
   await page.getByTestId("deal-search-input").fill("offline deckless");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("Deals need a connection.")).toBeVisible();
+  await expect(radar).toHaveCount(0);
   await expectCompactMasthead();
 });
 
@@ -981,34 +1023,82 @@ for (const [steamPrice, copy] of [
 ] as const) {
   test(`Deals masthead reads "${copy}"`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    const offerArt = "/deck-offer-fixture.svg";
-    await page.route(`**${offerArt}`, (route) =>
-      route.fulfill({
-        contentType: "image/svg+xml",
-        body: '<svg xmlns="http://www.w3.org/2000/svg" width="216" height="324"/>',
-      }),
-    );
     const offers = deals.slice(1, 3).map((deal, index) => ({
       ...deal,
       title: index === 0 ? "Matched game" : "Store-only edition",
       steamAppId: index === 0 ? 1001 : null,
       storeId: "25",
       cheapestPrice: 29.99,
-      thumb: index === 0 ? deal.thumb : offerArt,
     }));
     await mockDealResults(page, offers, { 1001: steamPrice });
     await page.goto("/deals");
     const stat = page.locator(".page-stat");
     await expect(stat).toHaveText(copy);
     if (steamPrice === 35) await expect(stat.locator("strong")).toHaveText("1");
-    const deck = page.getByRole("group", { name: "Deals games", exact: true });
-    await expect(deck.getByRole("link")).toHaveCount(1);
-    await expect(deck.getByRole("link")).toHaveAccessibleName("Matched game");
-    const edition = deck.locator('.deck-hit[title="Store-only edition"]');
-    await expect(edition).toHaveAttribute("aria-hidden", "true");
-    expect(await edition.evaluate((element) => element.tabIndex)).toBe(-1);
+    const radar = page.getByRole("group", { name: "Price Radar" });
+    await expect(radar).toContainText("1 of 2 offers compared with Steam");
+    await expect(radar.getByRole("link")).toHaveCount(
+      steamPrice === 35 ? 1 : 0,
+    );
   });
 }
+
+test("Deals radar plots verified savings, title matches and ties", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const offers = deals.slice(1, 7).map((deal, index) => ({
+    ...deal,
+    steamAppId: [1, 4].includes(index) ? null : deal.steamAppId,
+    title:
+      [
+        "Hades",
+        "Deluxe Edition",
+        "Steam Tie",
+        "Pricier Offer",
+        "Unknown Edition",
+        "Saved Offer",
+      ][index] ?? deal.title,
+    cheapestPrice: index === 2 ? 24.99 : 9.99,
+    storeId: "7",
+    steamMatch:
+      index === 1
+        ? { steamAppId: 424242, price: 19.99, matchedBy: "title" as const }
+        : undefined,
+    source: index === 5 ? ("catalog" as const) : ("cheapshark" as const),
+  }));
+  await mockDealResults(page, offers, {
+    1001: 24.99,
+    1003: 24.99,
+    1004: 8.99,
+    1006: 24.99,
+  });
+  await page.goto("/deals");
+
+  const radar = page.getByRole("group", { name: "Price Radar" });
+  const hades = radar.getByRole("link", {
+    name: "Hades: $9.99 at GOG, $15.00 less than Steam",
+  });
+  const edition = radar.getByRole("link", {
+    name: "Deluxe Edition: $9.99 at GOG, $10.00 less than Steam (matched by title)",
+  });
+  const tie = radar.getByRole("link", {
+    name: "Steam Tie: $24.99 at GOG, same price as Steam",
+  });
+  await expect(radar).toContainText("4 of 6 offers compared with Steam");
+  await expect(radar.getByRole("link")).toHaveCount(3);
+  await expect(hades).toHaveAttribute("href", "/game/1001");
+  await expect(hades.locator(".price-radar-best")).toHaveCount(1);
+  await expect(edition).toHaveAttribute("href", "#offer-deal-2");
+  await expect(edition).toHaveAttribute("data-match", "title");
+  await expect(tie).toHaveAttribute("data-saving", "tie");
+  await hades.focus();
+  await expect(radar.locator(".price-radar-detail")).toHaveText(
+    "Hades: $9.99 at GOG, $15.00 less than Steam",
+  );
+  await edition.click();
+  await expect(page).toHaveURL(/#offer-deal-2$/);
+});
 
 for (const width of [1024, 1440]) {
   test(`deals align edition prices and actions at ${width}px`, async ({
@@ -1226,7 +1316,7 @@ for (const width of [390, 840, 1024]) {
   });
 }
 
-test("deal controls change color instantly and the masthead drifts in 250ms", async ({
+test("deal controls change color instantly and the Library masthead drifts in 250ms", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -1241,6 +1331,7 @@ test("deal controls change color instantly and the masthead drifts in 250ms", as
   await expect(
     page.getByRole("button", { name: "All stores", exact: true }),
   ).toHaveCSS("transition-duration", "0s");
+  await page.goto("/library");
   await expect(page.locator(".cover-mosaic-hero")).toHaveCSS(
     "transition-property",
     "transform",
@@ -2207,6 +2298,56 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
   await page.reload();
   await expect(watch.locator('[data-field="target"]')).toContainText("$5.00");
   await expect(page.getByRole("switch")).toHaveCount(0);
+});
+
+test("Wishlist draws observed steps, breaks gaps, and ends a drop with a down arrow", async ({
+  page,
+}) => {
+  await page.goto("/wishlist");
+  const chart = page.getByRole("group", { name: "Wishlist price history" });
+  await expect(chart).toContainText("Helldivers 2 · at your price");
+  await expect(chart.getByRole("button", { name: "90 days" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(chart.locator(".price-chart-line")).toHaveAttribute(
+    "d",
+    /^M [\d.]+ [\d.]+ H [\d.]+ V [\d.]+ M [\d.]+ [\d.]+ H [\d.]+ V [\d.]+$/,
+  );
+  await expect(chart.locator(".price-chart-arrow")).toHaveAttribute(
+    "data-direction",
+    "down",
+  );
+  await expect(chart).toContainText("Your target $25.00");
+  await expect(
+    chart.getByText(/^Lowest recorded \$17\.99 · .+ \(CheapShark\)$/),
+  ).toBeVisible();
+  const step = chart.getByRole("img", { name: /· \$24\.99 at GOG$/ });
+  await step.focus();
+  await expect(chart.locator(".price-chart-caption")).toHaveText(
+    /· \$24\.99 at GOG$/,
+  );
+});
+
+test("Wishlist shows the checked price and target with a single observation", async ({
+  page,
+}) => {
+  await page.goto("/wishlist");
+  const chart = page.getByRole("group", { name: "Wishlist price history" });
+  const period = chart.getByRole("button", { name: "30 days" });
+  await expect(period).toBeEnabled();
+  await period.click();
+  await expect(chart).toContainText(
+    /Tracking since .+ · 1 price observed\. The chart fills in as Gemuzu checks prices\./,
+  );
+  await expect(chart).toContainText(
+    "Checked today · $19.99 at Steam · Your target $25.00",
+  );
+  await expect(
+    chart.locator(".price-chart-line, .price-chart-arrow"),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(period).toHaveAttribute("aria-pressed", "true");
 });
 
 test("wishlist loading keeps saved targets and card geometry", async ({

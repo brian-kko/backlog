@@ -8,14 +8,10 @@ import { SearchDealsInputSchema, storeNames } from "@acme/validators";
 
 import { AddGameButton } from "~/components/add-game";
 import { useBacklog } from "~/components/backlog-provider";
-import {
-  DealCards,
-  groupDeals,
-  rankDeals,
-  steamGap,
-} from "~/components/deal-cards";
+import { DealCards, groupDeals, rankDeals } from "~/components/deal-cards";
 import { EmptyArt } from "~/components/empty-art";
 import { GameArt, PageHeading, plural, price } from "~/components/game-ui";
+import { getRadarComparisons, PriceRadar } from "~/components/price-radar";
 import {
   bestOffer,
   hasFreshPrices,
@@ -365,13 +361,11 @@ export default function DealsPage() {
     )
       setBatches((value) => value + 1);
   };
-  const comparisons = groups.map(({ deal }) => {
-    const steam =
-      deal.steamAppId != null ? steamPrices[deal.steamAppId] : undefined;
-    return steamGap(deal, steam);
-  });
-  const comparable = comparisons.filter((gap) => gap != null).length;
-  const beatSteam = comparisons.filter((gap) => gap != null && gap > 0).length;
+  const comparisons = getRadarComparisons(groups, steamPrices);
+  const comparable = comparisons.length;
+  const beatSteam = comparisons.filter(
+    ({ savingCents }) => savingCents > 0,
+  ).length;
   const hidden = loaded.length - filtered.length;
   const moreActive =
     (filters.maxPrice !== undefined && filters.maxPrice !== 14.99) ||
@@ -379,19 +373,21 @@ export default function DealsPage() {
     !filters.hideOwned;
   const reset = () => change({ ...defaults, query: filters.query });
   const cached = Boolean(deals.data) && !deals.live;
-  const showStat =
+  const showRadar =
     !offline &&
     !cached &&
     !deals.isError &&
-    !deals.isPending &&
-    !comparing &&
-    groups.length > 0;
+    !steamChecks.some((check) => check.isError);
+  const showStat =
+    showRadar && !deals.isPending && !comparing && groups.length > 0;
   return (
     <main className="page-shell">
       <PageHeading
         title="Deals"
         stat={
-          !showStat ? null : comparable === 0 ? (
+          showRadar && (deals.isPending || comparing) ? (
+            "Comparing with Steam…"
+          ) : !showStat ? null : comparable === 0 ? (
             "No Steam prices to compare"
           ) : beatSteam === 0 ? (
             "No deals beat Steam right now"
@@ -405,17 +401,15 @@ export default function DealsPage() {
             </>
           )
         }
-        // The best deals on the page, one card per game; editions without a
-        // Steam game use the store's own art.
-        deck={groups.map(({ deal }) => ({
-          steamAppId: deal.steamAppId,
-          title: deal.title,
-          // CheapShark's generic "no box art" image isn't the game's art.
-          image:
-            deal.thumb && !deal.thumb.includes("/default_box_art")
-              ? deal.thumb
-              : undefined,
-        }))}
+        visual={
+          showRadar && (
+            <PriceRadar
+              comparisons={comparisons}
+              total={groups.length}
+              loading={deals.isPending || comparing}
+            />
+          )
+        }
       >
         Compare prices across {Object.keys(storeNames).length} PC stores, not
         just Steam.
