@@ -127,6 +127,14 @@ function searchFixtureDeals(input: z.infer<typeof SearchDealsInputSchema>) {
   return result;
 }
 const patchPost = `[h3]Stratagems[/h3][p][i]AMW-20 APEX[/i][/p][p]Problem we want to solve:[/p][list][*]Demolition strength was too low[/*][/list][p]Changes:[/p][list][*]Decreased caliber from 60 to 20[/*][*]Increased demolition strength to 30[/*][/list][p][i]SG-22 BUSHWACKER[/i][/p][list][*]Increased damage from 405 to 486[/*][/list][h3]Fixes[/h3][list][*]Fixed a crash when joining a squad[/*][/list]`;
+const deadlockPatchPost = [
+  "[h3]Heroes[/h3][list]",
+  "[*]Scorn - Heal from heroes increased from 1.2x to 1.3x[/*]",
+  "[*]Sand Blast - T2 slow from -24% Slow and -26% Dash distance to -28% for both[/*]",
+  "[*]Radiant Daggers - Range reduced from 30m to 25m (moved to T2)[/*]",
+  "[*]Lurking Terrors - Fear buildup time reduced from 2s to 1.75s[/*]",
+  "[/list]",
+].join("");
 const browserErrors = new WeakMap<Page, string[]>();
 
 // Browser integration uses the actual tRPC serialization protocol with deterministic
@@ -249,7 +257,10 @@ test.beforeEach(async ({ page }) => {
       getPatchNotes: t.procedure
         .input(PatchNotesInputSchema)
         .query(({ input }) => {
-          const patch = parsePatchNotes(patchPost, "Devoid of Liberty: 7.2.2");
+          const patch = parsePatchNotes(
+            input.steamAppId === 1422450 ? deadlockPatchPost : patchPost,
+            "Devoid of Liberty: 7.2.2",
+          );
           return {
             steamAppId: input.steamAppId,
             gid: input.gid,
@@ -445,22 +456,24 @@ test("deals stack filters, show stores, sort offers, and save a wishlist", async
   await expect(page.getByTestId("deal-card")).toHaveCount(11);
   const featured = page.locator(".deal-featured");
   await expect(featured.getByRole("heading")).toHaveText("Featured Game 2");
+  await expect(featured.locator(".deal-featured-eyebrow")).toHaveText(
+    "Biggest saving vs Steam",
+  );
   await expect(featured.locator(".deal-price")).toHaveText("$31.99");
   await expect(featured.locator(".steam-line")).toHaveText(
-    "Steam $39.99 · save $8.00",
+    "Steam $39.99 · save $8.00 (−20%)",
   );
   await expect(page.locator(".deal-grid .deal-featured")).toHaveCount(0);
   await expect(page.locator(".deal-divider")).toHaveText(
-    "Other editions · no Steam match to compare",
+    "Other editions: no Steam match to compare",
   );
   const unmatched = page
     .getByTestId("deal-card")
     .filter({ hasText: "Featured Game 11" });
-  await expect(unmatched.locator(".steam-line")).toHaveText(
-    "Steam comparison unavailable for this edition",
-  );
+  await expect(unmatched).toHaveClass("deal-row");
+  await expect(unmatched.locator(".steam-line")).toHaveCount(0);
   await expect(
-    unmatched.getByRole("button", { name: "Find it on Steam to track" }),
+    unmatched.getByRole("button", { name: "Find on Steam", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Under $15", exact: true }).click();
   await expect(page.getByTestId("deal-card")).toHaveCount(1);
@@ -591,6 +604,7 @@ test("guest library launches, filters, exports valid JSON, and imports backups",
 test("updates merge your games, filter by game, and keep tabs keyboard friendly", async ({
   page,
 }) => {
+  await page.clock.setFixedTime(new Date("2026-10-29T12:00:00Z"));
   await page.goto("/updates");
   const feed = page.getByRole("tabpanel");
   // All my games: official posts from every collection game, each labelled.
@@ -609,10 +623,38 @@ test("updates merge your games, filter by game, and keep tabs keyboard friendly"
   await expect(feed.locator(".news-lead").first()).toHaveText(
     "Performance improvements and bug fixes.",
   );
+  const gameCount = await page.locator(".updates-filter .pill-count").count();
+  await expect(page.locator(".updates-count-help")).toHaveText(
+    "Patch notes in the last 30 days",
+  );
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount * 3} patches in the last 30 days`,
+  );
+  await expect(
+    page.getByTestId("tab-patches").locator(".tab-count"),
+  ).toHaveText(String(gameCount * 3));
+  await expect(page.locator(".updates-count-period")).toHaveText(
+    Array.from({ length: gameCount }, () => "in 30 days"),
+  );
+  await expect(feed.locator(".news-patch-summary")).toHaveCount(0);
   await page.getByTestId("tab-events").click();
   await expect(page.getByTestId("tab-events")).toHaveAttribute(
     "aria-selected",
     "true",
+  );
+  await expect(page.locator(".updates-count-help")).toHaveText(
+    "Events in the last 30 days",
+  );
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount} events in the last 30 days`,
+  );
+  await expect(page.getByTestId("tab-events").locator(".tab-count")).toHaveText(
+    String(gameCount),
+  );
+  await expect(
+    page.locator('.updates-filter [id^="updates-count-"]'),
+  ).toHaveText(
+    Array.from({ length: gameCount }, () => "1 event in the last 30 days"),
   );
   await expect(
     feed.getByRole("heading", { name: "Night City Festival" }).first(),
@@ -647,6 +689,114 @@ test("updates merge your games, filter by game, and keep tabs keyboard friendly"
   await expect(
     page.getByRole("button", { name: "Elden Ring", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("updates count recent categories and link classified patch summaries", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-29T12:00:00Z"));
+  const t = initTRPC.create({ transformer: SuperJSON });
+  const router = t.router({
+    backlog: t.router({
+      getCollectionFeed: t.procedure
+        .input(CollectionFeedInputSchema)
+        .query(({ input }) => ({
+          unavailable: [],
+          items: input.steamAppIds.flatMap((id) => {
+            const feed = steamFeed(id);
+            return [
+              ...feed.patchNotes.map((item, index) => ({
+                ...item,
+                id: `${id}${index}`,
+                // The API sends counts computed from the notes, not the notes.
+                patchCounts: summarizePatch(
+                  parsePatchNotes(
+                    index === 0
+                      ? patchPost
+                      : index === 1
+                        ? "[list][*]Reduced damage from 10 to 5[/*][*]Increased health from 10 to 20[/*][/list]"
+                        : "Thank you for playing.",
+                    item.title,
+                  ),
+                ).counts,
+                publishedAt: new Date(
+                  index === 2 ? "2026-09-01T12:00:00Z" : "2026-10-22T12:00:00Z",
+                ),
+              })),
+              ...feed.events.filter((item) => item.official),
+            ];
+          }),
+        })),
+      // The collection feed is batched with the price checks.
+      getGamePrices: t.procedure
+        .input(z.object({ steamAppId: z.number() }))
+        .query(({ input }) => ({ prices: fixturePrices(input.steamAppId) })),
+    }),
+  });
+  await page.route("**/api/trpc/**", async (route) => {
+    const request = route.request();
+    if (!new URL(request.url()).pathname.includes("backlog.getCollectionFeed"))
+      return route.fallback();
+    const response = await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      router,
+      createContext: () => ({}),
+      req: new Request(request.url(), {
+        method: request.method(),
+        headers: await request.allHeaders(),
+      }),
+    });
+    await route.fulfill({
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
+    });
+  });
+  await page.goto("/updates");
+  const feed = page.getByRole("tabpanel");
+  const detailed = feed.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: "Cyberpunk 2077 Patch 1",
+      exact: true,
+    }),
+  });
+  await expect(detailed.locator(".news-patch-count")).toHaveText([
+    "▼ 1 nerf",
+    "▲ 2 buffs",
+    "↻ 1 other",
+  ]);
+  await expect(detailed.locator(".news-patch-summary")).toHaveAttribute(
+    "href",
+    "/patch/1091500/10915000",
+  );
+  await expect(
+    detailed.getByRole("link", { name: /^Read patch notes\b/ }),
+  ).toHaveAttribute("href", "/patch/1091500/10915000");
+  const gameCount = await page.locator(".updates-filter .pill-count").count();
+  await expect(feed.locator(".news-patch-summary")).toHaveCount(gameCount);
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount * 2} patches in the last 30 days`,
+  );
+  await expect(
+    page.getByTestId("tab-patches").locator(".tab-count"),
+  ).toHaveText(String(gameCount * 2));
+  await expect(
+    page.locator('.updates-filter [id^="updates-count-"]'),
+  ).toHaveText(
+    Array.from(
+      { length: gameCount },
+      () => "2 patch notes in the last 30 days",
+    ),
+  );
+  // The count excludes older posts without removing their date group.
+  await expect(
+    feed.getByRole("heading", { name: "Last 6 months" }),
+  ).toBeVisible();
+  await page.getByTestId("tab-events").click();
+  await expect(page.locator(".page-stat")).toHaveText(
+    `${gameCount} events in the last 30 days`,
+  );
+  await expect(feed.locator(".news-patch-summary")).toHaveCount(0);
 });
 
 test("dynamic game hub displays prices, news, tracking and desktop launch", async ({
@@ -759,6 +909,9 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
   await expect(
     watch.getByRole("link", { name: "Buy at Steam" }),
   ).toHaveAttribute("href", /dealID=steam-deal/);
+  await expect(watch.locator(".watch-buy")).not.toHaveClass(/secondary/);
+  await expect(watch.locator(".price-track")).toBeVisible();
+  await expect(page.getByText("1 of 2 at your price")).toBeVisible();
   await expect(page.getByText("1 game worth buying now.")).toBeVisible();
   // The nav shows the alert count, not the list size, while alerts exist.
   await expect(page.getByTestId("nav-wishlist")).toContainText("1 price alert");
@@ -773,6 +926,7 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
     .getByLabel("Target price for Helldivers 2", { exact: true })
     .press("Tab");
   await expect(watch.locator('[data-alert-state="WAIT"]')).toBeVisible();
+  await expect(watch.locator(".watch-buy")).toHaveClass(/secondary/);
   await expect(
     page.getByText("Nothing has hit your targets yet."),
   ).toBeVisible();
@@ -783,6 +937,158 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
   await expect(watch.locator('[data-field="target"]')).toContainText("$5.00");
   await expect(page.getByRole("switch")).toHaveCount(0);
 });
+
+test("wishlist loading keeps saved targets and card geometry", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let release = () => undefined as void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/trpc/**getGamePrices**", async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await page.goto("/wishlist", { waitUntil: "domcontentloaded" });
+  const watch = page.locator(".watch-card").filter({
+    has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
+  });
+  let loadingHeight = 0;
+  try {
+    await expect(watch.locator('[data-field="target"]')).toContainText(
+      "$25.00",
+    );
+    await expect(
+      watch.locator('[data-field="target"] .watch-skeleton'),
+    ).toHaveCount(0);
+    await expect(watch.locator(".watch-skeleton-price")).toBeVisible();
+    loadingHeight = await watch.evaluate(
+      (card) => card.getBoundingClientRect().height,
+    );
+  } finally {
+    release();
+  }
+  await expect(watch.locator('[data-alert-state="TARGET_MET"]')).toBeVisible();
+  const loadedHeight = await watch.evaluate(
+    (card) => card.getBoundingClientRect().height,
+  );
+  expect(loadedHeight).toBeLessThanOrEqual(440);
+  expect(Math.abs(loadedHeight - loadingHeight)).toBeLessThanOrEqual(1);
+});
+
+for (const scenario of [
+  "unavailable",
+  "partial",
+  "free",
+  "cached-free",
+] as const) {
+  test(`wishlist handles ${scenario} prices honestly`, async ({ page }) => {
+    const t = initTRPC.create({ transformer: SuperJSON });
+    const router = t.router({
+      backlog: t.router({
+        // The navbar's unread-news check is batched with price requests.
+        getCollectionFeed: t.procedure
+          .input(z.unknown())
+          .query(() => ({ items: [], unavailable: [] })),
+        getGamePrices: t.procedure
+          .input(z.object({ steamAppId: z.number() }))
+          .query(({ input }) => ({
+            prices:
+              scenario === "unavailable" ||
+              (scenario === "partial" && input.steamAppId === 1145360)
+                ? null
+                : scenario === "partial"
+                  ? fixturePrices(input.steamAppId)
+                  : {
+                      ...fixturePrices(input.steamAppId),
+                      currentPrice: 0,
+                      historicalLow: null,
+                      historicalLowSource: null,
+                      source: scenario === "free" ? "steam" : "catalog",
+                      deals: fixturePrices(input.steamAppId).deals.map(
+                        (deal) => ({
+                          ...deal,
+                          price: 0,
+                        }),
+                      ),
+                    },
+          })),
+      }),
+    });
+    await page.route("**/api/trpc/**getGamePrices**", async (route) => {
+      const request = route.request();
+      const response = await fetchRequestHandler({
+        endpoint: "/api/trpc",
+        router,
+        createContext: () => ({}),
+        req: new Request(request.url(), {
+          headers: await request.allHeaders(),
+        }),
+      });
+      await route.fulfill({
+        status: response.status,
+        headers: Object.fromEntries(response.headers),
+        body: await response.text(),
+      });
+    });
+    await page.goto("/wishlist");
+    const cards = page.locator(".watch-card");
+    if (scenario === "unavailable" || scenario === "partial") {
+      await expect(
+        page.getByText(
+          scenario === "unavailable"
+            ? "Prices unavailable"
+            : "1 at your price · 1 unchecked",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      const unchecked =
+        scenario === "unavailable"
+          ? cards.first()
+          : cards.filter({
+              has: page.getByRole("heading", { name: "Hades", exact: true }),
+            });
+      await expect(
+        unchecked.getByText("History unavailable", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        unchecked.getByText("Couldn’t check", { exact: true }),
+      ).toBeVisible();
+      await expect(unchecked.locator(".watch-current-price")).toHaveText("—");
+      await expect(
+        unchecked.locator('[data-alert-state="UNKNOWN"]'),
+      ).toBeVisible();
+    } else {
+      const watch = cards.filter({
+        has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
+      });
+      await expect(watch.locator(".watch-current-price")).toHaveText("Free");
+      await expect(watch.locator('[data-field="target"]')).toContainText(
+        "$25.00",
+      );
+      if (scenario === "free") {
+        await expect(
+          watch.getByText("Free right now; nothing to wait for"),
+        ).toBeVisible();
+        await expect(
+          watch.getByRole("link", { name: "Get it free at Steam" }),
+        ).toBeVisible();
+        await expect(watch.locator(".watch-buy")).not.toHaveClass(/secondary/);
+        await expect(watch.locator('[data-field="target"]')).toBeHidden();
+        await expect(
+          watch.locator('.price-track [data-mark="target"]'),
+        ).toHaveCount(0);
+      } else {
+        await expect(
+          watch.getByText("Previously free; check the store", { exact: true }),
+        ).toBeVisible();
+        await expect(
+          watch.getByRole("link", { name: "Check price at Steam" }),
+        ).toBeVisible();
+        await expect(watch.locator(".watch-buy")).toHaveClass(/secondary/);
+      }
+    }
+  });
+}
 
 const sessionCookie = {
   name: "better-auth.session_token",
@@ -1201,11 +1507,9 @@ test("saved offers during a store outage are labelled and never promise savings"
   await expect(
     card.getByRole("link", { name: /Check price at/ }),
   ).toBeVisible();
-  // Saved offers keep the Steam slot but never claim a saving.
-  await expect(card.locator(".steam-line")).toHaveText(
-    /compare once prices are live/,
-  );
-  await expect(card.locator(".steam-line")).not.toContainText("save");
+  // Saved offers stay compact and never claim a live Steam comparison.
+  await expect(card).toHaveClass("deal-row");
+  await expect(card.locator(".steam-line")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Load more deals" }),
   ).toHaveCount(0);
@@ -1338,6 +1642,9 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
   const glance = page.getByRole("region", { name: "Patch at a glance" });
   await expect(glance.locator(".patch-legend")).toContainText("1 nerf change");
   await expect(glance.locator(".patch-legend")).toContainText("2 buff changes");
+  await expect(glance.locator(".glance-caption")).toContainText(
+    "sorted automatically from the notes",
+  );
   await expect(page.locator("#change-0-0")).toBeVisible();
   await expect(
     page.getByRole("tab", { name: "Full patch notes" }),
@@ -1388,6 +1695,39 @@ test("patch notes reader shows the overview, opens changes and adds an AI summar
     ),
   ).toBeVisible();
   await expect(page.getByText("Sorted by AI summary")).toBeVisible();
+});
+
+test("patch reader shows compact Deadlock values and a chip for every change", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/patch/1422450/1847920302234123");
+  const rows = page.locator(".patch-changes li");
+  await expect(rows).toHaveCount(4);
+  await expect(rows.locator(".change-kind")).toHaveCount(4);
+
+  const scorn = rows.filter({ hasText: "Scorn - Heal" });
+  await expect(scorn.locator(".patch-change-values")).toHaveText("1.2x → 1.3x");
+  await expect(scorn.locator(".patch-change-values")).toBeVisible();
+
+  const sandBlast = rows.filter({ hasText: "Sand Blast" });
+  await expect(sandBlast.locator(".patch-change-values")).toHaveCount(0);
+  await expect(sandBlast.locator(".change-kind")).toHaveText("↻Change");
+
+  const daggers = rows.filter({ hasText: "Radiant Daggers" });
+  await expect(daggers.locator(".patch-change-values")).toHaveText("30m → 25m");
+  await expect(daggers.locator(".patch-change-text")).toContainText(
+    "(moved to T2)",
+  );
+
+  const terrors = rows.filter({ hasText: "Lurking Terrors" });
+  await expect(terrors.locator(".change-kind")).toHaveAttribute(
+    "data-kind",
+    "buff",
+  );
+  await expect(terrors.locator(".patch-change-values")).toHaveText(
+    "2s → 1.75s",
+  );
 });
 
 test("guest quota failures preserve edits for export even after sample metadata changes", async ({

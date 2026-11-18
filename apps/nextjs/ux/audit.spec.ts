@@ -78,6 +78,21 @@ interface Check {
 const pages: PageAudit[] = [];
 const checks: Check[] = [];
 
+/** Console errors not explained by missing store art behind the optimizer. */
+function unexplainedErrors(audit: PageAudit) {
+  const missingArt = audit.failedRequests.filter((request) =>
+    /^404 .*\/_next\/image\?url=https%3A%2F%2Fshared\.akamai\.steamstatic\.com/.test(
+      request,
+    ),
+  ).length;
+  const notFound = audit.consoleErrors.filter((text) =>
+    text.startsWith(
+      "Failed to load resource: the server responded with a status of 404",
+    ),
+  ).length;
+  return audit.consoleErrors.length - Math.min(missingArt, notFound);
+}
+
 /** Collects console errors and failed requests for one page. */
 function watch(page: Page) {
   const consoleErrors: string[] = [];
@@ -309,6 +324,65 @@ async function auditPage(
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   const metrics = await measure(page, viewport === "phone");
+  const pageChecks = await page.evaluate(() => {
+    const visible = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.visibility !== "hidden" &&
+        style.display !== "none"
+      );
+    };
+    const accessibleName = (element: Element) => {
+      const labelledBy = element.getAttribute("aria-labelledby");
+      const referencedName = labelledBy
+        ?.split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ");
+      const name = [
+        element.getAttribute("aria-label"),
+        referencedName,
+        (element as HTMLElement).innerText,
+        element.getAttribute("title"),
+      ].find((value) => value && value.length > 0);
+      return (name ?? "").trim().replace(/\s+/g, " ");
+    };
+    const price = document.querySelector(".watch-current-price, .deal-price");
+    const heading = document.querySelector(".page-heading h1");
+    const backLink = [...document.querySelectorAll("a.back-link")].find(
+      visible,
+    );
+    const backName = backLink ? accessibleName(backLink) : "";
+    return {
+      priceFont: price ? getComputedStyle(price).fontFamily : null,
+      headingFont: heading ? getComputedStyle(heading).fontFamily : null,
+      backVisible: Boolean(backLink),
+      backName,
+    };
+  });
+  // Empty, offline and no-result states have no price to check.
+  if ((route === "/deals" || route === "/wishlist") && pageChecks.priceFont) {
+    const priceFont = pageChecks.priceFont;
+    const headingFont = pageChecks.headingFont ?? "missing .page-heading h1";
+    checks.push({
+      name: `${id}: price uses IBM Plex Mono and page heading uses Barlow Condensed`,
+      pass:
+        priceFont.toLowerCase().includes("plex") &&
+        headingFont.toLowerCase().includes("barlow"),
+      detail: `price font=${priceFont}; heading font=${headingFont}`,
+    });
+  }
+  if (route.startsWith("/game/") || route.startsWith("/patch/")) {
+    checks.push({
+      name: `${id}: detail page shows a named back link`,
+      pass: pageChecks.backVisible && pageChecks.backName.length > 0,
+      detail: pageChecks.backVisible
+        ? `visible back-link name="${pageChecks.backName || "(empty)"}"`
+        : "no visible a.back-link",
+    });
+  }
   const shot = await shoot(page, id);
   pages.push({
     id,
@@ -401,6 +475,11 @@ test("states: empty collection, filters, views, dialogs", async ({
     await settle(page);
     await page.getByRole("button", { name: "Under $15", exact: true }).click();
     await settle(page);
+    // Live store prices can take a few seconds; count them once loaded.
+    await page
+      .getByText("Loading deals…")
+      .waitFor({ state: "hidden", timeout: 20000 })
+      .catch(() => undefined);
     const prices = await page
       .locator("[data-testid=deal-card] .deal-price")
       .allInnerTexts();
@@ -767,7 +846,7 @@ test.afterAll(() => {
     "console errors (non-simulated)": pages
       .filter(
         (audit) =>
-          audit.consoleErrors.length &&
+          unexplainedErrors(audit) > 0 &&
           !/outage|offline|loading/.test(audit.id),
       )
       .map((audit) => audit.id),
@@ -798,6 +877,19 @@ test.afterAll(() => {
       ([name, failing]) =>
         `- ${failing.length ? "❌" : "✅"} **${name}**${failing.length ? `: ${failing.slice(0, 12).join(", ")}${failing.length > 12 ? ` … (+${failing.length - 12})` : ""}` : ""}`,
     ),
+    // Live deals sometimes point at Steam apps with no art: the optimizer
+    // 404s and the browser logs it, while "broken images" checks the
+    // fallback tile. Not a gate, but kept visible.
+    ...(() => {
+      const missingArt = pages
+        .filter(
+          (audit) => unexplainedErrors(audit) < audit.consoleErrors.length,
+        )
+        .map((audit) => audit.id);
+      return missingArt.length
+        ? [`- ℹ️ Missing store art (fallback shown): ${missingArt.join(", ")}`]
+        : [];
+    })(),
     "",
     "## Interaction checks",
     "",

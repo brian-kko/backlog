@@ -75,7 +75,9 @@ export function useWishlistPrices(items: BacklogItem[]) {
   });
   const rows = wishlist.map((item, index) => {
     const query = queries[index];
-    const prices = query?.data?.prices ?? undefined;
+    const prices = query?.isError
+      ? undefined
+      : (query?.data?.prices ?? undefined);
     // Offline queries pause rather than fail; treat them as unavailable.
     const state = priceState(
       prices,
@@ -108,7 +110,9 @@ export function useWishlistPrices(items: BacklogItem[]) {
     alerts: rows.filter(
       (row) =>
         verified(row) &&
-        (row.alert === "ALL_TIME_LOW" || row.alert === "TARGET_MET"),
+        (row.alert === "ALL_TIME_LOW" ||
+          row.alert === "TARGET_MET" ||
+          row.prices?.currentPrice === 0),
     ),
     unchecked: rows.filter(
       (row) => row.state === "unavailable" || row.state === "cached",
@@ -209,7 +213,7 @@ export function targetGap(
   // A free game has nothing to wait for, whatever the target.
   if (prices.currentPrice === 0)
     return cached
-      ? "Previously free; check the store for today’s price"
+      ? "Previously free; check the store"
       : "Free right now; nothing to wait for";
   if (item.targetPrice === undefined)
     return !cached &&
@@ -239,7 +243,7 @@ export function lowLabel(prices: Prices | null | undefined) {
 /**
  * A truthful price track: current best price, the user's target, and the
  * lowest ever (only from live history), placed on a real numeric scale.
- * Renders nothing when there is no current price or nothing to compare.
+ * Renders nothing when there is no current price.
  */
 export function PriceTrack({
   current,
@@ -250,7 +254,7 @@ export function PriceTrack({
   target: number | undefined;
   low: number | null | undefined;
 }) {
-  if (current == null || (target === undefined && low == null)) return null;
+  if (current == null) return null;
   const marks = [
     { key: "low", value: low ?? null, label: "Lowest ever" },
     { key: "target", value: target ?? null, label: "Your target" },

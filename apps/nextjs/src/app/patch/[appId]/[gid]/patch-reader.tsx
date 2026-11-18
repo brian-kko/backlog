@@ -69,7 +69,7 @@ const kinds: Record<ChangeKind, { label: string; icon: string }> = {
   adjusted: { label: "Change", icon: "↻" },
   removed: { label: "Removed", icon: "−" },
   fix: { label: "Fix", icon: "✓" },
-  note: { label: "Note", icon: "•" },
+  note: { label: "Change", icon: "↻" },
 };
 // Fixed, validated order for the proportion bar (see styles: --kind-*).
 const barKinds = ["new", "nerf", "buff", "adjusted", "fix"] as const;
@@ -288,22 +288,27 @@ function AiSummary({
 
 function ChangeText({ text }: { text: string }) {
   // Only compact numeric tokens belong in the optional scanning column.
-  const comparison =
-    /\bfrom\s+([+−-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|[a-z]{1,3})?)\s+to\s+([+−-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|[a-z]{1,3})?)(?![\w%/+−-]|[.,]\d)/i.exec(
-      text,
-    );
-  const before = comparison?.[1];
-  const after = comparison?.[2];
+  const comparison = [
+    ...text.matchAll(
+      /\bfrom\s+((?:(?!\bfrom\b).)+?)\s+to\s+((?:(?!\bfrom\b).)+)/gi,
+    ),
+  ].at(-1);
+  const before = comparison?.[1]?.trim();
+  const after = comparison?.[2]?.replace(/\s*\([^()]*\)\s*$/, "").trim();
+  const numericValue = /^[+−-]?\d+(?:[.,]\d+)?\s?(?:%|s|ms|m|x|hp)?$/i;
   return (
     <>
       <span className="patch-change-text">{text}</span>
-      {before && after && (
-        <span className="patch-change-values" aria-hidden="true">
-          <span>{before}</span>
-          <span> → </span>
-          <span>{after}</span>
-        </span>
-      )}
+      {before &&
+        after &&
+        numericValue.test(before) &&
+        numericValue.test(after) && (
+          <span className="patch-change-values" aria-hidden="true">
+            <span>{before}</span>
+            <span> → </span>
+            <span>{after}</span>
+          </span>
+        )}
     </>
   );
 }
@@ -352,19 +357,12 @@ function FullNotes({
                 <ul className="patch-changes">
                   {subject.changes.map((change, index) => (
                     <li key={index}>
-                      {change.kind === "note" ? (
-                        <span
-                          className="change-kind-blank"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <span className="change-kind" data-kind={change.kind}>
-                          <span aria-hidden="true">
-                            {kinds[change.kind].icon}
-                          </span>
-                          <span>{kinds[change.kind].label}</span>
+                      <span className="change-kind" data-kind={change.kind}>
+                        <span aria-hidden="true">
+                          {kinds[change.kind].icon}
                         </span>
-                      )}
+                        <span>{kinds[change.kind].label}</span>
+                      </span>
                       <ChangeText text={change.text} />
                     </li>
                   ))}
@@ -535,7 +533,8 @@ export function PatchReader({
           return changes ? (
             <p className="glance-caption">
               {changes} {changes === 1 ? "change" : "changes"} across {items}{" "}
-              {items === 1 ? "item" : "items"}
+              {items === 1 ? "item" : "items"}, sorted automatically from the
+              notes
             </p>
           ) : null;
         })()}

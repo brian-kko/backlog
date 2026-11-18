@@ -115,41 +115,29 @@ or a fix lands, so a fresh context can resume without the conversation.
 - The history-aware `BackLink` ("Back to Updates") is used on game and patch
   pages.
 - "Dashboard" is renamed "Home".
+- Wishlist (astra 2 + 5, Opus 3): "Prices unavailable", "History unavailable",
+  saved targets visible while loading, compact cards (merged from `codex/wishlist`).
+- PR 7 (`feat/ui-council-2`) is merged to main. `feat/ui-council-5` holds the
+  wishlist work and still needs its own PR.
+- Round-5 workers (deals, updates, mastheads, patch-classifier,
+  audit-additions) are merged into `feat/ui-council-5`:
+  - deals: the featured deal leads with the Steam saving; unmatched editions
+    are compact rows; free CTAs read "Get it free at"; the phone ribbon is
+    an inline badge.
+  - updates: counts follow the tab and say "in 30 days"; patch rows show
+    nerf/buff counts. The API computes `patchCounts`, so the full notes
+    never reach the client.
+  - mastheads: the page word fits and fades; the art starts at 1024px; the
+    Home and Library nits are done.
+  - patch reader: the last from/to match is used; values must be numeric;
+    "buildup" counts as costly; every row has a chip; the glance caption
+    says "sorted automatically".
+  - audit: asserts the fonts render and that detail pages have a back link.
+- Deadlock "Free on Steam" (nit) is **won't fix**: Steam's appdetails
+  reports `is_free: false` (invite-only), so the honest "No store is listing
+  a price" stays.
 
-**Still open (round-4 blocking fixes not yet done)**
+**Next:** round-5 audit + reviews (astra and Opus), then a PR for
+`feat/ui-council-5`.
 
-- **Wishlist** (astra 2 + 5, Opus 3): "Prices unavailable" instead of
-  "0 of 2"; "History unavailable"; saved targets visible while loading; cards
-  ≤ 440 px on phones; no "Check prices now" while offline; source line without
-  an ISO date. _A worker was running when this was written:
-  branch `codex/wishlist`._
-- **Deals** (Opus 2):
-  - billboard eyebrow "Biggest saving vs Steam" and bigger saving numbers;
-  - unmatched editions shown as compact rows (desktop page ≤ 3600 px tall,
-    phone ≤ 5200 px);
-  - free CTA "Get it free at {store}";
-  - on phones, the "Beats Steam" ribbon as an inline badge.
-- **Updates** (Opus 4):
-  - chip and rail counts follow the active tab, labelled "in 30 days", with
-    the missing space fixed;
-  - a nerf/buff summary on patch rows via `summarizePatch`.
-- **Mastheads** (Opus 5):
-  - fit the page word inside the art region, faded rather than clipped;
-  - fade the top edge of the hero art;
-  - show art from 1024 px, with a 280 px region.
-- **Patch classifier** (Opus 6):
-  - use the last "from X to Y" match;
-  - strip a trailing parenthetical;
-  - treat "buildup" as a costly stat;
-  - every row gets a chip;
-  - a short caption saying the glance is sorted automatically.
-- **Nits**:
-  - library grid `auto-fill minmax(296px,1fr)`;
-  - Home masthead stat;
-  - phone metric rail stacks under 480 px;
-  - empty Home metrics show "—";
-  - a single "Reset filters" name;
-  - Deadlock free-to-play reads "Free on Steam".
-- **Audit additions:**
-  - assert the computed font families of the price and h1;
-  - assert every detail page shows a back control.
+**Still open:** nothing from round 4; see the round-5 reviews.

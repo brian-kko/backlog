@@ -10,6 +10,7 @@
   }
 
   .deal-results .deal-card {
+    position: relative;
     transition: none;
   }
 
@@ -20,6 +21,10 @@
 
   .deal-results .deal-heading {
     min-height: 72px;
+  }
+
+  .deal-heading > .deal-store {
+    margin-top: 4px;
   }
 
   .deal-ribbon {
@@ -44,7 +49,7 @@
     padding-block: 12px;
     border-top: 1px solid var(--border);
     color: var(--muted-foreground);
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .deal-results .deal-ledger {
@@ -128,14 +133,134 @@
     font-size: 13px;
   }
 
+  .deal-featured-eyebrow,
+  .deal-steam-discount {
+    display: none;
+  }
+
+  .deal-editions {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .deal-edition-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .deal-row {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .deal-row-art,
+  .deal-row-art .game-art {
+    width: 120px;
+    height: 56px;
+    border-radius: 4px;
+  }
+
+  .deal-row-heading {
+    min-width: 0;
+  }
+
+  .deal-row .deal-title {
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 22px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .deal-row .deal-title a {
+    display: inline;
+  }
+
+  .deal-row .deal-store {
+    color: var(--muted-foreground);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .deal-row-price {
+    text-align: right;
+  }
+
+  .deal-row-price .price-link {
+    margin: 0;
+    padding: 0;
+  }
+
+  /* The price opens the store, so it needs a full touch target on phones. */
+  @media (pointer: coarse) {
+    .deal-row-price .price-link {
+      display: inline-flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: end;
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
+  .deal-row-price .price-line,
+  .deal-row-price .deal-price-meta {
+    justify-content: end;
+  }
+
+  .deal-results .deal-row .deal-price {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    line-height: 28px;
+  }
+
+  .deal-row .deal-actions {
+    grid-column: 2 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .deal-row .deal-actions .action {
+    width: auto;
+    min-height: 44px;
+    margin: 0;
+  }
+
+  .deal-row .track-toggle {
+    min-width: 0;
+  }
+
+  @media (width >= 1100px) {
+    .deal-row {
+      grid-template-columns: 120px minmax(0, 1fr) auto auto;
+    }
+
+    .deal-row .deal-actions {
+      grid-column: auto;
+    }
+
+    .deal-row:has(.field-label, .own-prompt) .deal-actions {
+      grid-column: 2 / -1;
+    }
+  }
+
   @media (width >= 768px) {
     /* The same article becomes the billboard; the game is never duplicated. */
     .deal-results .deal-featured {
       --deal-art-ink: #121411;
       --deal-art-text: #f2f4eb;
+      --signal: #c8ed78;
       position: relative;
       display: block;
-      height: 280px;
+      min-height: 280px;
       isolation: isolate;
       background: var(--deal-art-ink);
     }
@@ -170,19 +295,20 @@
 
     .deal-featured .deal-ribbon,
     .deal-featured .deal-store,
-    .deal-featured .deal-price-meta,
     .deal-featured .price-link > .ledger-label {
       display: none;
     }
 
     .deal-results .deal-featured .deal-content {
       position: relative;
-      max-width: 640px;
-      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-width: 740px;
+      min-height: 280px;
       gap: 8px;
       padding: 24px;
       color: var(--deal-art-text);
-      overflow-y: auto;
     }
 
     .deal-featured .deal-heading {
@@ -195,8 +321,8 @@
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
       font-family: var(--font-display);
-      font-size: 40px;
-      line-height: 40px;
+      font-size: 48px;
+      line-height: 48px;
       text-wrap: balance;
     }
 
@@ -217,17 +343,57 @@
 
     .deal-results .deal-featured .deal-price {
       color: var(--deal-art-text);
-      font-size: 32px;
-      line-height: 40px;
+      font-size: 40px;
+      line-height: 48px;
     }
 
     .deal-featured .ledger-label,
-    .deal-featured .ledger-value,
-    .deal-featured .steam-line strong {
+    .deal-featured .ledger-value {
+      color: inherit;
+      font-family: inherit;
+      font-size: inherit;
+    }
+
+    .deal-featured .deal-featured-eyebrow {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--signal);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 20px;
+      text-transform: uppercase;
+    }
+
+    .deal-results .deal-featured .price-link-cue {
+      display: inline;
+      font-family: var(--font-mono);
+      font-size: 40px;
+      font-weight: 500;
+      line-height: 48px;
       color: inherit;
     }
 
-    .deal-featured .deal-comparison-dot {
+    .deal-featured .price-link-cue > span {
+      display: none;
+    }
+
+    .deal-results .deal-featured .steam-line,
+    .deal-featured .deal-comparison {
+      font-size: 15px;
+      line-height: 22px;
+    }
+
+    .deal-featured .steam-line strong {
+      color: var(--signal);
+    }
+
+    /* Steam's percentage is in the comparison line, not repeated below it. */
+    .deal-featured .deal-price-meta {
+      display: none;
+    }
+
+    .deal-featured .deal-comparison-dot,
+    .deal-featured .deal-steam-discount {
       display: inline;
     }
 
@@ -246,12 +412,35 @@
     }
 
     .deal-featured .track-toggle {
-      flex: 1;
-      min-width: 220px;
+      flex: none;
+      min-width: 0;
     }
 
     .deal-featured .track-actions .action {
+      flex: none;
       min-height: 44px;
+    }
+
+    .deal-featured .track-actions .action.secondary {
+      color: var(--deal-art-text);
+      border-color: color-mix(in srgb, var(--deal-art-text) 55%, transparent);
+    }
+
+    .deal-featured .track-actions .action.secondary:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--deal-art-text) 12%, transparent);
+    }
+
+    .deal-featured
+      .track-actions:has(.field-label, .own-prompt)
+      .action.secondary {
+      color: var(--foreground);
+      border-color: var(--control-border);
+    }
+
+    .deal-featured
+      .track-actions:has(.field-label, .own-prompt)
+      .action.secondary:hover:not(:disabled) {
+      background: var(--muted);
     }
 
     /* Tracking forms expand on user action, never when artwork loads. */
@@ -261,6 +450,7 @@
     }
 
     .deal-featured .track-actions:has(.field-label, .own-prompt) {
+      --signal: var(--ring);
       padding: 12px;
       border-radius: 8px;
       background: var(--card);
@@ -280,6 +470,14 @@
 
     .deal-results .deal-grid {
       display: contents;
+    }
+
+    .deal-results .deal-ribbon {
+      position: static;
+      display: inline-flex;
+      height: 24px;
+      margin-bottom: 8px;
+      padding-inline: 6px;
     }
   }
 
@@ -304,15 +502,38 @@
       min-height: 0;
     }
 
-    .deal-results .deal-art:has(.deal-ribbon),
-    .deal-results .deal-card:has(.deal-ribbon) .deal-heading {
-      align-self: start;
-      padding-top: 28px;
+    .deal-results .deal-row {
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 8px 12px;
+      padding: 12px;
     }
 
-    .deal-results .deal-ribbon {
-      top: 0;
-      padding-inline: 6px;
+    .deal-row-price {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 4px 12px;
+    }
+
+    .deal-row .deal-actions {
+      grid-column: 1 / -1;
+    }
+
+    .deal-row .deal-actions .action {
+      padding-inline: 10px;
+      font-size: 13px;
+    }
+
+    .deal-row .deal-actions > .deal-buy {
+      flex: 1;
+      min-width: 0;
+      white-space: normal;
+    }
+
+    .deal-row .track-toggle[data-open] {
+      flex-basis: 100%;
     }
 
     .deal-results .deal-divider {

@@ -625,7 +625,7 @@ function MastheadHero({ appId }: { appId: number }) {
       alt=""
       width={360}
       height={240}
-      sizes="360px"
+      sizes="(min-width: 1200px) 360px, 280px"
       style={{ visibility: source === "hidden" ? "hidden" : undefined }}
       onError={() => setSource(source === "hero" ? "header" : "hidden")}
     />
@@ -690,7 +690,10 @@ export function PageHeading({
   art?: number[];
 }) {
   return (
-    <header className="page-heading">
+    <header
+      className="page-heading"
+      style={{ "--word-chars": title.length } as React.CSSProperties}
+    >
       {art && <CoverMosaic appIds={art} title={title} />}
       <div className="page-heading-content space-y-2">
         {/* null reserves the line while data loads, so nothing shifts. */}

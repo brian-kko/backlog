@@ -362,14 +362,66 @@ function CollectionCounts() {
   );
 }
 
+/** Keep empty purchase totals distinct from recorded zero-dollar purchases. */
+function HomeSummary() {
+  const { items, isLoading } = useBacklog();
+  const hasOwned = items.some((item) => item.isOwned);
+  const prices = useWishlistPrices(hasOwned || isLoading ? [] : items);
+  if (hasOwned) return <BacklogSummary />;
+  return (
+    <section aria-label="At a glance">
+      <dl className="metrics-rail">
+        <div className="metric-card">
+          <dt>Price alerts</dt>
+          <dd>
+            <Link href="/wishlist">
+              {isLoading || prices.pending ? "…" : prices.alerts.length}
+            </Link>
+          </dd>
+          {!!prices.unchecked.length && (
+            <dd className="metric-note essential">
+              {plural(prices.unchecked.length, "game")} couldn’t be checked
+            </dd>
+          )}
+        </div>
+        {(
+          [
+            ["Total spent", "/library"],
+            ["Paid, never played", "/library?status=backlog"],
+          ] as const
+        ).map(([label, href]) => (
+          <div key={label} className="metric-card">
+            <dt>{label}</dt>
+            <dd>
+              <Link href={href}>{isLoading ? "…" : "—"}</Link>
+            </dd>
+            <dd className="metric-note essential">
+              {isLoading ? "\u00a0" : "Add what you paid"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 export default function HomePage() {
   const { items, isLoading } = useBacklog();
   const dashboardArt = isLoading ? [] : items.map((item) => item.steamAppId);
+  const wished = items.filter((item) => !item.isOwned).length;
   return (
-    <main className="page-shell">
+    <main className="page-shell home-page">
       <div className="dash-hero">
         <PageHeading
           title="Home"
+          stat={
+            !isLoading && wished > 0 ? (
+              <>
+                <strong>{wished}</strong> {wished === 1 ? "game" : "games"} on
+                your wishlist
+              </>
+            ) : null
+          }
           actions={<CollectionCounts />}
           art={dashboardArt}
         >
@@ -411,7 +463,7 @@ export default function HomePage() {
         </div>
         <WhatChanged />
       </section>
-      <BacklogSummary />
+      <HomeSummary />
     </main>
   );
 }

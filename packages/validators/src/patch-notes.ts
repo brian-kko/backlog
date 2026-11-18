@@ -69,7 +69,7 @@ const comparativePattern =
   /\b(more|less|higher|lower|shorter|longer|faster|slower|diminish\w*)\b/i;
 // Stats where "more" is worse for the player, so an increase is a nerf.
 const costlyStat =
-  /\b(cool\s?downs?|costs?|recoil|spread|sway|delay|reload(ing)?( time)?|cast time|charge time|drop\s?off|price|heat|wind[- ]?up|spool[- ]?up|respawn time|ammo usage|cycle time|interval|time between|channel(ing)? time|cast delay|startup|recovery( time)?|lockout|wait time|downtime)\b/i;
+  /\b(cool\s?downs?|costs?|recoil|spread|sway|delay|reload(ing)?( time)?|cast time|charge time|drop\s?off|price|heat|wind[- ]?up|spool[- ]?up|build[- ]?up( time)?|respawn time|ammo usage|cycle time|interval|time between|channel(ing)? time|cast delay|startup|recovery( time)?|lockout|wait time|downtime)\b/i;
 // A line that describes new behaviour ("Pommel Hit now also disarms") is a
 // change even without an increase/decrease verb.
 const behaviourPattern = /\b(now|instead|anymore)\b/i;
