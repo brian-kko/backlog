@@ -37,6 +37,7 @@ function WatchCard({
   prices,
   state,
   alert,
+  offline,
   onOwned,
   moveBusy,
 }: {
@@ -44,11 +45,12 @@ function WatchCard({
   prices: Prices | undefined;
   state: PriceState;
   alert: AlertState;
+  offline: boolean;
   onOwned: (item: BacklogItem, prices: Prices | undefined) => void;
   /** Another move is in flight; one at a time keeps the panel coherent. */
   moveBusy: boolean;
 }) {
-  const pending = state === "checking";
+  const pending = !offline && state === "checking";
   const delta = steamDelta(prices);
   const [editing, setEditing] = useState(false);
   const { save } = useBacklog();
@@ -60,18 +62,20 @@ function WatchCard({
   const buyNow =
     verified &&
     (alert === "TARGET_MET" || alert === "ALL_TIME_LOW" || offer?.price === 0);
-  const source = pending
-    ? "Checking prices…"
+  const source = offline
+    ? null
     : offer
       ? `at ${offer.store}`
       : "Couldn’t check";
-  const freshness = offer
-    ? state === "cached"
-      ? `Saved ${offer.checkedOn} · last known price`
-      : state === "steam-only"
-        ? "Other stores couldn’t be checked"
-        : `Checked ${offer.checkedOn} · ${plural(offer.stores, "store")} compared`
-    : "Try checking again in a moment";
+  const freshness = offline
+    ? "Checks when you’re back online"
+    : offer
+      ? state === "cached"
+        ? `Saved ${offer.checkedOn} · last known price`
+        : state === "steam-only"
+          ? "Other stores couldn’t be checked"
+          : `${plural(offer.stores, "store")} compared`
+      : "Try checking again in a moment";
   async function update(change: Partial<BacklogItem>, done: string) {
     setSaving(true);
     try {
@@ -136,7 +140,12 @@ function WatchCard({
                 </>
               ) : (
                 <>
-                  <span title={source}>{source}</span>
+                  {source && (
+                    <>
+                      <span>{source}</span>
+                      {" · "}
+                    </>
+                  )}
                   <span title={freshness}>{freshness}</span>
                 </>
               )}
@@ -148,19 +157,23 @@ function WatchCard({
                 className="watch-skeleton watch-skeleton-comparison"
                 aria-hidden="true"
               />
-            ) : (
+            ) : !offline && offer ? (
               (delta ?? "No live Steam comparison")
-            )}
+            ) : null}
           </p>
         </div>
         <p className="gap-line watch-decision">
           <AlertBadge state={state} alert={alert}>
-            {pending
-              ? "Checking prices…"
-              : (targetGap(item, prices) ??
-                (item.targetPrice === undefined
-                  ? "Try checking prices again."
-                  : "Your target is saved; try checking again."))}
+            {offline
+              ? item.targetPrice === undefined
+                ? "Prices refresh when you reconnect."
+                : `Target ${price(item.targetPrice)} saved`
+              : pending
+                ? "Checking prices…"
+                : (targetGap(item, prices) ??
+                  (item.targetPrice === undefined
+                    ? "Try checking prices again."
+                    : "Your target is saved; try checking again."))}
           </AlertBadge>
         </p>
         <dl className="price-pair watch-secondary">
@@ -237,9 +250,9 @@ function WatchCard({
               <span className="watch-skeleton watch-skeleton-rail" />
               <span className="watch-skeleton watch-skeleton-legend" />
             </div>
-          ) : offer?.price == null ? (
+          ) : offer?.price == null && !offline ? (
             <p className="watch-track-unavailable">Price track unavailable</p>
-          ) : (
+          ) : offer?.price != null ? (
             <PriceTrack
               current={offer.price}
               target={free ? undefined : item.targetPrice}
@@ -249,7 +262,7 @@ function WatchCard({
                   : null
               }
             />
-          )}
+          ) : null}
         </div>
         {editing && !free && (
           <PriceField
@@ -468,7 +481,7 @@ export default function WishlistPage() {
         <div className="summary-row">
           <p className="summary-line" aria-live="polite">
             {offline
-              ? "You’re offline. Prices will update when you reconnect."
+              ? `Your ${rows.length === 1 ? "target is" : "targets are"} saved; prices refresh when you reconnect.`
               : pending
                 ? "Checking prices across stores…"
                 : unchecked.length === rows.length
@@ -485,14 +498,20 @@ export default function WishlistPage() {
                     }`}
           </p>
           <p className="checked-at">
-            {checkedAt > 0 && `Prices checked ${checked} · `}
-            <button
-              className="text-link"
-              disabled={refreshing}
-              onClick={() => void refresh()}
-            >
-              {refreshing ? "Checking…" : "Check prices now"}
-            </button>
+            {offline ? (
+              "Reconnect to check prices"
+            ) : (
+              <>
+                {checkedAt > 0 && `Prices checked ${checked} · `}
+                <button
+                  className="text-link"
+                  disabled={refreshing}
+                  onClick={() => void refresh()}
+                >
+                  {refreshing ? "Checking…" : "Check prices now"}
+                </button>
+              </>
+            )}
           </p>
         </div>
       )}
@@ -618,6 +637,7 @@ export default function WishlistPage() {
                 prices={prices}
                 state={state}
                 alert={alert}
+                offline={offline}
                 moveBusy={moveBusy}
                 onOwned={(owned, ownedPrices) =>
                   void moveToLibrary(owned, ownedPrices)

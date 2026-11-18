@@ -906,6 +906,9 @@ test("wishlist targets persist in guest mode and drive alerts", async ({
     watch.getByText("$5.01 under your target, worth buying"),
   ).toBeVisible();
   await expect(watch.getByText("$5.00 less than Steam")).toBeVisible();
+  await expect(watch.locator(".watch-source")).toHaveText(
+    "at Steam · 1 store compared",
+  );
   await expect(
     watch.getByRole("link", { name: "Buy at Steam" }),
   ).toHaveAttribute("href", /dealID=steam-deal/);
@@ -977,6 +980,7 @@ test("wishlist loading keeps saved targets and card geometry", async ({
 
 for (const scenario of [
   "unavailable",
+  "offline",
   "partial",
   "free",
   "cached-free",
@@ -994,6 +998,7 @@ for (const scenario of [
           .query(({ input }) => ({
             prices:
               scenario === "unavailable" ||
+              scenario === "offline" ||
               (scenario === "partial" && input.steamAppId === 1145360)
                 ? null
                 : scenario === "partial"
@@ -1032,7 +1037,47 @@ for (const scenario of [
     });
     await page.goto("/wishlist");
     const cards = page.locator(".watch-card");
-    if (scenario === "unavailable" || scenario === "partial") {
+    if (scenario === "offline") {
+      // Keep requests deterministic while sending the browser's real connection events.
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "onLine", {
+          configurable: true,
+          get: () => false,
+        });
+        window.dispatchEvent(new Event("offline"));
+      });
+      await expect(page.getByText("Reconnect to check prices")).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Check prices now" }),
+      ).toHaveCount(0);
+      const watch = cards.filter({
+        has: page.getByRole("heading", { name: "Helldivers 2", exact: true }),
+      });
+      await expect(watch.locator(".watch-source")).toHaveText(
+        "Checks when you’re back online",
+      );
+      await expect(watch.locator(".watch-decision")).toHaveText(
+        "Target $25.00 saved",
+      );
+      await expect(watch.locator(".watch-steam-comparison")).toBeEmpty();
+      await expect(watch).not.toContainText(/try checking|Couldn’t check/i);
+      await expect(
+        page.getByText(
+          "Your targets are saved; prices refresh when you reconnect.",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "onLine", {
+          configurable: true,
+          get: () => true,
+        });
+        window.dispatchEvent(new Event("online"));
+      });
+      await expect(
+        page.getByRole("button", { name: "Check prices now" }),
+      ).toBeVisible();
+    } else if (scenario === "unavailable" || scenario === "partial") {
       await expect(
         page.getByText(
           scenario === "unavailable"
@@ -1054,6 +1099,7 @@ for (const scenario of [
         unchecked.getByText("Couldn’t check", { exact: true }),
       ).toBeVisible();
       await expect(unchecked.locator(".watch-current-price")).toHaveText("—");
+      await expect(unchecked.locator(".watch-steam-comparison")).toBeEmpty();
       await expect(
         unchecked.locator('[data-alert-state="UNKNOWN"]'),
       ).toBeVisible();

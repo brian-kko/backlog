@@ -70,13 +70,7 @@
     color: var(--muted-foreground);
     font-size: 13px;
     line-height: 20px;
-  }
-
-  .watch-card .watch-source > span {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
   .watch-card .watch-decision {
