@@ -175,3 +175,9 @@ audit with every gate passing. The astra and Opus round-7 reviews are
 running (packet `council/r7` in the session scratchpad). Next: save the
 reviews as `ux/reviews/*-r7.md`, then dispatch their blocking fixes.
 
+**Codex usage limit hit again (2026-11-17).** The astra round-7 review failed
+before writing anything; Codex resets at 2026-11-18 02:59. To resume, rerun
+astra on `council/r7`:
+`codex exec -m gpt-6-astra -s read-only --skip-git-repo-check -o ../astra-r7.md - < prompt.md`
+from the `r7` folder. Rebuild the packet first if the scratchpad was cleared.
+
