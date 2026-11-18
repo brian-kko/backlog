@@ -916,12 +916,13 @@ test("updates count recent categories and link classified patch summaries", asyn
                   index === 0
                     ? `INCOMING TRANSMISSION FROM SUPER EARTH HIGH COMMAND. ${"Our scientists have a problem to solve. ".repeat(12)}${patchPost}`
                     : index === 1
-                      ? "[list][*]Fixed a crash on startup.[/*][*]Fixed a menu bug.[/*][*]Fixed matchmaking.[/*][*]Adjusted the settings menu.[/*][/list]"
-                      : "Thank you for playing.";
+                      ? "[p]This hotfix aims to resolve one of the main crashes we have seen.[/p][h2]🔧 Fixes[/h2][b]Crash Fixes[/b][list][*]Fixed a crash that would occur when another player joined or left the squad.[/*][*]Fixed a menu bug.[/*][*]Fixed matchmaking.[/*][*]Adjusted the settings menu.[/*][/list][p]🧠 Known Issues[/p][list][*]Crashes can still occur on exit.[/*][/list]"
+                      : `The operation begins tomorrow ${"with reinforcements ".repeat(12)}. 🧠 Known Issues`;
                 const patch = parsePatchNotes(contents, item.title);
                 return {
                   ...item,
                   id: `${id}${index}`,
+                  cleanSummary: index === 2 ? contents : item.cleanSummary,
                   // Match the server's compact digest and counts serialization.
                   digest: digestNews(
                     cleanSteamText(contents),
@@ -991,6 +992,19 @@ test("updates count recent categories and link classified patch summaries", asyn
     }),
   });
   await expect(fixes.locator(".news-patch-count")).toHaveText(["↻ 4 fixes"]);
+  await expect(fixes.locator(".news-lead")).toHaveText(
+    "Fixed a crash that would occur when another player joined or left the squad.",
+  );
+  const fallback = feed.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: "Cyberpunk 2077 Patch 3",
+      exact: true,
+    }),
+  });
+  const fallbackLead = await fallback.locator(".news-lead").innerText();
+  expect(fallbackLead.length).toBeLessThanOrEqual(140);
+  expect(fallbackLead).toMatch(/^The operation begins tomorrow /);
+  expect(fallbackLead).not.toContain("Known Issues");
   await expect(
     feed
       .locator(".news-patch-count")

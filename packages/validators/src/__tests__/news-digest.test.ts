@@ -5,6 +5,21 @@ import { digestNews, stripNewsIntro } from "../news-digest";
 import { parsePatchNotes } from "../patch-notes";
 
 describe("digestNews", () => {
+  it("leads with the real 7.2.1 retrospective crash fix", () => {
+    // Source excerpt reproduced in the round-6 review; keep its wording intact.
+    const contents = `[p]This hotfix aims to resolve one of the main crashes we have seen.[/p]
+      [h2]🔧 Fixes[/h2][p][b]Crash Fixes[/b][/p]
+      [list][*]Fixed a crash that would occur when another player joined or left the squad.[/*][/list]
+      [p]🧠 Known Issues[/p]`;
+    const expected =
+      "Fixed a crash that would occur when another player joined or left the squad.";
+    expect(
+      digestNews(cleanSteamText(contents), "7.2.1", parsePatchNotes(contents))
+        .line,
+    ).toBe(expected);
+    expect(digestNews(expected, "7.2.1").line).toBe(expected);
+  });
+
   it("skips the Helldivers greeting and leads with the first change", () => {
     expect(
       digestNews(
@@ -82,6 +97,68 @@ describe("digestNews", () => {
         "Performance will be improved next month. We have not fixed the menu yet.",
         "Roadmap",
       ).line,
+    ).toBeNull();
+  });
+
+  it.each([
+    "The crash will be fixed next week.",
+    "The crash would be fixed with more time.",
+    "The crash is not fixed yet.",
+    "The crash isn't fixed yet.",
+    "We have not yet fixed the crash.",
+    "Increased damage would help.",
+    "Fixed crashes would improve performance.",
+    "Fixed a crash that will be resolved next week.",
+    "Fixed crashes that would be resolved next week.",
+    "Fixed crashes that would be nice to resolve next week.",
+    "Fixed a crash that would occur, but we have not fixed the menu yet.",
+  ])("rejects proposed or negated actions: %s", (text) => {
+    expect(digestNews(text, "Roadmap").line).toBeNull();
+    const contents = `[h3]Changes[/h3][list][*]${text}[/*][/list]`;
+    expect(
+      digestNews(cleanSteamText(contents), "Roadmap", parsePatchNotes(contents))
+        .line,
+    ).toBeNull();
+  });
+
+  it.each([
+    "Fixed an issue where reloading would crash the game.",
+    "Resolved a bug which would prevent matchmaking.",
+    "Improved stability when players would disconnect.",
+  ])("accepts completed actions with retrospective clauses: %s", (text) => {
+    expect(digestNews(text, "Hotfix").line).toBe(text);
+  });
+
+  it.each([
+    "Crash Fixes",
+    "Bug fixes",
+    "Fix",
+    "Misc",
+    "Miscellaneous",
+    "General",
+  ])(
+    "omits the generic subject %s without changing the source sentence",
+    (subject) => {
+      const contents = `[h3]Changes[/h3]\n[b]${subject}[/b]\n[list][*]Fixed a crash on startup.[/*][/list]`;
+      expect(
+        digestNews(
+          cleanSteamText(contents),
+          "Hotfix",
+          parsePatchNotes(contents),
+        ).line,
+      ).toBe("Fixed a crash on startup.");
+      expect(
+        digestNews(`${subject}: Fixed a crash on startup.`, "Hotfix").line,
+      ).toBe("Fixed a crash on startup.");
+    },
+  );
+
+  it("never leads with unresolved Known Issues bullets", () => {
+    const contents =
+      "[h3]Known Issues[/h3][list][*]Fixed damage values are not applied yet.[/*][/list]";
+    expect(
+      digestNews(cleanSteamText(contents), "Patch", parsePatchNotes(contents))
+        .line,
     ).toBeNull();
   });
 
@@ -163,6 +240,32 @@ describe("digestNews", () => {
 });
 
 describe("stripNewsIntro", () => {
+  it.each([
+    "Crash Fixes: Fixed a crash on startup.",
+    "🧠 Known Issues Some crashes are not fixed yet.",
+    "General: More details follow.",
+    "Weapons: Rifle damage increased.",
+  ])("stops fallback prose before a subsequent section: %s", (heading) => {
+    expect(
+      stripNewsIntro(
+        `Hello, players! The operation begins tomorrow. ${heading}`,
+      ),
+    ).toBe("The operation begins tomorrow.");
+  });
+
+  it("bounds fallback excerpts to 140 characters at a word boundary", () => {
+    const text = `The operation begins tomorrow ${"with reinforcements ".repeat(12)}.`;
+    const excerpt = stripNewsIntro(text);
+    expect(excerpt).toBe(text.slice(0, text.lastIndexOf(" ", 140)));
+    expect(excerpt.length).toBeLessThanOrEqual(140);
+    expect(text.startsWith(excerpt)).toBe(true);
+    expect(stripNewsIntro("x".repeat(141))).toBe("");
+  });
+
+  it("does not restore a heading-only fallback", () => {
+    expect(stripNewsIntro("🧠 Known Issues")).toBe("");
+  });
+
   it.each([
     "INCOMING TRANSMISSION FROM SUPER EARTH HIGH COMMAND.",
     "Attention Helldivers, Captain Morris here…",

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
 import { cn } from "@acme/ui";
-import { isAboutSequel } from "@acme/validators";
+import { isAboutSequel, stripNewsIntro } from "@acme/validators";
 
 import { GameArt } from "~/components/game-ui";
 import { useTRPC } from "~/trpc/react";
@@ -89,7 +89,7 @@ export function NewsCards({
     <div className={compact ? "news-list news-list-compact" : "news-list"}>
       {items.map((item) => {
         const { topics, line } = item.digest;
-        const lead = line ?? item.cleanSummary;
+        const lead = line ?? stripNewsIntro(item.cleanSummary);
         return (
           <article
             key={`${item.steamAppId}-${item.id}`}
