@@ -23,6 +23,12 @@
     }
   }
 
+  /* The server renders the sample collection's counts; an empty collection
+     removes them after hydration, so keep their line from collapsing. */
+  .dash-hero .page-heading > .page-actions {
+    min-height: 1.5rem;
+  }
+
   @media (min-width: 1024px) and (max-width: 1199px) {
     .dash-hero .page-heading > .page-actions {
       width: 100%;

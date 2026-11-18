@@ -1,6 +1,6 @@
 # UI/UX council brief
 
-Two reviewers (Opus and astra, the Codex `gpt-6-astra` model) score Gemuzu
+Two reviewers (Opus and astra, the Codex `gpt-6.2-astra` model) score Gemuzu
 independently against [`RUBRIC.md`](RUBRIC.md), using the latest audit
 (`pnpm --filter @acme/nextjs ux:audit` → `ux/report/`). The work ships only
 when **both** give **≥ 9.5/10**. Be demanding and specific; 9.5 means you'd
@@ -95,10 +95,10 @@ or a fix lands, so a fresh context can resume without the conversation.
 
 1. `pnpm --filter @acme/nextjs ux:audit` (production build, writes `ux/report/`).
 2. Send `ux/report` + this file + `RUBRIC.md` to both reviewers:
-   - astra: `codex exec -m gpt-6-astra -s read-only` with the key screenshots
+   - astra: `codex exec -m gpt-6.2-astra -s read-only` with the key screenshots
      attached via `-i`;
    - Opus: a subagent that reads the files.
-3. Turn blocking fixes into tasks and send them to `gpt-6.1-sol` workers. Each
+3. Turn blocking fixes into tasks and send them to `gpt-6.2-sol` workers. Each
    worker gets its own git worktree, `ux/WORKER.md` plus a task spec, and
    strict file ownership. Merge their branches after review, then run the
    verification commands in `CLAUDE.md`.
@@ -178,6 +178,6 @@ reviews as `ux/reviews/*-r7.md`, then dispatch their blocking fixes.
 **Codex usage limit hit again (2026-11-17).** The astra round-7 review failed
 before writing anything; Codex resets at 2026-11-18 02:59. To resume, rerun
 astra on `council/r7`:
-`codex exec -m gpt-6-astra -s read-only --skip-git-repo-check -o ../astra-r7.md - < prompt.md`
+`codex exec -m gpt-6.2-astra -s read-only --skip-git-repo-check -o ../astra-r7.md - < prompt.md`
 from the `r7` folder. Rebuild the packet first if the scratchpad was cleared.
 

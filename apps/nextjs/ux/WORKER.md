@@ -1,6 +1,6 @@
 # Implementation worker brief
 
-Shared instructions for implementation agents (Codex `gpt-6.1-sol`, or
+Shared instructions for implementation agents (Codex `gpt-6.2-sol`, or
 `gpt-6-luna` for mechanical edits) that work on Gemuzu UI tasks in parallel.
 Each agent gets this file plus a task spec, and runs in its own git worktree.
 
