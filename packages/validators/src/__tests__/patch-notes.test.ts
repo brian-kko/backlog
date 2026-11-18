@@ -286,7 +286,7 @@ describe("Deadlock-style wording", () => {
     ["Scorn - Heal from heroes increased from 1.2x to 1.3x", "buff"],
     [
       "Sand Blast - T2 slow from -24% Slow and -26% Dash distance to -28% for both",
-      "note",
+      "adjusted",
     ],
     ["Radiant Daggers - Range reduced from 30m to 25m (moved to T2)", "nerf"],
     ["Lurking Terrors - Fear buildup time reduced from 2s to 1.75s", "buff"],
@@ -334,6 +334,14 @@ describe("classifyChange context notes", () => {
         "The Bushwacker changes in the previous patch were calculated incorrectly",
       ),
     ).toBe("note");
+  });
+
+  it("counts a value moved from one number to another as a change", () => {
+    expect(
+      classifyChange(
+        "Sand Blast - T2 slow from -24% Slow and -26% Dash distance to -28% for both",
+      ),
+    ).toBe("adjusted");
   });
 
   it("still counts a change that leads with what was done", () => {

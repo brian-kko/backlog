@@ -719,7 +719,8 @@ for (const width of [768, 840, 1024, 1440]) {
         trackLeft: track?.left,
       };
     });
-    expect(bounds.height).toBeLessThanOrEqual(160);
+    // The was-price sits under the price ledger (round 7), adding one line.
+    expect(bounds.height).toBeLessThanOrEqual(180);
     expect(bounds.width).toBe(bounds.gridWidth);
     expect(bounds.ledgerWidth).toBeLessThanOrEqual(300);
     expect(bounds.buyCenter).toBe(bounds.trackCenter);
@@ -1060,7 +1061,8 @@ test("updates count recent categories and link classified patch summaries", asyn
   await expect(detailed.locator(".news-patch-count")).toHaveText([
     "▼ 1 nerf",
     "▲ 2 buffs",
-    "↻ 1 change",
+    // Fixes get their own chip, matching the patch reader's legend.
+    "✓ 1 fix",
   ]);
   await expect(detailed.locator(".news-lead")).toHaveText(
     "AMW-20 APEX: Decreased caliber from 60 to 20",
@@ -1074,7 +1076,10 @@ test("updates count recent categories and link classified patch summaries", asyn
       exact: true,
     }),
   });
-  await expect(fixes.locator(".news-patch-count")).toHaveText(["↻ 4 fixes"]);
+  await expect(fixes.locator(".news-patch-count")).toHaveText([
+    "↻ 1 change",
+    "✓ 3 fixes",
+  ]);
   await expect(fixes.locator(".news-lead")).toHaveText(
     "Fixed a crash that would occur when another player joined or left the squad.",
   );
@@ -1306,6 +1311,8 @@ for (const width of [1024, 1440]) {
 
 test.describe("touch detail back links", () => {
   test.use({ hasTouch: true });
+  // Three widths × three detail pages, each reached from Updates.
+  test.describe.configure({ timeout: 90_000 });
 
   for (const theme of ["dark", "light"]) {
     test(`keep their name, arrow gap and heading clearance in ${theme} theme`, async ({
@@ -1322,8 +1329,12 @@ test.describe("touch detail back links", () => {
           "/game/1422450",
           "/patch/1422450/1847920302234123",
         ]) {
-          // Arrive from Updates each time so the back link names it.
+          // Arrive from Updates each time so the back link names it; wait
+          // until Updates has recorded itself in the in-app history.
           await page.goto("/updates");
+          await page.waitForFunction(() =>
+            sessionStorage.getItem("gemuzu-nav")?.includes('"/updates"'),
+          );
           await page.goto(path);
           const back = page.locator("main .back-link");
           await expect(back).toHaveAccessibleName("Back to Updates");

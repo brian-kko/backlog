@@ -73,6 +73,8 @@ const costlyStat =
 // A line that describes new behaviour ("Pommel Hit now also disarms") is a
 // change even without an increase/decrease verb.
 const behaviourPattern = /\b(now|instead|anymore)\b/i;
+// "slow from -24% … to -28%": a value moved, even with no direction word.
+const fromToPattern = /\bfrom\b[^.!?]*?\bto\s*[-+]?\d/i;
 const adjustedPattern =
   /\b(chang\w*|adjust\w*|rework\w*|updat\w*|tweak\w*|rebalanc\w*)\b/i;
 const contextLabel =
@@ -111,7 +113,8 @@ export function classifyChange(text: string): ChangeKind {
   if (up && down) return "adjusted";
   return adjustedPattern.test(text) ||
     comparativePattern.test(text) ||
-    behaviourPattern.test(text)
+    behaviourPattern.test(text) ||
+    fromToPattern.test(text)
     ? "adjusted"
     : "note";
 }
