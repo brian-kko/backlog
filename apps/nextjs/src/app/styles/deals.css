@@ -304,8 +304,9 @@
       flex-wrap: nowrap;
     }
 
+    /* Wide enough for "Get free ↗", so free and paid rows line up. */
     .deal-row .deal-actions > .deal-buy {
-      min-width: 96px;
+      min-width: 104px;
       padding-inline: 8px;
     }
 
