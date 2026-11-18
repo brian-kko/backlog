@@ -267,3 +267,22 @@ Housekeeping:
 Masthead concepts are still being explored (astra's consult plus a
 brainstorm). The deck stays until a direction is chosen.
 
+**Masthead decisions (owner, 2026-11-18):**
+- **Home:** leave the card deck as it is for now.
+- **Deals:** **Price Radar**. Each dot is a matched deal; its distance from
+  the centre is how far it's below Steam (verified, cent-safe comparisons
+  only); lime marks a dated 12-month low once price history exists; hover or
+  focus names the game. It gets richer as edition matching lands.
+- **Library:** keep the current card system (the tucked hand).
+- **Wishlist:** a **dynamic arrow price chart**. The closest-to-target game's
+  price line (90-day history once price history lands) ends in an arrowhead
+  at today's checked price, pointing in the direction of the latest change,
+  with the target as a dashed line. Before history exists, the arrow runs
+  from the last checked price to now, against the target.
+- **Updates:** undecided (candidates: Patch Calendar, Watchlist Pings,
+  Signal Meter).
+
+Sequencing: the Radar and the arrow chart lean on price history and edition
+matching, so build those data features first (or alongside), then the two
+mastheads.
+
