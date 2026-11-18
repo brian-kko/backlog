@@ -291,7 +291,7 @@ export default function DealsPage() {
           .filter((id): id is number => id != null)}
       >
         Compare prices across {Object.keys(storeNames).length} PC stores, not
-        just Steam. Prices in USD.
+        just Steam.
       </PageHeading>
       <section
         data-reveal
@@ -637,7 +637,7 @@ export default function DealsPage() {
               )}
               {active && (
                 <button className="text-link" onClick={reset}>
-                  Clear filters
+                  Reset filters
                 </button>
               )}
             </div>
