@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQueries } from "@tanstack/react-query";
 
 import type { RouterOutputs } from "@acme/api";
@@ -28,6 +28,15 @@ export type PriceState =
   | "cached"
   | "unavailable";
 export type AlertState = "ALL_TIME_LOW" | "TARGET_MET" | "WAIT" | null;
+
+function subscribeOnline(onChange: () => void) {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
 
 export function priceState(
   prices: Prices | null | undefined,
@@ -64,6 +73,11 @@ export function alertFor(
 /** Prices for each wishlist game. Only fresh prices count as alerts. */
 export function useWishlistPrices(items: BacklogItem[]) {
   const trpc = useTRPC();
+  const online = useSyncExternalStore(
+    subscribeOnline,
+    () => navigator.onLine,
+    () => true,
+  );
   const wishlist = items.filter((item) => !item.isOwned);
   const queries = useQueries({
     queries: wishlist.map((item) =>
@@ -97,7 +111,7 @@ export function useWishlistPrices(items: BacklogItem[]) {
     pending: queries.some(
       (query) => query.isPending && query.fetchStatus !== "paused",
     ),
-    offline: queries.some((query) => query.fetchStatus === "paused"),
+    offline: !online || queries.some((query) => query.fetchStatus === "paused"),
     refreshing: queries.some((query) => query.isFetching),
     /** Most recent check that reached live stores, in ms. */
     checkedAt: Math.max(
@@ -167,7 +181,10 @@ export function bestOffer(prices: Prices | null | undefined) {
     url: deal.url,
     stores: new Set(prices.deals.map((value) => value.storeID)).size,
     state: priceState(prices, false),
-    checkedOn: prices.verifiedAt.slice(0, 10),
+    checkedOn: new Date(prices.verifiedAt).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    }),
   };
 }
 
