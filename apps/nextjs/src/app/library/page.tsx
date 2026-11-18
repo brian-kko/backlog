@@ -691,7 +691,10 @@ export default function LibraryPage() {
           <section
             data-reveal
             aria-label="Owned games"
-            className={cn("card-grid", view === "table" && "sm:hidden")}
+            className={cn(
+              "card-grid library-grid",
+              view === "table" && "sm:hidden",
+            )}
           >
             {owned.map((item) => (
               <LibraryCard key={item.steamAppId} item={item} />
@@ -740,7 +743,7 @@ export default function LibraryPage() {
       )}
       <section
         data-reveal
-        className="space-y-4"
+        className="library-progress space-y-4"
         aria-labelledby="spending-heading"
       >
         <div className="section-heading">
