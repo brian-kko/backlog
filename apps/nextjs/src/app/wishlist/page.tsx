@@ -22,6 +22,7 @@ import {
   SampleTag,
 } from "~/components/game-ui";
 import { GuestBanner } from "~/components/guest-banner";
+import { PriceChart, useWishlistPriceChart } from "~/components/price-chart";
 import {
   AlertBadge,
   bestOffer,
@@ -356,6 +357,7 @@ export default function WishlistPage() {
     refresh,
     refreshing,
   } = useWishlistPrices(items);
+  const chart = useWishlistPriceChart(rows, pending);
   const targetsMet = alerts.filter((row) => row.alert === "TARGET_MET").length;
   const wishlist = [
     ...rows,
@@ -505,10 +507,7 @@ export default function WishlistPage() {
             )
           ) : null
         }
-        deck={wishlist.map(({ item }) => ({
-          steamAppId: item.steamAppId,
-          title: item.title,
-        }))}
+        visual={hasPriceWatches && <PriceChart {...chart} />}
       >
         {following.length && !hasPriceWatches
           ? "Follow updates for Riot games you’ve saved."
