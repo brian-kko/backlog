@@ -2218,39 +2218,54 @@
 }
 
 /* ---------- Ambient background ----------
-   One bounded region under the header (it scrolls away with the page). Only
-   the main field drifts, via transform: painted once, never repainted, so it
-   stays cheap with software rendering. Game and patch pages tint the second
-   field with a colour sampled from the game's artwork. */
+   Spans the whole page and scrolls with it. Only the main field drifts, via
+   transform; everything else is painted once, so it stays cheap with
+   software rendering. Each page colours the tint and aurora fields from its
+   own games' artwork (useAmbientPalette); without art they stay olive. */
+body {
+  position: relative;
+}
 :root {
   --ambient-main: 123 152 72;
   --ambient-tint: 66 102 25;
+  --ambient-aurora: var(--ambient-main);
   --ambient-main-alpha: 0.12;
   --ambient-tint-alpha: 0.06;
-  --ambient-dot: transparent;
+  --ambient-aurora-alpha: 0.07;
+  --ambient-deep-alpha: 0.05;
+  --ambient-dot: rgb(66 80 40 / 0.06);
 }
 :root.dark {
   --ambient-main: 123 152 72;
   --ambient-tint: 201 239 120;
   --ambient-main-alpha: 0.22;
   --ambient-tint-alpha: 0.08;
+  --ambient-aurora-alpha: 0.1;
+  --ambient-deep-alpha: 0.07;
   --ambient-dot: rgb(201 239 120 / 0.045);
 }
 .ambient {
   position: absolute;
-  inset: 0 0 auto;
+  inset: 0;
   z-index: -1;
-  height: 520px;
   overflow: hidden;
   pointer-events: none;
 }
+/* Dots strongest under the header, then a faint texture all the way down,
+   fading out gently rather than stopping at a line. */
 .ambient-grid {
   position: absolute;
-  inset: 0 0 auto;
-  height: 220px;
+  inset: 0;
   background-image: radial-gradient(var(--ambient-dot) 1px, transparent 1.5px);
   background-size: 24px 24px;
-  mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    rgb(0 0 0 / 0.75) 160px,
+    rgb(0 0 0 / 0.3) 520px,
+    rgb(0 0 0 / 0.3) calc(100% - 320px),
+    transparent
+  );
 }
 .ambient-field {
   position: absolute;
@@ -2287,9 +2302,48 @@
     transparent 70%
   );
 }
+/* Aurora: a second, larger glow on the left in the colour of the page's
+   second game, overlapping the main field so the colours blend. */
+.ambient-aurora {
+  top: 120px;
+  left: max(-160px, calc(50% - 820px));
+  width: 680px;
+  height: 460px;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--ambient-aurora) / var(--ambient-aurora-alpha)),
+    transparent 72%
+  );
+}
+/* Still glows further down the page. */
+.ambient-deep {
+  width: 900px;
+  height: 640px;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--ambient-aurora) / var(--ambient-deep-alpha)),
+    transparent 72%
+  );
+}
+.ambient-deep-1 {
+  top: 900px;
+  left: max(-240px, calc(50% - 900px));
+}
+.ambient-deep-2 {
+  top: 1800px;
+  right: max(-240px, calc(50% - 900px));
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--ambient-tint) / var(--ambient-deep-alpha)),
+    transparent 72%
+  );
+}
 /* A sampled artwork colour is a little stronger than the default lime. */
 :root[style*="--ambient-tint"] {
-  --ambient-tint-alpha: 0.08;
+  --ambient-tint-alpha: 0.12;
+}
+:root[style*="--ambient-aurora"] {
+  --ambient-aurora-alpha: 0.12;
 }
 @keyframes ambient-drift {
   to {
@@ -2298,11 +2352,10 @@
 }
 /* Phones: one still field, no dots. */
 @media (max-width: 767px) {
-  .ambient {
-    height: 360px;
-  }
   .ambient-grid,
-  .ambient-tint {
+  .ambient-tint,
+  .ambient-aurora,
+  .ambient-deep {
     display: none;
   }
   .ambient-main {

@@ -16,6 +16,7 @@ import {
 
 import { useTRPC } from "~/trpc/react";
 import { getSteamLaunchUrl, launchGame } from "~/utils/launcher";
+import { useAmbientPalette } from "./ambient";
 import { useBacklog } from "./backlog-provider";
 
 export const money = (value: number | null | undefined) =>
@@ -786,6 +787,70 @@ export function CoverMosaic({
 }
 
 /**
+ * The Library's masthead art: the top games as a hand of cards. The deck
+ * fans out on hover and the card under the pointer lifts, like a card game.
+ * Mouse users can click a card to open the game; keyboard and screen-reader
+ * users get the same games in the grid below, so the deck stays decorative.
+ */
+function CoverDeck({
+  cards,
+  title,
+}: {
+  cards: { steamAppId: number; title: string }[];
+  title: string;
+}) {
+  const [missing, setMissing] = useState<number[]>([]);
+  const reject = (appId: number) =>
+    setMissing((values) =>
+      values.includes(appId) ? values : [...values, appId],
+    );
+  const lead = cards[0];
+  if (!lead) return null;
+  const shown = cards.filter((card) => !missing.includes(card.steamAppId));
+  return (
+    <div className="cover-mosaic is-deck" aria-hidden="true">
+      <MastheadHero key={lead.steamAppId} appId={lead.steamAppId} />
+      <span className="cover-mosaic-word">{title}</span>
+      <div
+        className="cover-deck"
+        style={{ "--count": shown.length } as React.CSSProperties}
+      >
+        {shown.map((card, index) => (
+          <Link
+            key={card.steamAppId}
+            className="deck-card"
+            href={`/game/${card.steamAppId}`}
+            tabIndex={-1}
+            title={card.title}
+            style={{ "--i": index } as React.CSSProperties}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={(image) => {
+                if (
+                  image?.complete &&
+                  (image.naturalWidth === 0 || isFallbackArt(image))
+                )
+                  reject(card.steamAppId);
+              }}
+              src={coverArt(card.steamAppId)}
+              alt=""
+              width={88}
+              height={132}
+              decoding="async"
+              onLoad={(event) => {
+                if (isFallbackArt(event.currentTarget)) reject(card.steamAppId);
+              }}
+              onError={() => reject(card.steamAppId)}
+            />
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Page masthead: a display title, one live stat about this page's data,
  * and (optionally) artwork from the page's own games beside it.
  */
@@ -795,6 +860,7 @@ export function PageHeading({
   actions,
   stat,
   art,
+  deck,
 }: {
   title: string;
   children?: React.ReactNode;
@@ -804,13 +870,21 @@ export function PageHeading({
   stat?: React.ReactNode;
   /** Steam AppIDs whose covers form the masthead collage. */
   art?: number[];
+  /** Show the art as a hand of cards (Library) instead of a collage. */
+  deck?: { steamAppId: number; title: string }[];
 }) {
+  // The page's own games colour its background glow.
+  useAmbientPalette(deck?.map((card) => card.steamAppId) ?? art);
   return (
     <header
       className="page-heading"
       style={{ "--word-chars": title.length } as React.CSSProperties}
     >
-      {art && <CoverMosaic appIds={art} title={title} />}
+      {deck ? (
+        <CoverDeck cards={deck} title={title} />
+      ) : (
+        art && <CoverMosaic appIds={art} title={title} />
+      )}
       <div className="page-heading-content space-y-2">
         {/* null reserves the line while data loads, so nothing shifts. */}
         {stat !== undefined && <p className="page-stat">{stat ?? "\u00a0"}</p>}

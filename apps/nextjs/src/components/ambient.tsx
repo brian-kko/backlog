@@ -2,8 +2,6 @@
 
 import { useEffect } from "react";
 
-import { headerArt } from "./game-ui";
-
 /*
  * The page's living background: a bounded region under the header with one
  * slowly drifting olive field, a still tint field (recoloured from game art on
@@ -41,6 +39,10 @@ export function AmbientBackground() {
       <div className="ambient-grid" />
       <div className="ambient-field ambient-main" />
       <div className="ambient-field ambient-tint" />
+      <div className="ambient-field ambient-aurora" />
+      {/* Still glows further down, so the page isn't flat below the fold. */}
+      <div className="ambient-field ambient-deep ambient-deep-1" />
+      <div className="ambient-field ambient-deep ambient-deep-2" />
     </div>
   );
 }
@@ -85,31 +87,51 @@ function sampleTint(image: HTMLImageElement) {
   return `${tone(r)} ${tone(g)} ${tone(b)}`;
 }
 
+// Same-origin art route, so the canvas is never tainted.
+const sampleSource = (appId: number) => `/api/art/${appId}/header`;
+
+function loadTint(appId: number, onTint: (tint: string) => void) {
+  const image = new Image();
+  image.decoding = "async";
+  image.onload = () => {
+    // The 96×64 resolver plate means "no art": keep the default palette.
+    if (image.naturalWidth === 96 && image.naturalHeight === 64) return;
+    try {
+      const tint = sampleTint(image);
+      if (tint) onTint(tint);
+    } catch {
+      // A tainted canvas just keeps the default palette.
+    }
+  };
+  image.src = sampleSource(appId);
+}
+
 /**
- * Tints the ambient background with a game's own artwork while the page is
- * open (Steam's CDN allows cross-origin reads, so the canvas stays clean).
+ * Colours the ambient background from the page's own games: the first game
+ * tints the right-hand glow, the second the aurora on the left. Pages without
+ * games (or art) keep the olive palette.
  */
-export function useAmbientTint(steamAppId: number | undefined) {
+export function useAmbientPalette(appIds: readonly number[] | undefined) {
+  const first = appIds?.[0];
+  const second = appIds?.[1];
   useEffect(() => {
-    if (!steamAppId) return;
+    if (!first) return;
     const root = document.documentElement;
     let cancelled = false;
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.decoding = "async";
-    image.onload = () => {
-      if (cancelled) return;
-      try {
-        const tint = sampleTint(image);
-        if (tint) root.style.setProperty("--ambient-tint", tint);
-      } catch {
-        // A tainted canvas just keeps the default palette.
-      }
+    const set = (name: string) => (tint: string) => {
+      if (!cancelled) root.style.setProperty(name, tint);
     };
-    image.src = headerArt(steamAppId);
+    loadTint(first, set("--ambient-tint"));
+    if (second) loadTint(second, set("--ambient-aurora"));
     return () => {
       cancelled = true;
       root.style.removeProperty("--ambient-tint");
+      root.style.removeProperty("--ambient-aurora");
     };
-  }, [steamAppId]);
+  }, [first, second]);
+}
+
+/** Tints the ambient background with one game's artwork (game pages). */
+export function useAmbientTint(steamAppId: number | undefined) {
+  useAmbientPalette(steamAppId ? [steamAppId] : undefined);
 }

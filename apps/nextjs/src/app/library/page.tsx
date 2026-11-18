@@ -502,6 +502,22 @@ function readStatus(): Filter {
     : "all";
 }
 
+// Playing first, then the backlog, then finished games: the hand you'd play.
+const deckRank = (status?: string | null) =>
+  status === "playing" ? 0 : status === "completed" ? 2 : 1;
+function deckGames(
+  items: {
+    steamAppId: number;
+    title: string;
+    completionStatus?: string | null;
+  }[],
+) {
+  return [...items]
+    .sort((a, b) => deckRank(a.completionStatus) - deckRank(b.completionStatus))
+    .slice(0, 7)
+    .map(({ steamAppId, title }) => ({ steamAppId, title }));
+}
+
 export default function LibraryPage() {
   const { items, isLoading, error } = useBacklog();
   const [filter, setFilter] = useState<Filter>("all");
@@ -592,7 +608,7 @@ export default function LibraryPage() {
             </>
           ) : null
         }
-        art={ownedAll.map((item) => item.steamAppId)}
+        deck={deckGames(ownedAll)}
       >
         Every game you own, how far you’ve got, and what you paid at each store.
       </PageHeading>
