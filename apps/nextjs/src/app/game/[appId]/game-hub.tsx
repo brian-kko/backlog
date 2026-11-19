@@ -469,27 +469,6 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           )}
         </div>
       </section>
-      {combinedOutage && (
-        <aside className="offline-panel" aria-live="polite">
-          <p>
-            Steam isn’t responding. Prices, details and news will load when it
-            does.
-          </p>
-          <button
-            className="action secondary"
-            disabled={retrying}
-            onClick={() =>
-              void Promise.all([
-                game.refetch(),
-                priceCheck.refetch(),
-                feedCheck.refetch(),
-              ])
-            }
-          >
-            {retrying ? "Trying again…" : "Try again"}
-          </button>
-        </aside>
-      )}
       <section
         data-reveal
         className="hub-grid lg:grid-rows-[auto_1fr] lg:[&>.backlog-editor]:col-start-2 lg:[&>.backlog-editor]:row-span-2 lg:[&>.backlog-editor]:row-start-1"
@@ -646,6 +625,28 @@ export function GameHub({ steamAppId }: { steamAppId: number }) {
           )}
         </section>
       </section>
+      {/* Below the grid, so it appearing after load moves nothing above it. */}
+      {combinedOutage && (
+        <aside className="offline-panel" aria-live="polite">
+          <p>
+            Steam isn’t responding. Prices, details and news will load when it
+            does.
+          </p>
+          <button
+            className="action secondary"
+            disabled={retrying}
+            onClick={() =>
+              void Promise.all([
+                game.refetch(),
+                priceCheck.refetch(),
+                feedCheck.refetch(),
+              ])
+            }
+          >
+            {retrying ? "Trying again…" : "Try again"}
+          </button>
+        </aside>
+      )}
     </main>
   );
 }

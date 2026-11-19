@@ -34,6 +34,7 @@
   @media (min-width: 1024px) {
     .dash-hero .page-heading {
       min-height: 216px;
+      padding-block: 24px;
     }
   }
 
