@@ -5,7 +5,7 @@ import { useState } from "react";
 import { compareToSteam, toCents } from "@acme/validators";
 
 import type { DealGroup } from "./deal-cards";
-import { steamGap } from "./deal-cards";
+import { steamBaseline, steamGap } from "./deal-cards";
 import { price, storeName } from "./game-ui";
 
 export function getRadarComparisons(
@@ -15,7 +15,7 @@ export function getRadarComparisons(
   // DealCards places its featured direct match before the other results.
   const featured = groups.reduce<{ group: DealGroup; gap: number } | undefined>(
     (leader, group) => {
-      const gap = steamGap(group.deal, steamPrices[group.deal.steamAppId ?? 0]);
+      const gap = steamGap(group.deal, steamBaseline(group.deal, steamPrices));
       return gap != null && gap > (leader?.gap ?? 0) ? { group, gap } : leader;
     },
     undefined,

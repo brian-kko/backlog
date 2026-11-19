@@ -732,9 +732,17 @@
     background: var(--signal);
   }
   /* A strip aligned to the page column, not loose text. */
+  /* A floating notice, so going offline never pushes the page down (it is
+     only known after hydration). Above the phone tab bar on small screens. */
   .offline-banner {
-    @apply mx-auto mt-3 w-[calc(100%-2rem)] max-w-[1168px] rounded-md border px-4 py-2.5 text-sm sm:w-[calc(100%-3rem)];
+    @apply bg-card fixed left-1/2 z-40 w-[min(560px,calc(100%-2rem))] -translate-x-1/2 rounded-md border px-4 py-2.5 text-sm shadow-lg;
+    bottom: 24px;
     border-left: 3px solid var(--warn);
+  }
+  @media (max-width: 639px) {
+    .offline-banner {
+      bottom: calc(68px + env(safe-area-inset-bottom));
+    }
   }
   .purchase-line {
     @apply text-muted-foreground flex items-center justify-between gap-3 text-sm;

@@ -23,10 +23,18 @@
     }
   }
 
-  /* The server renders the sample collection's counts; an empty collection
-     removes them after hydration, so keep their line from collapsing. */
-  .dash-hero .page-heading > .page-actions {
+  /* The server renders Home with the sample collection (deck and counts);
+     a visitor's empty collection loads after hydration. Keep Home's
+     masthead the same size either way, so nothing below it moves. */
+  .dash-hero .page-heading > .page-actions,
+  .dash-hero .page-heading > .page-actions:empty {
+    display: block;
     min-height: 1.5rem;
+  }
+  @media (min-width: 1024px) {
+    .dash-hero .page-heading {
+      min-height: 216px;
+    }
   }
 
   @media (min-width: 1024px) and (max-width: 1199px) {

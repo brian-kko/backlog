@@ -621,12 +621,17 @@ test("empty mastheads collapse to their title blocks", async ({ page }) => {
   for (const [path, emptyCopy] of [
     ["/wishlist", /^Your wishlist is empty/],
     ["/updates", /^Add games to your library or wishlist/],
-    ["/", /^Nothing in progress/],
   ] as const) {
     await page.goto(path);
     await expect(page.getByText(emptyCopy)).toBeVisible();
     await expectCompactMasthead();
   }
+  // Home deliberately keeps its masthead size when empty: the server renders
+  // the sample collection, and collapsing after hydration moved the whole
+  // page (layout shift 0.37). It shows no deck, just reserved space.
+  await page.goto("/");
+  await expect(page.getByText(/^Nothing in progress/)).toBeVisible();
+  await expect(masthead.locator(".cover-deck")).toHaveCount(0);
 
   await page.goto("/deals?q=deckless");
   await expect(
@@ -2913,13 +2918,16 @@ test("Home and Library share purchase-price coverage and count a recorded zero",
     [1245620, "12.34"],
   ] as const) {
     await page.goto(`/game/${appId}`);
-    // Wait for the saved collection to load: the field remounts with it, and
-    // typing earlier would be lost.
-    await expect(page.getByText("Saved in this browser")).toBeVisible();
+    // The field remounts when the saved collection loads, which can swallow
+    // input typed just before it; retry the edit until it saves.
     const field = page.getByLabel("Amount paid", { exact: true });
-    await field.fill(amount);
-    await field.press("Tab");
-    await expect(page.locator(".save-feedback")).toHaveText("Saved.");
+    await expect(async () => {
+      await field.fill(amount);
+      await field.press("Tab");
+      await expect(page.locator(".save-feedback")).toHaveText("Saved.", {
+        timeout: 2000,
+      });
+    }).toPass({ timeout: 15_000 });
   }
   await page.getByTestId("nav-library").click();
   await expect(page.getByText(/Got it free/)).toBeVisible();

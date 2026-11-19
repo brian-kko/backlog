@@ -531,9 +531,12 @@
 
     /* Narrow art (a 460×215 header) keeps its size on the right instead of
        being blown up, soft, behind the title. */
-    .deal-featured.art-inset > .deal-art {
-      inset: 0 0 0 auto;
-      width: min(460px, 45%);
+    /* Narrow art sits at its own size on the right. The art box keeps its
+       full size, so deciding this after the image loads moves nothing
+       (layout shift); only the image's fit changes. */
+    .deal-featured.art-inset > .deal-art .game-art {
+      object-fit: contain;
+      object-position: right center;
     }
 
     .deal-featured > .deal-art::after {

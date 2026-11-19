@@ -347,6 +347,21 @@ export default function DealsPage() {
     for (const id of steamBatches[index] ?? []) steamRequests.set(id, request);
   });
   const comparing = steamChecks.some((check) => check.isFetching);
+  // Hold the first render of a result set briefly for its Steam comparison,
+  // so ranking and the edition split don't move rows after they appear
+  // (layout shift). A slow Steam still gets offers on screen after 4s.
+  const [comparisonGraceOver, setComparisonGraceOver] = useState(false);
+  const resultsReady = !deals.isPending && loaded.length > 0;
+  useEffect(() => {
+    if (!resultsReady) return;
+    const timer = window.setTimeout(() => setComparisonGraceOver(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [resultsReady]);
+  const awaitingSteam =
+    bestDeals &&
+    comparing &&
+    !comparisonGraceOver &&
+    Object.keys(steamPrices).length === 0;
   const ranked = bestDeals ? rankDeals(candidates, steamPrices) : candidates;
   const limit = filters.pageSize * displayBatches;
   const groups = widePool ? ranked.slice(0, limit) : ranked;
@@ -718,8 +733,10 @@ export default function DealsPage() {
             </button>
           </p>
         ) : null}
-        {offline && !groups.length ? null : deals.isPending ? (
-          <p role="status">Loading deals…</p>
+        {offline && !groups.length ? null : deals.isPending || awaitingSteam ? (
+          <p role="status">
+            {deals.isPending ? "Loading deals…" : "Comparing with Steam…"}
+          </p>
         ) : deals.isError && !groups.length ? (
           <p role="alert">
             Couldn’t load deals.{" "}

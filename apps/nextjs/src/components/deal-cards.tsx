@@ -196,8 +196,21 @@ function TrackToggle({
 }
 
 /** Steam's own price minus this offer, in cents (positive = offer is cheaper). */
+/**
+ * Steam's price for this offer: the game's live Steam price, or, for an
+ * edition matched to its own Steam package, that package's price.
+ */
+export const steamBaseline = (
+  deal: Deal,
+  steamPrices: Record<number, number> | undefined,
+) =>
+  deal.steamAppId != null
+    ? steamPrices?.[deal.steamAppId]
+    : deal.steamMatch?.price;
+
 export function steamGap(deal: Deal, steam?: number) {
-  if (isSaved(deal) || !deal.steamAppId || steam == null) return null;
+  if (isSaved(deal) || (!deal.steamAppId && !deal.steamMatch) || steam == null)
+    return null;
   if (deal.storeId === "1") return 0;
   const comparison = compareToSteam(deal.cheapestPrice, steam);
   if (!comparison) return null;
@@ -213,7 +226,7 @@ export function rankDeals(
   steamPrices: Record<number, number>,
 ) {
   const gap = (group: DealGroup) =>
-    steamGap(group.deal, steamPrices[group.deal.steamAppId ?? 0]);
+    steamGap(group.deal, steamBaseline(group.deal, steamPrices));
   const rank = (group: DealGroup, value: number | null) =>
     value != null ? 0 : group.deal.steamAppId ? 1 : 2;
   return [...groups].sort((a, b) => {
@@ -239,7 +252,7 @@ function SteamUnavailable({ request }: { request?: SteamRequest }) {
           ·{" "}
           <button
             type="button"
-            className="text-link pointer-coarse:min-h-11"
+            className="text-link pointer-coarse:min-h-11 pointer-coarse:min-w-11"
             onClick={request.retry}
           >
             Retry
@@ -267,14 +280,17 @@ function SteamLine({
   );
   // A saved offer cannot support a saving against today's Steam price.
   if (isSaved(deal)) return reason("Steam: compare once prices are live");
-  if (!deal.steamAppId)
+  if (!deal.steamAppId && !deal.steamMatch)
     return reason("Steam comparison unavailable for this edition");
   const gap = steamGap(deal, steam);
   if (gap == null || steam == null)
     return reason(<SteamUnavailable request={request} />);
   return (
     <p className="steam-line">
-      <span className="ledger-label">Steam</span>{" "}
+      {/* A title-matched edition compares with that edition's Steam package. */}
+      <span className="ledger-label">
+        {deal.steamAppId ? "Steam" : "Steam edition"}
+      </span>{" "}
       <span className="ledger-value">
         {price(deal.storeId === "1" ? deal.cheapestPrice : steam)}
       </span>{" "}
@@ -313,10 +329,7 @@ export function DealCards({
   steamOnlyAction?: { count: number; onClick: () => void };
   bestDeals?: boolean;
 }) {
-  const baseline = (group: DealGroup) =>
-    group.deal.steamAppId != null
-      ? steamPrices[group.deal.steamAppId]
-      : undefined;
+  const baseline = (group: DealGroup) => steamBaseline(group.deal, steamPrices);
   const gap = (group: DealGroup) => steamGap(group.deal, baseline(group));
   const request = (group: DealGroup) =>
     steamRequests.get(group.deal.steamAppId ?? 0);
@@ -415,6 +428,8 @@ function DealCard({
   const gap = steamGap(deal, steam);
   return (
     <article
+      // Same anchor as an edition row, so the radar can link either.
+      id={`offer-${encodeURIComponent(deal.id)}`}
       className={cn(
         "game-card deal-card",
         featured && "deal-featured",
