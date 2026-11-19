@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  baseTitle,
   isExactEditionMatch,
   normalizeEditionTitle,
+  normalizeSteamPackageTitle,
   SteamMatchSchema,
 } from "../edition-match";
 
@@ -35,6 +37,67 @@ describe("normalizeEditionTitle", () => {
   });
 });
 
+describe("baseTitle", () => {
+  it.each([
+    "deluxe edition",
+    "gold",
+    "ultimate edition",
+    "definitive edition",
+    "complete",
+    "game of year edition",
+    "goty",
+    "premium edition",
+    "legendary",
+    "standard edition",
+    "digital deluxe edition",
+    "edition",
+  ])("removes the trailing %s label", (label) => {
+    expect(baseTitle(`need for speed heat ${label}`)).toBe(
+      "need for speed heat",
+    );
+  });
+
+  it("preserves words within the base title", () => {
+    expect(baseTitle("ultimate chicken horse deluxe edition")).toBe(
+      "ultimate chicken horse",
+    );
+    expect(baseTitle("ultimate chicken horse")).toBe("ultimate chicken horse");
+  });
+});
+
+describe("normalizeSteamPackageTitle", () => {
+  it("removes a trailing USD price and ignores trademarks", () => {
+    expect(
+      normalizeSteamPackageTitle(
+        "Need for Speed™ Heat Deluxe Edition - $69.99",
+      ),
+    ).toBe("need for speed heat deluxe edition");
+    expect(normalizeSteamPackageTitle("Example® Edition - $1,299.99")).toBe(
+      "example edition",
+    );
+    expect(normalizeSteamPackageTitle("Example - $5.00 Bonus Edition")).toBe(
+      "example 5 00 bonus edition",
+    );
+  });
+
+  it.each(["Deluxe", "Standard", "Ultimate"])(
+    "matches a %s package only to the same edition",
+    (edition) => {
+      const packageTitle = normalizeSteamPackageTitle(
+        `Need for Speed™ Heat ${edition} Edition - $69.99`,
+      );
+      expect(
+        ["Deluxe", "Standard", "Ultimate"].filter(
+          (offerEdition) =>
+            normalizeEditionTitle(
+              `Need for Speed Heat ${offerEdition} Edition`,
+            ) === packageTitle,
+        ),
+      ).toEqual([edition]);
+    },
+  );
+});
+
 describe("isExactEditionMatch", () => {
   it("accepts the same edition with different punctuation and case", () => {
     expect(
@@ -64,6 +127,16 @@ describe("SteamMatchSchema", () => {
         matchedBy: "title",
       }).success,
     ).toBe(true);
+  });
+
+  it("preserves the package identity and USD price of an edition match", () => {
+    const match = {
+      steamAppId: 1222680,
+      packageId: 432906,
+      price: 69.99,
+      matchedBy: "edition-package",
+    };
+    expect(SteamMatchSchema.parse(match)).toEqual(match);
   });
 
   it("rejects an unknown price or match method", () => {
