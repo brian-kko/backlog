@@ -280,7 +280,7 @@ function WatchCard({
             )
           )}
           <button
-            className={`action secondary${!offer && !pending ? "col-span-full" : ""}`}
+            className={`action secondary${!offer && !pending ? " col-span-full" : ""}`}
             disabled={saving || moveBusy}
             data-own-button={item.steamAppId}
             onClick={() => onOwned(item, verified ? prices : undefined)}
